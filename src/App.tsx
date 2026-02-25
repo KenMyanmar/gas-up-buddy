@@ -44,7 +44,8 @@ const AppRoutes = () => (
       {/* Public-only (redirect if logged in) */}
       <Route path="/" element={<PublicOnlyRoute><Welcome /></PublicOnlyRoute>} />
       <Route path="/onboarding/phone" element={<PublicOnlyRoute><PhoneEntry /></PublicOnlyRoute>} />
-      <Route path="/onboarding/otp" element={<PublicOnlyRoute><OtpVerify /></PublicOnlyRoute>} />
+      {/* OTP verify — needs to stay mounted after auth succeeds to complete Edge Function linking */}
+      <Route path="/onboarding/otp" element={<OtpVerify />} />
 
       {/* Post-OTP linking (needs auth but part of onboarding) */}
       <Route path="/onboarding/link-welcome" element={<ProtectedRoute><LinkWelcomeBack /></ProtectedRoute>} />
