@@ -1,23 +1,34 @@
 
 
-# Fix: `toLocal()` in Client Code
+# Fix Bugs 2 and 3: LinkNewCustomer + Township Interface
 
-The Edge Function is fixed. The same broken `toLocal()` exists in `src/lib/phoneUtils.ts` (line 3):
+## Bug 2: LinkNewCustomer sends wrong field name and value
 
-```
-Current:  if (phone.startsWith('+959')) return '0' + phone.slice(4);   // "05119900" ← WRONG
-Fixed:    if (phone.startsWith('+959')) return '09' + phone.slice(4);  // "095119900" ← CORRECT
-```
+The Edge Function expects `{ township: "Hlaing" }` (a name string). The client sends `{ township_id: "uuid-here" }` (a UUID).
 
-## Change
+### Changes in `src/pages/LinkNewCustomer.tsx`:
 
-**File:** `src/lib/phoneUtils.ts` (line 3)
+1. **Line 16**: Rename state from `townshipId` to `townshipName` (tracks the selected name, not UUID)
+2. **Line 19**: Update validation to use `townshipName`
+3. **Line 47**: Change payload from `township_id: townshipId` to `township: townshipName`
+4. **Lines 92-93**: The `<select>` value/onChange use `townshipName`
+5. **Line 101**: `<option value={t.name}>` instead of `value={t.id}` — sends the name string
+6. **Line 102**: Display `{t.name} ({t.zone})` instead of `{t.name}, {t.city}` (Bug 3 fix for display)
 
-Replace `'0' + phone.slice(4)` with `'09' + phone.slice(4)`.
+## Bug 3: Township interface has wrong fields
 
-This affects any client-side code that converts international phone numbers back to local format (e.g., `useCustomerProfile` in `useOrders.ts` which queries `customers` by phone).
+### Changes in `src/hooks/useTownships.ts`:
 
-| File | Change |
-|------|--------|
-| `src/lib/phoneUtils.ts` line 3 | `'0' + phone.slice(4)` → `'09' + phone.slice(4)` |
+Replace `city: string` and `region: string` with `zone: string` and `zone_priority: number` to match the actual database schema (confirmed from network response).
+
+## File Summary
+
+| File | Lines | Change |
+|------|-------|--------|
+| `src/hooks/useTownships.ts` | 7-8 | `city`/`region` → `zone`/`zone_priority` |
+| `src/pages/LinkNewCustomer.tsx` | 16 | `townshipId` → `townshipName` |
+| `src/pages/LinkNewCustomer.tsx` | 19 | validation uses `townshipName` |
+| `src/pages/LinkNewCustomer.tsx` | 47 | `township_id: townshipId` → `township: townshipName` |
+| `src/pages/LinkNewCustomer.tsx` | 92-93 | select value/onChange use `townshipName` |
+| `src/pages/LinkNewCustomer.tsx` | 101-102 | `value={t.name}`, display `{t.name} ({t.zone})` |
 
