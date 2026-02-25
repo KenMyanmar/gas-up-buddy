@@ -1,19 +1,19 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MapPin, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Mock response - will be replaced with Edge Function response
-const mockCandidates = [
-  { id: "c1", full_name: "Daw Myint Aye", address: "No. 42, Pyay Road", township: "Hlaing Township" },
-  { id: "c2", full_name: "Daw Myint Aye", address: "No. 15, Inya Road", township: "Kamayut Township" },
-  { id: "c3", full_name: "Ma Myint", address: "No. 88, U Wisara Road", township: "Dagon Township" },
-];
-
 const LinkSelectAddress = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const candidates = (location.state?.candidates as { id: string; full_name: string; address: string; township: string }[]) || [];
   const [selected, setSelected] = useState<string[]>([]);
+
+  if (candidates.length === 0) {
+    navigate("/onboarding/link-new");
+    return null;
+  }
 
   const toggle = (id: string) => {
     setSelected((prev) =>
@@ -35,7 +35,7 @@ const LinkSelectAddress = () => {
       </p>
 
       <div className="flex-1 space-y-3">
-        {mockCandidates.map((c) => {
+        {candidates.map((c) => {
           const isSelected = selected.includes(c.id);
           return (
             <button

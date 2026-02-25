@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { toLocal } from "@/lib/phoneUtils";
 
 const OtpVerify = () => {
   const navigate = useNavigate();
@@ -30,10 +31,27 @@ const OtpVerify = () => {
     try {
       const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: "sms" });
       if (error) throw error;
-      // After successful OTP, navigate to linking flow
-      // TODO: When Edge Function is live, call link-customer-account here and route based on response
-      // For now, navigate to new customer screen as default
-      navigate("/onboarding/link-new");
+
+      // Query customers table using local format
+      const localPhone = toLocal(phone);
+      const { data: customers, error: queryError } = await supabase
+        .from("customers")
+        .select("id, full_name, address, township")
+        .eq("phone", localPhone);
+
+      if (queryError) {
+        console.error("Customer lookup failed:", queryError);
+        navigate("/onboarding/link-new");
+        return;
+      }
+
+      if (!customers || customers.length === 0) {
+        navigate("/onboarding/link-new");
+      } else if (customers.length === 1) {
+        navigate("/onboarding/link-welcome", { state: { customer: customers[0] } });
+      } else {
+        navigate("/onboarding/link-select", { state: { candidates: customers } });
+      }
     } catch (err: any) {
       toast({
         title: "Verification failed",
@@ -55,7 +73,6 @@ const OtpVerify = () => {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when all filled
     if (value && index === 5 && newOtp.every((d) => d !== "")) {
       verifyOtp(newOtp.join(""));
     }
@@ -78,7 +95,6 @@ const OtpVerify = () => {
     }
   };
 
-  // Mask phone for display
   const maskedPhone = phone
     ? phone.replace(/^(\+95)(\d{2})(\d+)(\d{3})$/, "$1 $2*** *** $4")
     : "your number";

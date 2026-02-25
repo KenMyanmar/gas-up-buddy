@@ -1,16 +1,16 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MapPin, CheckCircle } from "lucide-react";
 
-// Mock response - will be replaced with Edge Function response
-const mockLinkedCustomer = {
-  full_name: "Daw Myint Aye",
-  address: "No. 42, Pyay Road",
-  township: "Hlaing Township, Yangon",
-};
-
 const LinkWelcomeBack = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const customer = location.state?.customer as { id: string; full_name: string; address: string; township: string } | undefined;
+
+  if (!customer) {
+    navigate("/onboarding/link-new");
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-6">
@@ -20,15 +20,15 @@ const LinkWelcomeBack = () => {
         </div>
 
         <h1 className="mb-2 text-2xl font-bold text-foreground">
-          Welcome back, {mockLinkedCustomer.full_name}!
+          Welcome back, {customer.full_name}!
         </h1>
 
         <div className="mt-6 w-full rounded-xl border-2 border-action bg-action-light p-4">
           <div className="flex items-start gap-3">
             <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-action" />
             <div className="text-left">
-              <p className="font-semibold text-foreground">{mockLinkedCustomer.address}</p>
-              <p className="text-sm text-muted-foreground">{mockLinkedCustomer.township}</p>
+              <p className="font-semibold text-foreground">{customer.address}</p>
+              <p className="text-sm text-muted-foreground">{customer.township}</p>
             </div>
           </div>
         </div>

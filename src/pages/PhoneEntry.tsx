@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { toInternational } from "@/lib/phoneUtils";
 
 const PhoneEntry = () => {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ const PhoneEntry = () => {
     setLoading(true);
 
     // Format to international: 09xxx -> +959xxx
-    const intlPhone = "+95" + phone.slice(1);
+    const intlPhone = toInternational(phone);
 
     try {
       const { error } = await supabase.auth.signInWithOtp({ phone: intlPhone });
