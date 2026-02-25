@@ -32,7 +32,20 @@ const OtpVerify = () => {
       const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: "sms" });
       if (error) throw error;
 
-      // Call Edge Function for customer linking
+      // Wait for session to be established before calling Edge Function
+      let { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const { data: retry } = await supabase.auth.getSession();
+        if (!retry.session) {
+          toast({ title: "Auth error", description: "Session not established. Please try again.", variant: "destructive" });
+          setVerifying(false);
+          return;
+        }
+      }
+
+      // Now call the Edge Function — session token will be attached automatically
       const response = await supabase.functions.invoke('link-customer-account');
       const result = response.data;
 
