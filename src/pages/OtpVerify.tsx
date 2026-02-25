@@ -1,11 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const OtpVerify = () => {
   const navigate = useNavigate();
+  const { phone } = useAuth();
+  const { toast } = useToast();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(59);
+  const [verifying, setVerifying] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -14,6 +20,30 @@ const OtpVerify = () => {
       return () => clearTimeout(t);
     }
   }, [timer]);
+
+  const verifyOtp = async (code: string) => {
+    if (!phone) {
+      toast({ title: "Phone number missing", description: "Please go back and enter your number.", variant: "destructive" });
+      return;
+    }
+    setVerifying(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: "sms" });
+      if (error) throw error;
+      // After successful OTP, navigate to linking flow
+      // TODO: When Edge Function is live, call link-customer-account here and route based on response
+      // For now, navigate to new customer screen as default
+      navigate("/onboarding/link-new");
+    } catch (err: any) {
+      toast({
+        title: "Verification failed",
+        description: err?.message || "Invalid code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
@@ -27,7 +57,7 @@ const OtpVerify = () => {
 
     // Auto-submit when all filled
     if (value && index === 5 && newOtp.every((d) => d !== "")) {
-      setTimeout(() => navigate("/home"), 500);
+      verifyOtp(newOtp.join(""));
     }
   };
 
@@ -37,6 +67,22 @@ const OtpVerify = () => {
     }
   };
 
+  const handleResend = async () => {
+    if (!phone) return;
+    try {
+      await supabase.auth.signInWithOtp({ phone });
+      setTimer(59);
+      toast({ title: "Code resent", description: "Check your phone for the new code." });
+    } catch {
+      toast({ title: "Resend failed", variant: "destructive" });
+    }
+  };
+
+  // Mask phone for display
+  const maskedPhone = phone
+    ? phone.replace(/^(\+95)(\d{2})(\d+)(\d{3})$/, "$1 $2*** *** $4")
+    : "your number";
+
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-6">
       <button onClick={() => navigate("/onboarding/phone")} className="mb-8 self-start text-muted-foreground">
@@ -45,7 +91,7 @@ const OtpVerify = () => {
 
       <h1 className="mb-2 text-2xl font-bold text-foreground">Verify your number</h1>
       <p className="mb-8 text-muted-foreground">
-        We sent a code to <span className="font-semibold text-foreground">09xxx xxx xxx</span>
+        We sent a code to <span className="font-semibold text-foreground">{maskedPhone}</span>
       </p>
 
       <div className="mb-6 flex justify-center gap-3">
@@ -61,9 +107,14 @@ const OtpVerify = () => {
             onKeyDown={(e) => handleKeyDown(i, e)}
             className="h-14 w-12 rounded-xl border-2 border-border bg-card text-center text-xl font-bold text-foreground outline-none transition-colors focus:border-action"
             autoFocus={i === 0}
+            disabled={verifying}
           />
         ))}
       </div>
+
+      {verifying && (
+        <p className="mb-4 text-center text-sm font-semibold text-action">Verifying...</p>
+      )}
 
       <div className="text-center">
         {timer > 0 ? (
@@ -71,7 +122,7 @@ const OtpVerify = () => {
             Resend code in <span className="font-semibold text-foreground">0:{timer.toString().padStart(2, "0")}</span>
           </p>
         ) : (
-          <button onClick={() => setTimer(59)} className="font-semibold text-action">
+          <button onClick={handleResend} className="font-semibold text-action">
             Resend Code
           </button>
         )}

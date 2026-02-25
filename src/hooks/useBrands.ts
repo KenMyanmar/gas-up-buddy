@@ -1,9 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+
+export interface Brand {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  is_active: boolean;
+  created_at: string;
+}
 
 export const useBrands = () => {
-  return useQuery<Tables<'brands'>[]>({
+  return useQuery<Brand[]>({
     queryKey: ['brands'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -12,7 +19,7 @@ export const useBrands = () => {
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
-      return data;
+      return data as Brand[];
     },
   });
 };
