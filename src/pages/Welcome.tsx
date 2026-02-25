@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Flame, Phone, Mail } from "lucide-react";
+import { Flame, Phone } from "lucide-react";
 
 const Welcome = () => {
   const navigate = useNavigate();
@@ -33,15 +33,6 @@ const Welcome = () => {
         >
           <Phone className="h-5 w-5" />
           Continue with Phone
-        </Button>
-        <Button
-          variant="action-outline"
-          size="full"
-          onClick={() => navigate("/onboarding/phone")}
-          className="gap-3"
-        >
-          <Mail className="h-5 w-5" />
-          Continue with Email
         </Button>
         <p className="pt-4 text-center text-xs text-muted-foreground">
           By continuing, you agree to our{" "}
