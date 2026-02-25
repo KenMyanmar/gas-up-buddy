@@ -1,9 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+
+export interface GasPrice {
+  id: string;
+  cylinder_type_id: string;
+  price: number;
+  effective_from: string;
+  effective_to: string | null;
+  created_at: string;
+}
 
 export const useGasPrices = () => {
-  return useQuery<Tables<'gas_prices'>[]>({
+  return useQuery<GasPrice[]>({
     queryKey: ['gas_prices'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -11,7 +19,7 @@ export const useGasPrices = () => {
         .select('*')
         .is('effective_to', null);
       if (error) throw error;
-      return data;
+      return data as GasPrice[];
     },
   });
 };

@@ -29,7 +29,7 @@ export const useOrders = (customerId: string | undefined) => {
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data as OrderWithDetails[];
+      return (data as unknown as OrderWithDetails[]);
     },
     enabled: !!customerId,
   });

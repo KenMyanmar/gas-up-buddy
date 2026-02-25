@@ -1,9 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+
+export interface Township {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  base_delivery_fee: number | null;
+  is_active: boolean;
+  created_at: string;
+}
 
 export const useTownships = () => {
-  return useQuery<Tables<'townships'>[]>({
+  return useQuery<Township[]>({
     queryKey: ['townships'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -12,7 +21,7 @@ export const useTownships = () => {
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
-      return data;
+      return data as Township[];
     },
   });
 };

@@ -2,15 +2,41 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const PhoneEntry = () => {
   const navigate = useNavigate();
+  const { setPhone: setAuthPhone } = useAuth();
+  const { toast } = useToast();
   const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const isValid = /^09\d{7,9}$/.test(phone);
 
-  const handleSubmit = () => {
-    if (isValid) navigate("/onboarding/otp");
+  const handleSubmit = async () => {
+    if (!isValid) return;
+    setLoading(true);
+
+    // Format to international: 09xxx -> +959xxx
+    const intlPhone = "+95" + phone.slice(1);
+
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ phone: intlPhone });
+      if (error) throw error;
+
+      setAuthPhone(intlPhone);
+      navigate("/onboarding/otp");
+    } catch (err: any) {
+      toast({
+        title: "Could not send OTP",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,8 +62,8 @@ const PhoneEntry = () => {
         />
       </div>
 
-      <Button variant="action" size="full" disabled={!isValid} onClick={handleSubmit}>
-        Send OTP
+      <Button variant="action" size="full" disabled={!isValid || loading} onClick={handleSubmit}>
+        {loading ? "Sending..." : "Send OTP"}
       </Button>
     </div>
   );

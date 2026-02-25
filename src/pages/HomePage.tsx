@@ -1,16 +1,17 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Flame, MapPin, ClipboardList, Phone, HelpCircle, RefreshCw } from "lucide-react";
-
-const mockLastOrder = {
-  size: 7,
-  type: "Refill",
-  price: "36,400",
-  date: "Feb 20, 2026",
-};
+import { useAuth } from "@/hooks/useAuth";
+import { useOrders, useCustomerProfile } from "@/hooks/useOrders";
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: customer } = useCustomerProfile(user?.id);
+  const { data: orders } = useOrders(customer?.id);
+
+  const lastOrder = orders?.[0];
+  const initial = customer?.full_name?.charAt(0)?.toUpperCase() ?? "A";
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -22,15 +23,20 @@ const HomePage = () => {
           </div>
           <span className="text-lg font-bold text-foreground">AnyGas</span>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">
-          A
-        </div>
+        <button
+          onClick={() => navigate("/profile")}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground"
+        >
+          {initial}
+        </button>
       </header>
 
       {/* Location Bar */}
       <div className="flex items-center gap-2 bg-card px-5 py-2.5 border-t border-border">
         <MapPin className="h-4 w-4 text-action" />
-        <span className="text-sm font-medium text-foreground">Hlaing Township, Yangon</span>
+        <span className="text-sm font-medium text-foreground">
+          {customer?.address ? customer.address : "Hlaing Township, Yangon"}
+        </span>
         <button className="ml-auto text-xs font-semibold text-primary">Change</button>
       </div>
 
@@ -43,26 +49,32 @@ const HomePage = () => {
           onClick={() => navigate("/order/configure")}
         >
           <span className="text-2xl">🔥 ORDER GAS NOW</span>
-          <span className="text-sm font-normal opacity-90">
-            {mockLastOrder.size}kg · {mockLastOrder.type} · {mockLastOrder.price} MMK
-          </span>
+          {lastOrder ? (
+            <span className="text-sm font-normal opacity-90">
+              {lastOrder.cylinder_types?.weight_kg}kg · {lastOrder.delivery_type} · {lastOrder.total_amount.toLocaleString()} MMK
+            </span>
+          ) : (
+            <span className="text-sm font-normal opacity-90">Fast delivery to your door</span>
+          )}
         </Button>
 
         {/* Order Again Card */}
-        <button
-          onClick={() => navigate("/order/confirm")}
-          className="w-full rounded-xl border-2 border-action bg-action-light p-4 text-left transition-transform active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-3">
-            <RefreshCw className="h-5 w-5 text-action" />
-            <div>
-              <p className="font-bold text-foreground">Order Again</p>
-              <p className="text-sm text-muted-foreground">
-                Last order: {mockLastOrder.size}kg · {mockLastOrder.date}
-              </p>
+        {lastOrder && (
+          <button
+            onClick={() => navigate("/order/configure")}
+            className="w-full rounded-xl border-2 border-action bg-action-light p-4 text-left transition-transform active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-3">
+              <RefreshCw className="h-5 w-5 text-action" />
+              <div>
+                <p className="font-bold text-foreground">Order Again</p>
+                <p className="text-sm text-muted-foreground">
+                  Last order: {lastOrder.cylinder_types?.weight_kg}kg · {new Date(lastOrder.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </p>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
+        )}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-3">

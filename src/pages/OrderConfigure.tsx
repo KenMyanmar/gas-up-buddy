@@ -1,27 +1,41 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const gasSizes = [
-  { kg: 4, price: "22,000" },
-  { kg: 7, price: "36,400" },
-  { kg: 10, price: "50,000" },
-  { kg: 12, price: "58,000" },
-  { kg: 15, price: "72,000" },
-  { kg: 20, price: "95,000" },
-];
+import { useCylinderTypes } from "@/hooks/useCylinderTypes";
+import { useGasPrices } from "@/hooks/useGasPrices";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const OrderConfigure = () => {
   const navigate = useNavigate();
-  const [selectedSize, setSelectedSize] = useState(7);
+  const { data: cylinderTypes, isLoading: loadingCylinders } = useCylinderTypes();
+  const { data: gasPrices, isLoading: loadingPrices } = useGasPrices();
+
+  const [selectedCylinderId, setSelectedCylinderId] = useState<string | null>(null);
   const [deliveryType, setDeliveryType] = useState<"refill" | "new">("refill");
   const [quantity, setQuantity] = useState(1);
 
-  const selectedPrice = gasSizes.find((g) => g.kg === selectedSize)!;
-  const priceNum = parseInt(selectedPrice.price.replace(/,/g, ""));
-  const total = (priceNum * quantity).toLocaleString();
+  // Join cylinder types with their current prices
+  const gasSizes = useMemo(() => {
+    if (!cylinderTypes || !gasPrices) return [];
+    return cylinderTypes.map((ct) => {
+      const priceRecord = gasPrices.find((gp) => gp.cylinder_type_id === ct.id);
+      return {
+        id: ct.id,
+        kg: ct.weight_kg,
+        price: priceRecord?.price ?? 0,
+        brand: ct.brands?.name ?? "Unknown",
+      };
+    }).sort((a, b) => a.kg - b.kg);
+  }, [cylinderTypes, gasPrices]);
+
+  // Auto-select first item
+  const selectedId = selectedCylinderId ?? gasSizes[0]?.id ?? null;
+  const selected = gasSizes.find((g) => g.id === selectedId);
+  const total = selected ? selected.price * quantity : 0;
+
+  const isLoading = loadingCylinders || loadingPrices;
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-32">
@@ -50,23 +64,33 @@ const OrderConfigure = () => {
         {/* Gas Size */}
         <section>
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Gas Size</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {gasSizes.map((gas) => (
-              <button
-                key={gas.kg}
-                onClick={() => setSelectedSize(gas.kg)}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-xl border-2 p-4 transition-all active:scale-95",
-                  selectedSize === gas.kg
-                    ? "border-action bg-action-light shadow-sm"
-                    : "border-border bg-card"
-                )}
-              >
-                <span className="text-xl font-bold text-foreground">{gas.kg}kg</span>
-                <span className="text-xs text-muted-foreground">{gas.price} Ks</span>
-              </button>
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-3 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 rounded-xl" />
+              ))}
+            </div>
+          ) : gasSizes.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground">No gas sizes available</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {gasSizes.map((gas) => (
+                <button
+                  key={gas.id}
+                  onClick={() => setSelectedCylinderId(gas.id)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-xl border-2 p-4 transition-all active:scale-95",
+                    selectedId === gas.id
+                      ? "border-action bg-action-light shadow-sm"
+                      : "border-border bg-card"
+                  )}
+                >
+                  <span className="text-xl font-bold text-foreground">{gas.kg}kg</span>
+                  <span className="text-xs text-muted-foreground">{gas.price.toLocaleString()} Ks</span>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Delivery Type */}
@@ -128,13 +152,13 @@ const OrderConfigure = () => {
         <div className="mx-auto max-w-md">
           <div className="mb-3 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">💰 Total</span>
-            <span className="text-xl font-bold text-foreground">{total} MMK</span>
+            <span className="text-xl font-bold text-foreground">{total.toLocaleString()} MMK</span>
           </div>
           <div className="mb-3 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">🚚 Delivery</span>
             <span className="font-semibold text-action">Free</span>
           </div>
-          <Button variant="action" size="full" onClick={() => navigate("/order/confirm")}>
+          <Button variant="action" size="full" onClick={() => navigate("/order/confirm")} disabled={!selected}>
             CONFIRM ORDER
           </Button>
         </div>
