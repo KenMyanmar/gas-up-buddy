@@ -1,33 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-export interface CylinderTypeWithBrand {
+export interface CylinderType {
   id: string;
-  brand_id: string;
-  weight_kg: number;
-  cylinder_type: string;
+  size_kg: number;
+  display_name: string;
+  cylinder_price: number;
   is_active: boolean;
-  brands: {
-    id: string;
-    name: string;
-  } | null;
+  sort_order: number;
 }
 
 export const useCylinderTypes = () => {
-  return useQuery<CylinderTypeWithBrand[]>({
+  return useQuery<CylinderType[]>({
     queryKey: ['cylinder_types'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cylinder_types')
-        .select('*')
+        .select('id, size_kg, display_name, cylinder_price, is_active, sort_order')
         .eq('is_active', true)
-        .order('weight_kg');
-      
+        .order('sort_order');
+
       if (error) {
         console.error('cylinder_types query error:', error.message, error.details, error.hint);
         throw error;
       }
-      return (data as any[]).map(ct => ({ ...ct, brands: null })) as CylinderTypeWithBrand[];
+      return data as CylinderType[];
     },
   });
 };
