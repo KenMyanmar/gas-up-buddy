@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MapPin, Check } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const LinkSelectAddress = () => {
@@ -9,6 +11,8 @@ const LinkSelectAddress = () => {
   const location = useLocation();
   const candidates = (location.state?.candidates as { id: string; full_name: string; address: string; township: string }[]) || [];
   const [selected, setSelected] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState(false);
+  const { toast } = useToast();
 
   if (candidates.length === 0) {
     navigate("/onboarding/link-new");
@@ -21,10 +25,22 @@ const LinkSelectAddress = () => {
     );
   };
 
-  const handleConfirm = () => {
-    // TODO: Call Edge Function with selected_customer_ids
-    console.log("Selected customer IDs:", selected);
-    navigate("/home");
+
+
+
+  const handleConfirm = async () => {
+    setConfirming(true);
+    try {
+      const { error } = await supabase.functions.invoke('link-customer-account', {
+        body: { action: 'link_selected', customer_ids: selected }
+      });
+      if (error) throw error;
+      navigate("/home");
+    } catch (err: any) {
+      toast({ title: "Linking failed", description: err?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setConfirming(false);
+    }
   };
 
   return (
@@ -67,8 +83,8 @@ const LinkSelectAddress = () => {
       </div>
 
       <div className="mt-6 space-y-3">
-        <Button variant="action" size="full" disabled={selected.length === 0} onClick={handleConfirm}>
-          Confirm ({selected.length} selected)
+        <Button variant="action" size="full" disabled={selected.length === 0 || confirming} onClick={handleConfirm}>
+          {confirming ? "Linking..." : `Confirm (${selected.length} selected)`}
         </Button>
         <button
           onClick={() => navigate("/onboarding/link-new")}

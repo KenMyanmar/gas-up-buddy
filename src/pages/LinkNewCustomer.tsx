@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Navigation } from "lucide-react";
 import { useTownships } from "@/hooks/useTownships";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const LinkNewCustomer = () => {
   const navigate = useNavigate();
@@ -37,10 +38,21 @@ const LinkNewCustomer = () => {
     );
   };
 
-  const handleSubmit = () => {
-    // TODO: Call Edge Function with new_profile payload
-    console.log("New profile:", { name, address, townshipId });
-    navigate("/home");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.functions.invoke('link-customer-account', {
+        body: { action: 'create_new', full_name: name, address, township_id: townshipId }
+      });
+      if (error) throw error;
+      navigate("/home");
+    } catch (err: any) {
+      toast({ title: "Registration failed", description: err?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -106,8 +118,8 @@ const LinkNewCustomer = () => {
       </div>
 
       <div className="mt-6">
-        <Button variant="action" size="full" disabled={!isValid} onClick={handleSubmit}>
-          Start Ordering
+        <Button variant="action" size="full" disabled={!isValid || submitting} onClick={handleSubmit}>
+          {submitting ? "Setting up..." : "Start Ordering"}
         </Button>
       </div>
     </div>

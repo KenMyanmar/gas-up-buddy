@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { toLocal } from "@/lib/phoneUtils";
+
 
 const OtpVerify = () => {
   const navigate = useNavigate();
@@ -32,25 +32,18 @@ const OtpVerify = () => {
       const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: "sms" });
       if (error) throw error;
 
-      // Query customers table using local format
-      const localPhone = toLocal(phone);
-      const { data: customers, error: queryError } = await supabase
-        .from("customers")
-        .select("id, full_name, address, township")
-        .eq("phone", localPhone);
+      // Call Edge Function for customer linking
+      const response = await supabase.functions.invoke('link-customer-account');
+      const result = response.data;
 
-      if (queryError) {
-        console.error("Customer lookup failed:", queryError);
-        navigate("/onboarding/link-new");
-        return;
-      }
-
-      if (!customers || customers.length === 0) {
-        navigate("/onboarding/link-new");
-      } else if (customers.length === 1) {
-        navigate("/onboarding/link-welcome", { state: { customer: customers[0] } });
+      if (result?.status === 'already_linked') {
+        navigate('/home');
+      } else if (result?.status === 'single') {
+        navigate('/onboarding/link-welcome', { state: { customer: result.customer } });
+      } else if (result?.status === 'multiple') {
+        navigate('/onboarding/link-select', { state: { candidates: result.candidates } });
       } else {
-        navigate("/onboarding/link-select", { state: { candidates: customers } });
+        navigate('/onboarding/link-new');
       }
     } catch (err: any) {
       toast({
