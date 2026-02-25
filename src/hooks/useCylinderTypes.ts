@@ -6,12 +6,10 @@ export interface CylinderTypeWithBrand {
   brand_id: string;
   weight_kg: number;
   cylinder_type: string;
-  description: string | null;
   is_active: boolean;
   brands: {
     id: string;
     name: string;
-    logo_url: string | null;
   } | null;
 }
 
@@ -21,11 +19,15 @@ export const useCylinderTypes = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cylinder_types')
-        .select('*, brands(id, name, logo_url)')
+        .select('*')
         .eq('is_active', true)
         .order('weight_kg');
-      if (error) throw error;
-      return data as CylinderTypeWithBrand[];
+      
+      if (error) {
+        console.error('cylinder_types query error:', error.message, error.details, error.hint);
+        throw error;
+      }
+      return (data as any[]).map(ct => ({ ...ct, brands: null })) as CylinderTypeWithBrand[];
     },
   });
 };
