@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin, Minus, Plus } from "lucide-react";
@@ -12,30 +12,51 @@ const OrderConfigure = () => {
   const { data: cylinderTypes, isLoading: loadingCylinders } = useCylinderTypes();
   const { data: gasPrices, isLoading: loadingPrices } = useGasPrices();
 
-  const [selectedCylinderId, setSelectedCylinderId] = useState<string | null>(null);
+  const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [deliveryType, setDeliveryType] = useState<"refill" | "new">("refill");
   const [quantity, setQuantity] = useState(1);
 
-  // Join cylinder types with their current prices
-  const gasSizes = useMemo(() => {
-    if (!cylinderTypes || !gasPrices) return [];
-    return cylinderTypes.map((ct) => {
-      const priceRecord = gasPrices.find((gp) => gp.cylinder_type_id === ct.id);
-      return {
-        id: ct.id,
-        kg: ct.weight_kg,
-        price: priceRecord?.price ?? 0,
-        brand: ct.brands?.name ?? "Unknown",
-      };
-    }).sort((a, b) => a.kg - b.kg);
-  }, [cylinderTypes, gasPrices]);
-
-  // Auto-select first item
-  const selectedId = selectedCylinderId ?? gasSizes[0]?.id ?? null;
-  const selected = gasSizes.find((g) => g.id === selectedId);
-  const total = selected ? selected.price * quantity : 0;
-
   const isLoading = loadingCylinders || loadingPrices;
+
+  // Auto-select first size
+  const activeSizeId = selectedSizeId ?? cylinderTypes?.[0]?.id ?? null;
+  const selectedSize = cylinderTypes?.find((ct) => ct.id === activeSizeId) ?? null;
+
+  // Brands with active pricing
+  const availableBrands = useMemo(() => {
+    if (!gasPrices) return [];
+    // Dedupe by brand — one price entry per brand (effective_to is null)
+    const seen = new Set<string>();
+    return gasPrices.filter((gp) => {
+      if (!gp.brands || seen.has(gp.brand_id)) return false;
+      seen.add(gp.brand_id);
+      return true;
+    });
+  }, [gasPrices]);
+
+  // Auto-select brand when only one option, or reset when size changes
+  useEffect(() => {
+    if (availableBrands.length === 1) {
+      setSelectedBrandId(availableBrands[0].brand_id);
+    }
+  }, [availableBrands]);
+
+  const activeBrandId = selectedBrandId ?? (availableBrands.length === 1 ? availableBrands[0]?.brand_id : null);
+  const selectedBrandPrice = gasPrices?.find((gp) => gp.brand_id === activeBrandId) ?? null;
+
+  // Price calculation
+  const pricing = useMemo(() => {
+    if (!selectedSize || !selectedBrandPrice) return null;
+    const refillPrice = selectedSize.size_kg * selectedBrandPrice.price_per_kg;
+    const newPrice = refillPrice + selectedSize.cylinder_price;
+    return { refill: refillPrice, new: newPrice };
+  }, [selectedSize, selectedBrandPrice]);
+
+  const unitPrice = pricing ? (deliveryType === "refill" ? pricing.refill : pricing.new) : 0;
+  const total = unitPrice * quantity;
+  const canConfirm = !!selectedSize && !!activeBrandId && !!pricing;
+  const showBrandSelector = availableBrands.length > 1;
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-32">
@@ -70,28 +91,58 @@ const OrderConfigure = () => {
                 <Skeleton key={i} className="h-24 rounded-xl" />
               ))}
             </div>
-          ) : gasSizes.length === 0 ? (
+          ) : !cylinderTypes?.length ? (
             <p className="py-8 text-center text-muted-foreground">No gas sizes available</p>
           ) : (
             <div className="grid grid-cols-3 gap-3">
-              {gasSizes.map((gas) => (
+              {cylinderTypes.map((ct) => (
                 <button
-                  key={gas.id}
-                  onClick={() => setSelectedCylinderId(gas.id)}
+                  key={ct.id}
+                  onClick={() => setSelectedSizeId(ct.id)}
                   className={cn(
                     "flex flex-col items-center gap-1 rounded-xl border-2 p-4 transition-all active:scale-95",
-                    selectedId === gas.id
+                    activeSizeId === ct.id
                       ? "border-action bg-action-light shadow-sm"
                       : "border-border bg-card"
                   )}
                 >
-                  <span className="text-xl font-bold text-foreground">{gas.kg}kg</span>
-                  <span className="text-xs text-muted-foreground">{gas.price.toLocaleString()} Ks</span>
+                  <span className="text-xl font-bold text-foreground">{ct.display_name}</span>
+                  <span className="text-xs text-muted-foreground">{ct.size_kg} kg</span>
                 </button>
               ))}
             </div>
           )}
         </section>
+
+        {/* Brand Selector — only when multiple brands exist */}
+        {showBrandSelector && (
+          <section>
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Brand</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {availableBrands.map((gp) => {
+                const brandName = gp.brands?.name ?? "Unknown";
+                const priceForSize = selectedSize
+                  ? (selectedSize.size_kg * gp.price_per_kg).toLocaleString()
+                  : "—";
+                return (
+                  <button
+                    key={gp.brand_id}
+                    onClick={() => setSelectedBrandId(gp.brand_id)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 rounded-xl border-2 p-4 transition-all active:scale-95",
+                      activeBrandId === gp.brand_id
+                        ? "border-action bg-action-light shadow-sm"
+                        : "border-border bg-card"
+                    )}
+                  >
+                    <span className="font-bold text-foreground">{brandName}</span>
+                    <span className="text-xs text-muted-foreground">{priceForSize} Ks/refill</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Delivery Type */}
         <section>
@@ -108,7 +159,9 @@ const OrderConfigure = () => {
             >
               <span className="text-3xl">🔄</span>
               <span className="font-bold text-foreground">Refill</span>
-              <span className="text-center text-xs text-muted-foreground">Bring empty, return filled</span>
+              {pricing && (
+                <span className="text-xs font-semibold text-action">{pricing.refill.toLocaleString()} Ks</span>
+              )}
             </button>
             <button
               onClick={() => setDeliveryType("new")}
@@ -120,8 +173,10 @@ const OrderConfigure = () => {
               )}
             >
               <span className="text-3xl">🆕</span>
-              <span className="font-bold text-foreground">New</span>
-              <span className="text-center text-xs text-muted-foreground">Keep the cylinder</span>
+              <span className="font-bold text-foreground">New Cylinder</span>
+              {pricing && (
+                <span className="text-xs font-semibold text-action">{pricing.new.toLocaleString()} Ks</span>
+              )}
             </button>
           </div>
         </section>
@@ -158,7 +213,7 @@ const OrderConfigure = () => {
             <span className="text-muted-foreground">🚚 Delivery</span>
             <span className="font-semibold text-action">Free</span>
           </div>
-          <Button variant="action" size="full" onClick={() => navigate("/order/confirm")} disabled={!selected}>
+          <Button variant="action" size="full" onClick={() => navigate("/order/confirm")} disabled={!canConfirm}>
             CONFIRM ORDER
           </Button>
         </div>
