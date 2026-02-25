@@ -48,9 +48,7 @@ const PhoneEntry = () => {
       <h1 className="mb-2 text-2xl font-bold text-foreground">Enter your phone number</h1>
       <p className="mb-8 text-muted-foreground">We'll send you a verification code</p>
 
-      <div className="mb-6 flex items-center gap-3 rounded-xl border-2 border-border bg-card p-4 focus-within:border-action">
-        <span className="text-lg font-semibold text-muted-foreground">+95</span>
-        <div className="h-6 w-px bg-border" />
+      <div className="mb-6 flex items-center rounded-xl border-2 border-border bg-card p-4 focus-within:border-action">
         <input
           type="tel"
           inputMode="numeric"
