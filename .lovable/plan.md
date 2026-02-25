@@ -1,71 +1,41 @@
 
 
-# Plan: Fix Phone Format Mismatch for Customer Linking
+# Plan: Fix 401 — Ensure Session Before Edge Function Call
 
 ## Problem
-Database stores phone as local format (`095119900`). Supabase Auth returns international format (`+9595119900`). Any query matching `customers.phone` against the Auth phone will return zero results — breaking linking for all 11,242 customers.
+After `verifyOtp` succeeds, the Supabase client session may not be immediately available. The subsequent `supabase.functions.invoke('link-customer-account')` fires before the JWT is attached, resulting in a 401 from the Edge Function.
 
-## Current State
+## Change
 
-After reviewing the codebase:
+**File:** `src/pages/OtpVerify.tsx` (lines 34-36)
 
-- **`OtpVerify.tsx`** (line 36): After OTP success, currently hardcoded to navigate to `/onboarding/link-new` with a TODO comment about calling a linking query. This is where the phone-based customer lookup needs to happen.
-- **`LinkWelcomeBack.tsx`** and **`LinkSelectAddress.tsx`**: Both use hardcoded mock data — no real queries yet, but will need `toLocal()` when wired up.
-- **`useOrders.ts` → `useCustomerProfile`**: Queries by `auth_user_id`, not phone. This is safe post-linking, no change needed.
-- **`ProfilePage.tsx`**: Displays `customer?.phone` from the profile — display only, no query issue.
-
-## Changes
-
-### 1. Create `src/lib/phoneUtils.ts` — shared utility
+After the successful `verifyOtp` call and before invoking the Edge Function, add a session check with a retry:
 
 ```typescript
-/** Convert international +959xxx to local 09xxx (database format) */
-export const toLocal = (phone: string): string => {
-  if (phone.startsWith('+959')) return '0' + phone.slice(4);
-  if (phone.startsWith('+95')) return '0' + phone.slice(3);
-  return phone;
-};
+// After: if (error) throw error;
 
-/** Convert local 09xxx to international +959xxx (Supabase Auth format) */
-export const toInternational = (phone: string): string => {
-  if (phone.startsWith('09')) return '+95' + phone.slice(1);
-  if (phone.startsWith('+95')) return phone;
-  return phone;
-};
+// Wait for session to be established
+let { data: { session } } = await supabase.auth.getSession();
+
+if (!session) {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const { data: retry } = await supabase.auth.getSession();
+  if (!retry.session) {
+    toast({ title: "Auth error", description: "Session not established. Please try again.", variant: "destructive" });
+    setVerifying(false);
+    return;
+  }
+}
+
+// Now call the Edge Function — session token will be attached automatically
+const response = await supabase.functions.invoke('link-customer-account');
 ```
 
-Centralizes both conversions so every file imports from one place.
-
-### 2. Update `src/pages/OtpVerify.tsx` — implement real linking query
-
-After successful OTP verification, query `customers` table using `toLocal(phone)`:
-
-- Query: `supabase.from('customers').select('*').eq('phone', toLocal(phone))`
-- **0 matches** → navigate to `/onboarding/link-new` (new customer)
-- **1 match** → navigate to `/onboarding/link-welcome` with customer data in route state
-- **2+ matches** → navigate to `/onboarding/link-select` with candidates in route state
-
-This replaces the current hardcoded `navigate("/onboarding/link-new")`.
-
-### 3. Update `src/pages/LinkWelcomeBack.tsx` — use route state instead of mock
-
-Read the customer data from `location.state` (passed by OtpVerify) instead of `mockLinkedCustomer`. Display real name, address, township.
-
-### 4. Update `src/pages/LinkSelectAddress.tsx` — use route state instead of mock
-
-Read the candidates array from `location.state` instead of `mockCandidates`. Display real customer records for multi-match selection.
-
-### 5. Update `src/pages/PhoneEntry.tsx` — use shared utility
-
-Replace inline conversion `"+95" + phone.slice(1)` with `toInternational(phone)` from the shared utility.
+This replaces the current direct call at line 36 with a guarded version that ensures the JWT exists before the request.
 
 ## File Summary
 
 | File | Action |
 |------|--------|
-| `src/lib/phoneUtils.ts` | **New** — shared `toLocal()` and `toInternational()` |
-| `src/pages/OtpVerify.tsx` | Add real customer linking query with `toLocal()` |
-| `src/pages/LinkWelcomeBack.tsx` | Replace mock data with route state |
-| `src/pages/LinkSelectAddress.tsx` | Replace mock data with route state |
-| `src/pages/PhoneEntry.tsx` | Use shared `toInternational()` |
+| `src/pages/OtpVerify.tsx` | Add session check + retry before Edge Function call |
 
