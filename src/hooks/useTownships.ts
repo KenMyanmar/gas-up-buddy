@@ -4,8 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 export interface Township {
   id: string;
   name: string;
-  city: string;
-  region: string;
+  zone: string;
+  zone_priority: number;
   base_delivery_fee: number | null;
   is_active: boolean;
   created_at: string;

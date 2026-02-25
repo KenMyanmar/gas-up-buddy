@@ -13,10 +13,10 @@ const LinkNewCustomer = () => {
 
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [townshipId, setTownshipId] = useState("");
+  const [townshipName, setTownshipName] = useState("");
   const [locating, setLocating] = useState(false);
 
-  const isValid = name.trim().length >= 2 && address.trim().length >= 3 && townshipId;
+  const isValid = name.trim().length >= 2 && address.trim().length >= 3 && townshipName;
 
   const handleLocation = () => {
     if (!navigator.geolocation) {
@@ -44,7 +44,7 @@ const LinkNewCustomer = () => {
     setSubmitting(true);
     try {
       const { error } = await supabase.functions.invoke('link-customer-account', {
-        body: { action: 'create_new', full_name: name, address, township_id: townshipId }
+        body: { action: 'create_new', full_name: name, address, township: townshipName }
       });
       if (error) throw error;
       navigate("/home");
@@ -89,8 +89,8 @@ const LinkNewCustomer = () => {
         <div>
           <label className="mb-1.5 block text-sm font-bold text-muted-foreground">Township</label>
           <select
-            value={townshipId}
-            onChange={(e) => setTownshipId(e.target.value)}
+            value={townshipName}
+            onChange={(e) => setTownshipName(e.target.value)}
             className="w-full rounded-xl border-2 border-border bg-card p-4 text-foreground outline-none transition-colors focus:border-action"
           >
             <option value="">Select township</option>
@@ -98,8 +98,8 @@ const LinkNewCustomer = () => {
               <option disabled>Loading...</option>
             ) : (
               townships?.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}, {t.city}
+                <option key={t.id} value={t.name}>
+                  {t.name} ({t.zone})
                 </option>
               ))
             )}
