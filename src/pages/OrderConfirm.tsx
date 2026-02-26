@@ -145,7 +145,9 @@ const OrderConfirm = () => {
             )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Delivery</span>
-              <span className="font-semibold text-action">Free</span>
+              <span className={orderState.deliveryFee > 0 ? "text-foreground" : "font-semibold text-action"}>
+                {orderState.deliveryFee > 0 ? `${orderState.deliveryFee.toLocaleString()} MMK` : "Free"}
+              </span>
             </div>
             <div className="flex justify-between border-t border-border pt-2">
               <span className="font-bold text-foreground">Total</span>
