@@ -1,23 +1,20 @@
 
 
-# Add `order_source: 'customer_app'` to Edge Function
+# Fix BottomNav: Preserve nav on `/orders`
+
+## Problem
+The current condition `location.pathname.startsWith("/order")` also matches `/orders`, hiding the nav on the Orders list page.
 
 ## Change
 
-### `supabase/functions/create-customer-order/index.ts`
-
-**Line 142**: Add `order_source: "customer_app",` after `created_by: userId,`
+### `src/components/BottomNav.tsx`
+**Line 19**: Change `"/order"` to `"/order/"` so `/orders` keeps the nav visible.
 
 ```typescript
-        status: "new",
-        created_by: userId,
-        order_source: "customer_app",
-        delivery_instructions: deliveryInstructions || null,
+if (location.pathname === "/" || location.pathname.startsWith("/onboarding") || location.pathname.startsWith("/order/")) {
 ```
 
-One line addition. Redeploy after.
-
-| File | Line | Change |
-|------|------|--------|
-| `supabase/functions/create-customer-order/index.ts` | 142 | Add `order_source: "customer_app",` |
+| File | Change |
+|------|--------|
+| `src/components/BottomNav.tsx` | `"/order"` → `"/order/"` in startsWith check |
 
