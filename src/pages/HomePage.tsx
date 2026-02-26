@@ -16,16 +16,16 @@ const HomePage = () => {
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
-      <header className="flex items-center justify-between bg-card px-5 py-4 shadow-sm">
+      <header className="flex items-center justify-between bg-primary px-5 py-4 shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-action">
-            <Flame className="h-5 w-5 text-action-foreground" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20">
+            <Flame className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-bold text-foreground">AnyGas</span>
+          <span className="text-lg font-bold text-primary-foreground">AnyGas 8484</span>
         </div>
         <button
           onClick={() => navigate("/profile")}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/30 bg-white/20 text-sm font-bold text-primary-foreground"
         >
           {initial}
         </button>
