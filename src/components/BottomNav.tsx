@@ -13,7 +13,7 @@ const BottomNav = () => {
   const navigate = useNavigate();
 
   // Hide on onboarding screens
-  if (location.pathname === "/" || location.pathname.startsWith("/onboarding") || location.pathname.startsWith("/order")) {
+  if (location.pathname === "/" || location.pathname.startsWith("/onboarding") || location.pathname.startsWith("/order/")) {
     return null;
   }
 
