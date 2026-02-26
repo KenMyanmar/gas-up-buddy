@@ -3182,10 +3182,13 @@ export type Database = {
       }
       get_agent_customer_ids: { Args: never; Returns: string[] }
       get_my_customer_ids: { Args: never; Returns: string[] }
+      get_my_order_ids: { Args: never; Returns: string[] }
+      get_my_supplier_ids_as_customer: { Args: never; Returns: string[] }
       get_user_role: { Args: { _user_id: string }; Returns: string }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       is_crm_user: { Args: { _user_id: string }; Returns: boolean }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_my_order: { Args: { order_customer_id: string }; Returns: boolean }
       manage_customer_phone: {
         Args: {
           p_action: string
