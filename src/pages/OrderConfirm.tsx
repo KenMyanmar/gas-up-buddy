@@ -1,8 +1,27 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin, ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { useCustomerProfile } from "@/hooks/useOrders";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface OrderState {
+  cylinderType: string;
+  sizeKg: number;
+  brandId: string;
+  brandName: string;
+  orderType: "refill" | "new";
+  quantity: number;
+  unitPrice: number;
+  gasSubtotal: number;
+  cylinderSubtotal: number;
+  deliveryFee: number;
+  totalAmount: number;
+  gasPricePerKg: number;
+}
 
 const paymentMethods = [
   { id: "cash", label: "Cash on Delivery", icon: "💵" },
@@ -13,15 +32,66 @@ const paymentMethods = [
 
 const OrderConfirm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  const { data: customer } = useCustomerProfile(user?.id);
+  const { toast } = useToast();
+
+  const orderState = location.state as OrderState | null;
   const [payment, setPayment] = useState("cash");
   const [placing, setPlacing] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [instructions, setInstructions] = useState("");
 
-  const handlePlaceOrder = () => {
+  // Redirect if no order state
+  if (!orderState) {
+    return <Navigate to="/order/configure" replace />;
+  }
+
+  const handlePlaceOrder = async () => {
+    if (placing) return;
     setPlacing(true);
-    setTimeout(() => {
-      navigate("/orders");
-    }, 1500);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "create-customer-order",
+        {
+          body: {
+            cylinderType: orderState.cylinderType,
+            sizeKg: orderState.sizeKg,
+            brandId: orderState.brandId,
+            orderType: orderState.orderType,
+            quantity: orderState.quantity,
+            clientTotal: orderState.totalAmount,
+            deliveryInstructions: instructions || undefined,
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      const result = data as { success?: boolean; order_id?: string; total_amount?: number; error?: string };
+
+      if (!result?.success) {
+        throw new Error(result?.error ?? "Order creation failed");
+      }
+
+      navigate("/order/success", {
+        replace: true,
+        state: {
+          orderId: result.order_id,
+          totalAmount: result.total_amount,
+        },
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({
+        title: "Order Failed",
+        description: message,
+        variant: "destructive",
+      });
+      setPlacing(false);
+    }
   };
 
   return (
@@ -41,33 +111,51 @@ const OrderConfirm = () => {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Gas</span>
-              <span className="font-semibold text-foreground">7 kg LP Gas</span>
+              <span className="font-semibold text-foreground">
+                {orderState.cylinderType} {orderState.brandName ? `(${orderState.brandName})` : ""}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Type</span>
-              <span className="font-semibold text-foreground">Refill My Cylinder</span>
+              <span className="font-semibold text-foreground">
+                {orderState.orderType === "refill" ? "Refill My Cylinder" : "New Cylinder"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Quantity</span>
-              <span className="font-semibold text-foreground">× 1</span>
+              <span className="font-semibold text-foreground">× {orderState.quantity}</span>
             </div>
             <div className="my-2 border-t border-border" />
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-action" />
-              <span className="text-foreground">No. 42, Pyay Road, Hlaing, Yangon</span>
+              <span className="text-foreground">
+                {customer?.address ?? "—"}, {customer?.township ?? "—"}
+              </span>
             </div>
             <div className="my-2 border-t border-border" />
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Price</span>
-              <span className="font-bold text-foreground">36,400 MMK</span>
+              <span className="text-muted-foreground">Gas</span>
+              <span className="text-foreground">{orderState.gasSubtotal.toLocaleString()} MMK</span>
             </div>
+            {orderState.cylinderSubtotal > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cylinder Deposit</span>
+                <span className="text-foreground">{orderState.cylinderSubtotal.toLocaleString()} MMK</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Delivery</span>
               <span className="font-semibold text-action">Free</span>
             </div>
+            <div className="flex justify-between border-t border-border pt-2">
+              <span className="font-bold text-foreground">Total</span>
+              <span className="text-lg font-bold text-foreground">
+                {orderState.totalAmount.toLocaleString()} MMK
+              </span>
+            </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">⏱ Est. Delivery</span>
-              <span className="font-semibold text-foreground">30-45 min</span>
+              <span className="font-semibold text-foreground">30–45 min</span>
             </div>
           </div>
         </div>
@@ -87,9 +175,7 @@ const OrderConfirm = () => {
               >
                 <span className="text-xl">{pm.icon}</span>
                 <span className="font-semibold text-foreground">{pm.label}</span>
-                {payment === pm.id && (
-                  <span className="ml-auto text-action">✓</span>
-                )}
+                {payment === pm.id && <span className="ml-auto text-action">✓</span>}
               </button>
             ))}
           </div>
@@ -105,6 +191,8 @@ const OrderConfirm = () => {
         </button>
         {showInstructions && (
           <textarea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
             placeholder="Floor number, landmark, gate code..."
             className="w-full rounded-xl border-2 border-border bg-card p-4 text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-action"
             rows={3}
@@ -128,7 +216,7 @@ const OrderConfirm = () => {
                 Placing Order...
               </>
             ) : (
-              "PLACE ORDER — 36,400 MMK"
+              `PLACE ORDER — ${orderState.totalAmount.toLocaleString()} MMK`
             )}
           </Button>
         </div>
