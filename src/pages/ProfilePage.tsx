@@ -20,7 +20,7 @@ const ProfilePage = () => {
   };
 
   const menuItems = [
-    { icon: MapPin, label: "Delivery Addresses", badge: "" },
+    { icon: MapPin, label: "Delivery Addresses", badge: customer?.township ?? "" },
     { icon: CreditCard, label: "Payment Methods" },
     { icon: Settings, label: "Preferences" },
     { divider: true },
@@ -46,6 +46,11 @@ const ProfilePage = () => {
         <div className="flex-1">
           <p className="text-lg font-bold text-foreground">{displayName}</p>
           <p className="text-sm text-muted-foreground">{displayPhone}</p>
+          {customer?.address && customer?.township && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {customer.address}, {customer.township}
+            </p>
+          )}
           <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
             <Star className="h-3.5 w-3.5 fill-warning text-warning" />
             <span>{completedCount} orders completed</span>
