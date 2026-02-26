@@ -27,12 +27,15 @@ const BottomNav = () => {
               key={tab.path}
               onClick={() => navigate(tab.path)}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-6 py-1.5 transition-colors",
+                "relative flex flex-col items-center gap-0.5 px-6 py-1.5 transition-colors",
                 isActive ? "text-action" : "text-muted-foreground"
               )}
             >
               <tab.icon className={cn("h-6 w-6", isActive && "stroke-[2.5px]")} />
               <span className="text-xs font-semibold">{tab.label}</span>
+              {isActive && (
+                <span className="absolute -bottom-1 h-0.5 w-8 rounded-full bg-action" />
+              )}
             </button>
           );
         })}
