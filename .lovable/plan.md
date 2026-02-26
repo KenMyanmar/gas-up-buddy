@@ -1,50 +1,30 @@
 
+# Fix: CONFIRM ORDER Button Hidden Behind Bottom Nav
 
-# Add Delivery Fee: 3,000 MMK for Refill Orders
+## Problem
+`OrderConfigure.tsx` has a sticky footer with `fixed bottom-0`. The `BottomNav` component also uses `fixed bottom-0 z-50`. The BottomNav is visible on `/order/configure` (it only hides for `/` and `/onboarding*`), so they overlap — the nav covers the button.
 
-Three surgical fixes to add a 3,000 MMK delivery fee for refill orders across the stack.
+## Solution
+Two options considered:
+1. **Hide BottomNav on order flow pages** — cleanest UX; the order flow already has its own back button and is a focused task. Grab/Gojek hide the tab bar during checkout.
+2. **Push footer above nav** — adds `bottom-[4.5rem]` to the footer and increases `pb-` on the container.
+
+**Recommendation: Option 1** — Hide BottomNav on all order flow routes (`/order/*`). This is standard for checkout flows and avoids layout hacks. The user already has a back arrow to exit.
 
 ## Changes
 
-### 1. Edge Function — `supabase/functions/create-customer-order/index.ts`
-**Line 109**: Change `const deliveryFee = 0;` to `const deliveryFee = safeOrderType === "refill" ? 3000 : 0;`
-
-This is the critical server-side fix. The Edge Function will be auto-redeployed.
-
-### 2. Frontend — `src/pages/OrderConfigure.tsx`
-
-**Line 61**: Update `total` calculation to include delivery fee:
+### `src/components/BottomNav.tsx`
+**Line 19**: Extend the hide condition to include order flow routes:
 ```typescript
-const deliveryFee = deliveryType === "refill" ? 3000 : 0;
-const total = unitPrice * quantity + deliveryFee;
+if (location.pathname === "/" || location.pathname.startsWith("/onboarding") || location.pathname.startsWith("/order")) {
+  return null;
+}
 ```
 
-**Line 218**: Show delivery fee conditionally instead of hardcoded "Free":
-```typescript
-<span className="font-semibold text-action">
-  {deliveryFee > 0 ? `${deliveryFee.toLocaleString()} MMK` : "Free"}
-</span>
-```
+This hides the nav on `/order/configure`, `/order/confirm`, and `/order/success` — all three screens in the checkout flow.
 
-**Line 238**: Pass computed `deliveryFee` instead of `0`:
-```typescript
-deliveryFee: deliveryFee,
-```
+No other files need changes. The existing `pb-32` on `OrderConfigure` and the `fixed bottom-0` footer already work correctly when the BottomNav isn't competing for space.
 
-### 3. Frontend — `src/pages/OrderConfirm.tsx`
-
-**Line 148**: Show delivery fee conditionally:
-```typescript
-<span className={orderState.deliveryFee > 0 ? "text-foreground" : "font-semibold text-action"}>
-  {orderState.deliveryFee > 0 ? `${orderState.deliveryFee.toLocaleString()} MMK` : "Free"}
-</span>
-```
-
-## File Summary
-
-| File | Line(s) | Change |
-|------|---------|--------|
-| `supabase/functions/create-customer-order/index.ts` | 109 | `deliveryFee = safeOrderType === "refill" ? 3000 : 0` |
-| `src/pages/OrderConfigure.tsx` | 61, 218, 238 | Compute & display delivery fee, pass in state |
-| `src/pages/OrderConfirm.tsx` | 148 | Conditional delivery fee display |
-
+| File | Change |
+|------|--------|
+| `src/components/BottomNav.tsx` | Hide nav on `/order/*` routes |
