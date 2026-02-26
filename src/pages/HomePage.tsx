@@ -51,7 +51,7 @@ const HomePage = () => {
           <span className="text-2xl">🔥 ORDER GAS NOW</span>
           {lastOrder ? (
             <span className="text-sm font-normal opacity-90">
-              {lastOrder.cylinder_types?.weight_kg}kg · {lastOrder.delivery_type} · {lastOrder.total_amount.toLocaleString()} MMK
+              {lastOrder.cylinder_type ?? "?"} · {lastOrder.order_type ?? "refill"} · {(lastOrder.total_amount ?? 0).toLocaleString()} MMK
             </span>
           ) : (
             <span className="text-sm font-normal opacity-90">Fast delivery to your door</span>
@@ -69,7 +69,7 @@ const HomePage = () => {
               <div>
                 <p className="font-bold text-foreground">Order Again</p>
                 <p className="text-sm text-muted-foreground">
-                  Last order: {lastOrder.cylinder_types?.weight_kg}kg · {new Date(lastOrder.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  Last order: {lastOrder.cylinder_type ?? "?"} · {new Date(lastOrder.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </p>
               </div>
             </div>

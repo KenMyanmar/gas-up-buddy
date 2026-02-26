@@ -3,19 +3,19 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface OrderWithDetails {
   id: string;
+  cylinder_type: string | null;
   quantity: number;
-  delivery_type: string;
-  unit_price: number;
-  delivery_fee: number;
-  total_amount: number;
+  total_amount: number | null;
+  gas_subtotal: number | null;
+  delivery_fee: number | null;
   status: string;
-  delivery_address: string | null;
+  order_type: string | null;
   created_at: string;
-  cylinder_types: {
-    weight_kg: number;
-    cylinder_type: string;
-    brands: { name: string } | null;
-  } | null;
+  delivered_at: string | null;
+  township: string;
+  address: string;
+  brand_id: string | null;
+  brands: { id: string; name: string } | null;
 }
 
 export const useOrders = (customerId: string | undefined) => {
@@ -25,11 +25,11 @@ export const useOrders = (customerId: string | undefined) => {
       if (!customerId) return [];
       const { data, error } = await supabase
         .from('orders')
-        .select('id, quantity, delivery_type, unit_price, delivery_fee, total_amount, status, delivery_address, created_at, cylinder_types(weight_kg, cylinder_type, brands(name))')
+        .select('id, cylinder_type, quantity, total_amount, gas_subtotal, delivery_fee, status, order_type, created_at, delivered_at, township, address, brand_id, brands(id, name)')
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data as unknown as OrderWithDetails[]);
+      return data as unknown as OrderWithDetails[];
     },
     enabled: !!customerId,
   });

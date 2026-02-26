@@ -4,9 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 export interface Brand {
   id: string;
   name: string;
-  logo_url: string | null;
+  type: string;
+  description: string | null;
   is_active: boolean;
+  sort_order: number | null;
   created_at: string;
+  updated_at: string | null;
 }
 
 export const useBrands = () => {
