@@ -1,1 +1,4 @@
 project_id = "rtbkhrenswgzhuzltpgd"
+
+[functions.create-customer-order]
+verify_jwt = false

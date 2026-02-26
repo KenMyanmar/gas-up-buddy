@@ -6,9 +6,13 @@ import { cn } from "@/lib/utils";
 import { useCylinderTypes } from "@/hooks/useCylinderTypes";
 import { useGasPrices } from "@/hooks/useGasPrices";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/useAuth";
+import { useCustomerProfile } from "@/hooks/useOrders";
 
 const OrderConfigure = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: customer } = useCustomerProfile(user?.id);
   const { data: cylinderTypes, isLoading: loadingCylinders } = useCylinderTypes();
   const { data: gasPrices, isLoading: loadingPrices } = useGasPrices();
 
@@ -75,8 +79,8 @@ const OrderConfigure = () => {
           <div className="flex items-center gap-3 rounded-xl bg-card p-4 shadow-sm">
             <MapPin className="h-5 w-5 shrink-0 text-action" />
             <div className="flex-1">
-              <p className="font-semibold text-foreground">Hlaing Township</p>
-              <p className="text-sm text-muted-foreground">No. 42, Pyay Road, Yangon</p>
+              <p className="font-semibold text-foreground">{customer?.township ?? "—"}</p>
+              <p className="text-sm text-muted-foreground">{customer?.address ?? "No address on file"}</p>
             </div>
             <button className="text-xs font-semibold text-primary">Change</button>
           </div>
@@ -213,7 +217,32 @@ const OrderConfigure = () => {
             <span className="text-muted-foreground">🚚 Delivery</span>
             <span className="font-semibold text-action">Free</span>
           </div>
-          <Button variant="action" size="full" onClick={() => navigate("/order/confirm")} disabled={!canConfirm}>
+          <Button
+            variant="action"
+            size="full"
+            onClick={() =>
+              navigate("/order/confirm", {
+                state: {
+                  cylinderType: selectedSize!.display_name,
+                  sizeKg: selectedSize!.size_kg,
+                  brandId: activeBrandId,
+                  brandName: selectedBrandPrice?.brands?.name ?? "",
+                  orderType: deliveryType,
+                  quantity,
+                  unitPrice,
+                  gasSubtotal: unitPrice * quantity,
+                  cylinderSubtotal:
+                    deliveryType === "new"
+                      ? selectedSize!.cylinder_price * quantity
+                      : 0,
+                  deliveryFee: 0,
+                  totalAmount: total,
+                  gasPricePerKg: selectedBrandPrice?.price_per_kg ?? 0,
+                },
+              })
+            }
+            disabled={!canConfirm}
+          >
             CONFIRM ORDER
           </Button>
         </div>
