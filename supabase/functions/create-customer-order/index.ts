@@ -140,6 +140,7 @@ Deno.serve(async (req) => {
         total_amount: totalAmount,
         status: "new",
         created_by: userId,
+        order_source: "customer_app",
         delivery_instructions: deliveryInstructions || null,
       })
       .select("id, total_amount")
