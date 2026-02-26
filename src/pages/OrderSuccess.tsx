@@ -44,7 +44,7 @@ const OrderSuccess = () => {
         </div>
 
         <div className="flex w-full flex-col gap-3">
-          <Button variant="action" size="full" onClick={() => navigate("/orders")}>
+          <Button variant="action" size="full" onClick={() => navigate(`/order/tracking/${state.orderId}`)}>
             Track Order
           </Button>
           <Button variant="outline" size="full" onClick={() => navigate("/home")}>

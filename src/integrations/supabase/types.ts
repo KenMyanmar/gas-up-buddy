@@ -2443,6 +2443,7 @@ export type Database = {
       suppliers: {
         Row: {
           address: string | null
+          avatar_url: string | null
           brand_id: string
           brand_inventory: Json | null
           created_at: string | null
@@ -2460,6 +2461,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          avatar_url?: string | null
           brand_id: string
           brand_inventory?: Json | null
           created_at?: string | null
@@ -2477,6 +2479,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          avatar_url?: string | null
           brand_id?: string
           brand_inventory?: Json | null
           created_at?: string | null
