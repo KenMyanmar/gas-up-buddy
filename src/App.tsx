@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useCustomerProfile } from "@/hooks/useOrders";
 import BottomNav from "./components/BottomNav";
 import CallFallback from "./components/CallFallback";
 import Welcome from "./pages/Welcome";
@@ -23,8 +24,19 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Route guard: redirects to welcome if not authenticated
+// Route guard: checks auth + linked customer profile
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  const { data: customer, isLoading: customerLoading } = useCustomerProfile(user?.id);
+
+  if (loading || customerLoading) return null;
+  if (!user) return <Navigate to="/" replace />;
+  if (!customer) return <Navigate to="/onboarding/link-new" replace />;
+  return <>{children}</>;
+};
+
+// Route guard: auth only (no customer-linked check) — for onboarding linking pages
+const AuthOnlyRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/" replace />;
@@ -49,9 +61,9 @@ const AppRoutes = () => (
       <Route path="/onboarding/otp" element={<OtpVerify />} />
 
       {/* Post-OTP linking (needs auth but part of onboarding) */}
-      <Route path="/onboarding/link-welcome" element={<ProtectedRoute><LinkWelcomeBack /></ProtectedRoute>} />
-      <Route path="/onboarding/link-select" element={<ProtectedRoute><LinkSelectAddress /></ProtectedRoute>} />
-      <Route path="/onboarding/link-new" element={<ProtectedRoute><LinkNewCustomer /></ProtectedRoute>} />
+      <Route path="/onboarding/link-welcome" element={<AuthOnlyRoute><LinkWelcomeBack /></AuthOnlyRoute>} />
+      <Route path="/onboarding/link-select" element={<AuthOnlyRoute><LinkSelectAddress /></AuthOnlyRoute>} />
+      <Route path="/onboarding/link-new" element={<AuthOnlyRoute><LinkNewCustomer /></AuthOnlyRoute>} />
 
       {/* Protected app screens */}
       <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
