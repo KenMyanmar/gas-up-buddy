@@ -17,7 +17,7 @@ const statusStyles: Record<string, string> = {
   cancelled: "bg-red-50 text-destructive",
 };
 
-const activeStatuses = ["pending", "confirmed", "assigned", "in_transit"];
+const activeStatuses = ["new", "pending", "confirmed", "assigned", "in_transit", "dispatched", "in_progress"];
 
 const OrdersPage = () => {
   const [activeTab, setActiveTab] = useState("All");
@@ -71,7 +71,15 @@ const OrdersPage = () => {
           </div>
         ) : (
           filtered.map((order) => (
-            <div key={order.id} className="rounded-xl bg-card p-4 shadow-sm">
+            <div
+              key={order.id}
+              className="rounded-xl bg-card p-4 shadow-sm"
+              onClick={() => {
+                if (activeStatuses.includes(order.status)) {
+                  navigate(`/order/tracking/${order.id}`);
+                }
+              }}
+            >
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">
@@ -93,12 +101,18 @@ const OrdersPage = () => {
                   <p className="mt-2 font-bold text-foreground">{order.total_amount.toLocaleString()} MMK</p>
                 </div>
               </div>
-              <button
-                onClick={() => navigate("/order/configure")}
-                className="mt-3 w-full rounded-lg bg-action-light py-2 text-center text-sm font-bold text-action transition-colors active:bg-action/20"
-              >
-                Reorder
-              </button>
+              {activeStatuses.includes(order.status) ? (
+                <div className="mt-3 w-full rounded-lg bg-action py-2 text-center text-sm font-bold text-action-foreground">
+                  Track Order →
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate("/order/configure"); }}
+                  className="mt-3 w-full rounded-lg bg-action-light py-2 text-center text-sm font-bold text-action transition-colors active:bg-action/20"
+                >
+                  Reorder
+                </button>
+              )}
             </div>
           ))
         )}

@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Flame, MapPin, ClipboardList, Phone, HelpCircle, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders, useCustomerProfile } from "@/hooks/useOrders";
+import { supabase } from "@/integrations/supabase/client";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -12,6 +14,24 @@ const HomePage = () => {
 
   const lastOrder = orders?.[0];
   const initial = customer?.full_name?.charAt(0)?.toUpperCase() ?? "A";
+
+  const { data: activeOrder } = useQuery({
+    queryKey: ["active-order", customer?.id],
+    queryFn: async () => {
+      if (!customer?.id) return null;
+      const { data } = await supabase
+        .from("orders")
+        .select("id, status, cylinder_type, total_amount, created_at")
+        .eq("customer_id", customer.id)
+        .in("status", ["new", "confirmed", "dispatched", "in_progress"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!customer?.id,
+    refetchInterval: 30000,
+  });
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -39,6 +59,24 @@ const HomePage = () => {
         </span>
         <button className="ml-auto text-xs font-semibold text-primary">Change</button>
       </div>
+
+      {/* Active Order Banner */}
+      {activeOrder && (
+        <button
+          onClick={() => navigate(`/order/tracking/${activeOrder.id}`)}
+          className="mx-5 mt-3 flex items-center justify-between rounded-xl border border-action/20 bg-action-light p-4"
+        >
+          <div>
+            <p className="text-sm font-bold text-action">
+              🔶 {activeOrder.status === "dispatched" ? "On the Way" : activeOrder.status === "confirmed" ? "Agent Assigned" : "Finding Agent..."}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {activeOrder.cylinder_type ?? "Gas"} · {(activeOrder.total_amount ?? 0).toLocaleString()} MMK
+            </p>
+          </div>
+          <span className="text-sm font-bold text-action">Track →</span>
+        </button>
+      )}
 
       <div className="space-y-4 px-5 pt-5">
         {/* Hero Button */}

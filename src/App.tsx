@@ -18,6 +18,7 @@ import HomePage from "./pages/HomePage";
 import OrderConfigure from "./pages/OrderConfigure";
 import OrderConfirm from "./pages/OrderConfirm";
 import OrderSuccess from "./pages/OrderSuccess";
+import OrderTracking from "./pages/OrderTracking";
 import OrdersPage from "./pages/OrdersPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
@@ -70,6 +71,7 @@ const AppRoutes = () => (
       <Route path="/order/configure" element={<ProtectedRoute><OrderConfigure /></ProtectedRoute>} />
       <Route path="/order/confirm" element={<ProtectedRoute><OrderConfirm /></ProtectedRoute>} />
       <Route path="/order/success" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
+      <Route path="/order/tracking/:orderId" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
