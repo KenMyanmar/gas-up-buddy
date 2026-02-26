@@ -1425,6 +1425,7 @@ export type Database = {
           notes: string | null
           offered_at: string | null
           old_cylinder_condition: string | null
+          order_source: string
           order_type: Database["public"]["Enums"]["order_type"] | null
           preferred_delivery_time: string | null
           quantity: number
@@ -1478,6 +1479,7 @@ export type Database = {
           notes?: string | null
           offered_at?: string | null
           old_cylinder_condition?: string | null
+          order_source?: string
           order_type?: Database["public"]["Enums"]["order_type"] | null
           preferred_delivery_time?: string | null
           quantity: number
@@ -1531,6 +1533,7 @@ export type Database = {
           notes?: string | null
           offered_at?: string | null
           old_cylinder_condition?: string | null
+          order_source?: string
           order_type?: Database["public"]["Enums"]["order_type"] | null
           preferred_delivery_time?: string | null
           quantity?: number
