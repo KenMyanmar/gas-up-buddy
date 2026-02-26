@@ -45,18 +45,33 @@ const OtpVerify = () => {
         }
       }
 
-      // Now call the Edge Function — session token will be attached automatically
-      const response = await supabase.functions.invoke('link-customer-account');
-      const result = response.data;
+      // Check if customer is already linked by querying DB directly
+      const userId = session?.user?.id ?? (await supabase.auth.getSession()).data.session?.user?.id;
+      const { data: existingCustomers } = await supabase
+        .from('customers')
+        .select('id, full_name, address, township')
+        .eq('auth_user_id', userId!);
 
-      if (result?.status === 'already_linked') {
+      if (existingCustomers && existingCustomers.length === 1) {
+        // Already linked to exactly one customer → go home
         navigate('/home');
-      } else if (result?.status === 'single') {
-        navigate('/onboarding/link-welcome', { state: { customer: result.customer } });
-      } else if (result?.status === 'multiple') {
-        navigate('/onboarding/link-select', { state: { candidates: result.candidates } });
+      } else if (existingCustomers && existingCustomers.length > 1) {
+        // Multiple customer records → let user pick
+        navigate('/onboarding/link-select', { state: { candidates: existingCustomers } });
       } else {
-        navigate('/onboarding/link-new');
+        // No linked customer → check if phone matches any unlinked customers
+        const response = await supabase.functions.invoke('link-customer-account', {
+          body: { action: 'check_phone' },
+        });
+        const result = response.data;
+
+        if (result?.status === 'single') {
+          navigate('/onboarding/link-welcome', { state: { customer: result.customer } });
+        } else if (result?.status === 'multiple') {
+          navigate('/onboarding/link-select', { state: { candidates: result.candidates } });
+        } else {
+          navigate('/onboarding/link-new');
+        }
       }
     } catch (err: any) {
       toast({
