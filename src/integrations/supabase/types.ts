@@ -3180,6 +3180,7 @@ export type Database = {
           path: string
         }[]
       }
+      get_agent_customer_ids: { Args: never; Returns: string[] }
       get_my_customer_ids: { Args: never; Returns: string[] }
       get_user_role: { Args: { _user_id: string }; Returns: string }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }

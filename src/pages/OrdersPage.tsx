@@ -80,10 +80,10 @@ const OrdersPage = () => {
                     {new Date(order.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                   </p>
                   <p className="mt-1 font-bold text-foreground">
-                    {order.cylinder_types?.weight_kg ?? "?"}kg · {order.delivery_type}
+                    {order.cylinder_type ?? "?"} · {order.order_type ?? "refill"}
                   </p>
-                  {order.cylinder_types?.brands?.name && (
-                    <p className="mt-0.5 text-sm text-muted-foreground">{order.cylinder_types.brands.name}</p>
+                  {order.brands?.name && (
+                    <p className="mt-0.5 text-sm text-muted-foreground">{order.brands.name}</p>
                   )}
                 </div>
                 <div className="text-right">
