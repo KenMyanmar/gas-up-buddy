@@ -58,7 +58,8 @@ const OrderConfigure = () => {
   }, [selectedSize, selectedBrandPrice]);
 
   const unitPrice = pricing ? (deliveryType === "refill" ? pricing.refill : pricing.new) : 0;
-  const total = unitPrice * quantity;
+  const deliveryFee = deliveryType === "refill" ? 3000 : 0;
+  const total = unitPrice * quantity + deliveryFee;
   const canConfirm = !!selectedSize && !!activeBrandId && !!pricing;
   const showBrandSelector = availableBrands.length > 1;
 
@@ -215,7 +216,9 @@ const OrderConfigure = () => {
           </div>
           <div className="mb-3 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">🚚 Delivery</span>
-            <span className="font-semibold text-action">Free</span>
+            <span className={deliveryFee > 0 ? "font-semibold text-foreground" : "font-semibold text-action"}>
+              {deliveryFee > 0 ? `${deliveryFee.toLocaleString()} MMK` : "Free"}
+            </span>
           </div>
           <Button
             variant="action"
@@ -235,7 +238,7 @@ const OrderConfigure = () => {
                     deliveryType === "new"
                       ? selectedSize!.cylinder_price * quantity
                       : 0,
-                  deliveryFee: 0,
+                  deliveryFee,
                   totalAmount: total,
                   gasPricePerKg: selectedBrandPrice?.price_per_kg ?? 0,
                 },

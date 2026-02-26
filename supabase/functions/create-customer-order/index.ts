@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     const gasSubtotal = Math.round(gasPricePerKg * Number(cylType.size_kg) * quantity);
     const cylinderSubtotal =
       safeOrderType === "new" ? cylType.cylinder_price * quantity : 0;
-    const deliveryFee = 0;
+    const deliveryFee = safeOrderType === "refill" ? 3000 : 0;
     const totalAmount = gasSubtotal + cylinderSubtotal + deliveryFee;
 
     // Tolerance check — reject if client total is off by more than 1%
