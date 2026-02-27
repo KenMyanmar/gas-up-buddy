@@ -1,113 +1,175 @@
 
 
-# Fix: Stop Calling Edge Function for Customer Linking Check
+# Kitchen Warmth Theme — Complete Deployment Brief v2
 
-## Root Cause
+## Assets Provided
 
-In `src/pages/OtpVerify.tsx` (line 49), after OTP verification succeeds, the code calls:
-```typescript
-const response = await supabase.functions.invoke('link-customer-account');
-```
-**without a request body**. The Edge Function returns `400 "Missing request body"`. Since `response.data` is then null/undefined, none of the status checks match (`already_linked`, `single`, `multiple`), so it falls through to `navigate('/onboarding/link-new')` every time.
+| File | Purpose | Destination |
+|------|---------|-------------|
+| `user-uploads://Untitled_design.png` | AnyGas cat mascot — used on Welcome screen and Hero CTA | `src/assets/mascot.png` |
+| `user-uploads://2.jpg` | App icon — used as favicon and PWA icon | `public/app-icon.jpg` |
+| `user-uploads://13.png` | Alternate logo (phone circle) — available for future use | `src/assets/logo-alt.png` |
 
-This means every successful login dumps the user into onboarding, even if they already have a linked customer record.
+## Branding Files (8 changes)
 
-## Fix: 2 Files
+| # | File | Change |
+|---|------|--------|
+| B1 | `public/favicon.ico` | Replace with `2.jpg` converted to favicon reference |
+| B2 | `index.html` | Update `<title>` to "AnyGas 8484", update `<meta description>` to "Order LPG gas delivery in Myanmar — AnyGas 8484", update all `og:title`/`twitter:title` to "AnyGas 8484", update `og:description`/`twitter:description`, add favicon link to `2.jpg` |
+| B3 | `index.html` | Add Google Fonts link for DM Sans + Outfit |
+| B4-B8 | Future PWA | `manifest.json`, `logo192.png`, `logo512.png`, `apple-touch-icon.png` — not yet created, note for future PWA setup |
 
-### 1. `src/pages/OtpVerify.tsx` — Replace Edge Function call with direct DB query
+## Reference Prototype
 
-After OTP verification succeeds, instead of calling the Edge Function, query the `customers` table directly (the `useCustomerProfile` pattern already exists in `useOrders.ts`):
+The HTML mockup provided in the user's message serves as the pixel-accurate visual target. All color values, spacing, typography weights, border radii, and component patterns should match that prototype.
 
-```typescript
-// Lines 48-60: Replace the Edge Function call block with:
+## Implementation — 6 Phases, 14+ Files
 
-// Check if customer is already linked by querying DB directly
-const { data: existingCustomers } = await supabase
-  .from('customers')
-  .select('id, full_name, address, township')
-  .eq('auth_user_id', session?.user?.id ?? (await supabase.auth.getSession()).data.session?.user?.id)
+### Phase 1: CSS Foundation (3 files)
 
-if (existingCustomers && existingCustomers.length === 1) {
-  // Already linked to exactly one customer → go home
-  navigate('/home');
-} else if (existingCustomers && existingCustomers.length > 1) {
-  // Multiple customer records → let user pick
-  navigate('/onboarding/link-select', { state: { candidates: existingCustomers } });
-} else {
-  // No linked customer → check if phone matches any unlinked customers
-  // Call Edge Function WITH proper body for initial phone-based matching
-  const response = await supabase.functions.invoke('link-customer-account', {
-    body: { action: 'check_phone' }
-  });
-  const result = response.data;
+**`src/index.css`**
+- Add Google Fonts import: `DM Sans:wght@400;500;600;700;800;900` + `Outfit:wght@400;500;600;700;800;900`
+- Update CSS variables:
+  - `--background: 33 80% 97%` (#FEF8F0)
+  - `--foreground: 22 76% 8%` (#1F1206)
+  - `--muted-foreground: 30 16% 44%` (#8D7355)
+  - `--border: 30 30% 88%` (#F0E4D4)
+  - `--primary: 27 85% 49%` (#E07A12)
+  - `--primary-dark: 27 88% 40%` (#C46A0A)
+  - `--action: 27 85% 49%` (same as primary)
+  - `--action-light: 33 100% 94%` (#FFF3E0)
+- Add new variables: `--surface-warm`, `--bg-warm`, `--border-strong`, `--divider`
+- Update body font to `'DM Sans', 'Padauk', sans-serif`
+- Add utility classes: `.font-display` (Outfit), gradient utilities, shadow utilities, stagger animation keyframes, pulse-border animation
 
-  if (result?.status === 'single') {
-    navigate('/onboarding/link-welcome', { state: { customer: result.customer } });
-  } else if (result?.status === 'multiple') {
-    navigate('/onboarding/link-select', { state: { candidates: result.candidates } });
-  } else {
-    // No match at all → new customer registration
-    navigate('/onboarding/link-new');
-  }
-}
-```
+**`tailwind.config.ts`**
+- Add color tokens: `surface-warm`, `bg-warm`, `border-strong`, `divider`
+- Add `fontFamily`: `display: ['Outfit', ...]`, `body: ['DM Sans', ...]`
+- Add shadow presets: `hero`, `action`
+- Add `pulse-border` and `fade-in` keyframe/animation
 
-The key change: the **first check** is a direct DB query (no Edge Function). The Edge Function is only called if the user has no linked customer and we need to do phone-based matching against unlinked records.
+**`src/components/ui/button.tsx`**
+- Update `action` variant: add gradient background via Tailwind (`bg-gradient-to-r from-[#E07A12] to-[#F5A623]`), `shadow-[0_6px_20px_rgba(224,122,18,0.25)]`, `min-h-[52px]`, `font-extrabold`
+- Update `hero` variant: same gradient, larger shadow, remove `animate-pulse-gentle`
 
-### 2. `src/App.tsx` — Add customer-linked check to ProtectedRoute
+### Phase 2: Welcome + Auth (3 files)
 
-The current `ProtectedRoute` only checks `user` exists. An authenticated user with no linked customer still gets through to `/home` where data is empty. Add a linking check:
+**`src/pages/Welcome.tsx`**
+- Background: warm gradient `from-[#FFF9F0] to-[#FEF0DC]`
+- Replace Flame icon with mascot image (`import mascot from "@/assets/mascot.png"`) — display as 110px rounded image
+- Brand name uses `font-display` (Outfit), "8484" in primary color
+- Add tagline: "Fast & reliable LPG delivery" + Myanmar text
+- Add badge: "🍳 Keep your kitchen cooking!"
+- Decorative low-opacity flame emojis at corners
+- Button uses gradient action style
 
-```typescript
-// Replace ProtectedRoute (lines 27-32) with:
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
-  const { data: customer, isLoading: customerLoading } = useCustomerProfile(user?.id);
-  
-  if (loading || customerLoading) return null;
-  if (!user) return <Navigate to="/" replace />;
-  // If authenticated but no linked customer, send to onboarding
-  if (!customer) return <Navigate to="/onboarding/link-new" replace />;
-  return <>{children}</>;
-};
-```
+**`src/pages/PhoneEntry.tsx`**
+- Add `font-display` to heading
+- Split input into country code box (`+95`, 80px, warm bg) + phone input
+- Add hint card below input: `💡 We'll send a 6-digit OTP code via SMS` with `bg-warm` background
+- Warmer border colors
 
-This requires importing `useCustomerProfile` at the top of App.tsx:
-```typescript
-import { useCustomerProfile } from "@/hooks/useOrders";
-```
+**`src/pages/OtpVerify.tsx`**
+- OTP boxes: 50x60px, `font-display` for digits, rounded-[14px]
+- Focus state: warm glow ring `shadow-[0_0_0_3px_rgba(224,122,18,0.15)]`, warm bg
+- Filled state: primary border + warm bg
+- Timer uses `font-display` for countdown number
 
-**Important exception**: The onboarding linking routes (`/onboarding/link-welcome`, `/onboarding/link-select`, `/onboarding/link-new`) must NOT use this enhanced `ProtectedRoute` or they'll create an infinite redirect loop. They need a simpler guard that only checks authentication:
+### Phase 3: Home Page (1 file, largest change)
 
-```typescript
-// Add a new route guard for onboarding pages
-const AuthOnlyRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  if (!user) return <Navigate to="/" replace />;
-  return <>{children}</>;
-};
-```
+**`src/pages/HomePage.tsx`**
+- **Replace orange header** with greeting layout: "Good morning 👋" / customer name in `font-display`, notification bell button (top right) with red dot
+- **Delivery address bar**: Pin icon in warm bg square + address + chevron arrow
+- **Active order banner**: Add pulse-border animation, icon in action-colored square, arrow
+- **Hero CTA card**: Replace flat button with gradient hero card — diagonal stripe pattern overlay, "Order Gas Now" heading, "Keep your kitchen cooking!" subtext, frosted glass "Order Now →" pill button, mascot image or decorative emoji at top-right
+- **Quick Actions**: 2x2 grid cards (Order Again, My Orders, Accessories, Call 8484) — each with emoji icon in warm bg square, title, description. Hover: primary border + shadow-md + translateY(-1px)
+- **Promo card**: Gold gradient background
+- **Tips section**: Cards with emoji icons
 
-Then update routes:
-```typescript
-{/* Post-OTP linking — auth required but NO customer-linked check */}
-<Route path="/onboarding/link-welcome" element={<AuthOnlyRoute><LinkWelcomeBack /></AuthOnlyRoute>} />
-<Route path="/onboarding/link-select" element={<AuthOnlyRoute><LinkSelectAddress /></AuthOnlyRoute>} />
-<Route path="/onboarding/link-new" element={<AuthOnlyRoute><LinkNewCustomer /></AuthOnlyRoute>} />
-```
+### Phase 4: Order Flow (3 files)
+
+**`src/pages/OrderConfigure.tsx`**
+- Back button: bordered rounded square (not bare icon)
+- **Order type**: Segmented control tabs with warm bg container, active tab white bg + shadow
+- **Brand selector**: Horizontal scroll chips with `rounded-full`, active = primary glow bg + primary border
+- **Size cards**: Selected card gets checkmark badge (absolute positioned), `font-display` for weight number, price in primary color
+- **Quantity stepper**: Row layout with bordered square buttons, `font-display` for value
+- **Sticky footer**: Total in `font-display`, divider line uses `--divider`
+
+**`src/pages/OrderConfirm.tsx`**
+- Section titles with `font-display`
+- Total value in `font-display` + primary color
+- Dividers use `--divider` color
+- Payment method cards: warmer borders
+
+**`src/pages/OrderSuccess.tsx`**
+- Green check circle: larger (80px), green tint bg (#E8F5E9)
+- Heading in `font-display`
+- Order number in `font-display`
+
+### Phase 5: Orders History + Profile + Tracking (3 files)
+
+**`src/pages/OrdersPage.tsx`**
+- Tab pills: primary bg when active (matching prototype)
+- Cards: Add order ID badge at top, cylinder emoji icon in warm bg square, price in `font-display` + primary color
+- Card hover: shadow-md transition
+
+**`src/pages/ProfilePage.tsx`**
+- Centered layout: avatar with gradient-hero bg, `rounded-[24px]`
+- Name in `font-display`
+- Member badge pill: "🔥 Member since 2024" in primary-glow bg
+- Section titles: uppercase, muted, letter-spacing
+- Menu items: emoji in warm bg square, description text, chevron
+- Callout card: "Need help? Call 8484"
+- Logout button: bordered with destructive color
+
+**`src/pages/OrderTracking.tsx`**
+- Header: gradient hero bg instead of flat primary
+- Status timeline: warm styling matching prototype
+- Driver card: gradient avatar bg, rounded-[16px]
+- Map area: rounded-[20px]
+
+### Phase 6: Navigation + CallFallback (2 files)
+
+**`src/components/BottomNav.tsx`**
+- Replace underline indicator with small dot (4px circle) below label
+- Active text stays primary color
+
+**`src/components/CallFallback.tsx`**
+- Use warm orange shadow: `shadow-[0_6px_20px_rgba(224,122,18,0.3)]`
+
+### Phase 7: Branding Assets
+
+- Copy `user-uploads://Untitled_design.png` → `src/assets/mascot.png`
+- Copy `user-uploads://2.jpg` → `public/app-icon.jpg`
+- Copy `user-uploads://13.png` → `src/assets/logo-alt.png`
+- Update `index.html`: title, meta, favicon
+
+## Visual QA Checklist (15 checkpoints)
+
+| # | Screen | Checkpoint |
+|---|--------|------------|
+| 1 | Welcome | Mascot image visible, gradient background, Outfit font on brand name, "8484" in orange |
+| 2 | Welcome | "Continue with Phone" button has gradient (not flat) with warm shadow |
+| 3 | Phone Entry | Country code (+95) in separate warm-bg box, hint card visible below input |
+| 4 | OTP | 6 boxes with warm focus glow, filled boxes show primary border |
+| 5 | Home | Greeting header with customer name (no orange header bar), notification bell visible |
+| 6 | Home | Hero CTA card has gradient background with pattern overlay, not a flat button |
+| 7 | Home | Active order banner has pulsing border animation |
+| 8 | Home | 2x2 quick actions grid with emoji icons in warm bg squares |
+| 9 | Order Configure | Segmented tabs (not bare buttons), size cards show checkmark when selected |
+| 10 | Order Confirm | Total amount in Outfit font + primary color |
+| 11 | Order Success | Large green check circle (80px) with green tint bg |
+| 12 | Order Tracking | Gradient hero header, driver avatar with gradient bg fallback |
+| 13 | Orders List | Tab pills with primary active bg, order cards with emoji icons |
+| 14 | Profile | Centered avatar with gradient bg, member badge pill, grouped menu items |
+| 15 | Bottom Nav | Dot indicator (not underline) below active tab icon |
 
 ## Summary
 
-| File | Change |
-|------|--------|
-| `src/pages/OtpVerify.tsx` | Replace Edge Function call with direct `customers` table query; only call EF with body for phone matching |
-| `src/App.tsx` | Split route guards: `ProtectedRoute` checks customer linking, new `AuthOnlyRoute` for onboarding pages |
-
-## What This Fixes
-
-- Authenticated users with linked customers go straight to `/home` (no onboarding loop)
-- Authenticated users WITHOUT linked customers get redirected to onboarding from any protected page
-- Edge Function is never called without a body
-- Edge Function is only called once during initial OTP verification when phone-based matching is needed
+- **14 code files** modified
+- **3 asset files** copied into project
+- **1 HTML file** (index.html) updated for branding
+- **0 database changes**
+- **0 new npm dependencies** (fonts via Google Fonts CDN)
 
