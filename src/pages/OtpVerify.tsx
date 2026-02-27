@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-
 
 const OtpVerify = () => {
   const navigate = useNavigate();
@@ -32,9 +32,7 @@ const OtpVerify = () => {
       const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: "sms" });
       if (error) throw error;
 
-      // Wait for session to be established before calling Edge Function
       let { data: { session } } = await supabase.auth.getSession();
-
       if (!session) {
         await new Promise(resolve => setTimeout(resolve, 500));
         const { data: retry } = await supabase.auth.getSession();
@@ -45,7 +43,6 @@ const OtpVerify = () => {
         }
       }
 
-      // Check if customer is already linked by querying DB directly
       const userId = session?.user?.id ?? (await supabase.auth.getSession()).data.session?.user?.id;
       const { data: existingCustomers } = await supabase
         .from('customers')
@@ -53,18 +50,14 @@ const OtpVerify = () => {
         .eq('auth_user_id', userId!);
 
       if (existingCustomers && existingCustomers.length === 1) {
-        // Already linked to exactly one customer → go home
         navigate('/home');
       } else if (existingCustomers && existingCustomers.length > 1) {
-        // Multiple customer records → let user pick
         navigate('/onboarding/link-select', { state: { candidates: existingCustomers } });
       } else {
-        // No linked customer → check if phone matches any unlinked customers
         const response = await supabase.functions.invoke('link-customer-account', {
           body: { action: 'check_phone' },
         });
         const result = response.data;
-
         if (result?.status === 'single') {
           navigate('/onboarding/link-welcome', { state: { customer: result.customer } });
         } else if (result?.status === 'multiple') {
@@ -89,11 +82,9 @@ const OtpVerify = () => {
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
-
     if (value && index === 5 && newOtp.every((d) => d !== "")) {
       verifyOtp(newOtp.join(""));
     }
@@ -122,16 +113,19 @@ const OtpVerify = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-6">
-      <button onClick={() => navigate("/onboarding/phone")} className="mb-8 self-start text-muted-foreground">
-        <ArrowLeft className="h-6 w-6" />
+      <button onClick={() => navigate("/onboarding/phone")} className="mb-8 flex items-center gap-1.5 self-start text-sm font-semibold text-muted-foreground">
+        <ArrowLeft className="h-5 w-5" />
+        Back
       </button>
 
-      <h1 className="mb-2 text-2xl font-bold text-foreground">Verify your number</h1>
-      <p className="mb-8 text-muted-foreground">
-        We sent a code to <span className="font-semibold text-foreground">{maskedPhone}</span>
-      </p>
+      <div className="mb-8">
+        <h1 className="font-display text-[26px] font-extrabold text-foreground mb-1.5">Verify your number</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Enter the 6-digit code sent to <span className="font-semibold text-foreground">{maskedPhone}</span>
+        </p>
+      </div>
 
-      <div className="mb-6 flex justify-center gap-3">
+      <div className="mb-7 flex justify-center gap-2.5">
         {otp.map((digit, i) => (
           <input
             key={i}
@@ -142,7 +136,11 @@ const OtpVerify = () => {
             value={digit}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
-            className="h-14 w-12 rounded-xl border-2 border-border bg-card text-center text-xl font-bold text-foreground outline-none transition-colors focus:border-action"
+            className={`h-[60px] w-[50px] rounded-[14px] border-2 text-center font-display text-2xl font-extrabold text-foreground outline-none transition-all ${
+              digit
+                ? "border-action bg-surface-warm"
+                : "border-border-strong bg-card"
+            } focus:border-action focus:bg-surface-warm focus:shadow-[0_0_0_3px_hsla(27,85%,49%,0.15)]`}
             autoFocus={i === 0}
             disabled={verifying}
           />
@@ -153,19 +151,19 @@ const OtpVerify = () => {
         <p className="mb-4 text-center text-sm font-semibold text-action">Verifying...</p>
       )}
 
-      <div className="text-center">
+      <div className="mb-2 text-center text-sm text-muted-foreground">
         {timer > 0 ? (
-          <p className="text-muted-foreground">
-            Resend code in <span className="font-semibold text-foreground">0:{timer.toString().padStart(2, "0")}</span>
+          <p>
+            Resend code in <span className="font-display font-extrabold text-action">0:{timer.toString().padStart(2, "0")}</span>
           </p>
         ) : (
-          <button onClick={handleResend} className="font-semibold text-action">
+          <button onClick={handleResend} className="font-bold text-action">
             Resend Code
           </button>
         )}
       </div>
 
-      <button onClick={() => navigate("/onboarding/phone")} className="mt-4 text-center text-sm text-muted-foreground underline">
+      <button onClick={() => navigate("/onboarding/phone")} className="text-center text-sm text-muted-foreground underline">
         Wrong number?
       </button>
     </div>

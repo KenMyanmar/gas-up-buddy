@@ -1,4 +1,4 @@
-import { MapPin, CreditCard, Settings, Phone, HelpCircle, FileText, Shield, LogOut, Star, ChevronRight } from "lucide-react";
+import { ChevronRight, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile, useOrders } from "@/hooks/useOrders";
@@ -19,77 +19,102 @@ const ProfilePage = () => {
     navigate("/");
   };
 
-  const menuItems = [
-    { icon: MapPin, label: "Delivery Addresses", badge: customer?.township ?? "" },
-    { icon: CreditCard, label: "Payment Methods" },
-    { icon: Settings, label: "Preferences" },
-    { divider: true },
-    { icon: Phone, label: "Call 8484", href: "tel:8484" },
-    { icon: HelpCircle, label: "Help & FAQ" },
-    { icon: FileText, label: "Terms & Conditions" },
-    { icon: Shield, label: "Privacy Policy" },
-    { divider: true },
-    { icon: LogOut, label: "Log Out", destructive: true },
+  const accountItems = [
+    { emoji: "📍", title: "Delivery Addresses", desc: customer?.township ?? "Manage addresses" },
+    { emoji: "💳", title: "Payment Methods", desc: "Cash, KBZ Pay, Wave" },
+    { emoji: "⚙️", title: "Preferences", desc: "Notifications, language" },
+  ];
+
+  const supportItems = [
+    { emoji: "☎️", title: "Call 8484", desc: "24/7 support", href: "tel:8484" },
+    { emoji: "❓", title: "Help & FAQ", desc: "Common questions" },
+    { emoji: "📄", title: "Terms & Conditions", desc: "Legal info" },
+    { emoji: "🔒", title: "Privacy Policy", desc: "Your data rights" },
   ];
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <header className="bg-card px-5 py-4 shadow-sm">
-        <h1 className="text-xl font-bold text-foreground">Profile</h1>
-      </header>
-
-      {/* Profile Card */}
-      <div className="mx-5 mt-5 flex items-center gap-4 rounded-xl bg-card p-5 shadow-sm">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-action text-2xl font-bold text-action-foreground">
-          {initial}
-        </div>
-        <div className="flex-1">
-          <p className="text-lg font-bold text-foreground">{displayName}</p>
-          <p className="text-sm text-muted-foreground">{displayPhone}</p>
-          {customer?.address && customer?.township && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {customer.address}, {customer.township}
-            </p>
-          )}
-          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-            <Star className="h-3.5 w-3.5 fill-warning text-warning" />
-            <span>{completedCount} orders completed</span>
+      <div className="px-5 pt-5 space-y-5">
+        {/* Profile Header */}
+        <div className="text-center">
+          <div className="mx-auto mb-3 flex h-[72px] w-[72px] items-center justify-center rounded-[24px] gradient-hero text-[28px] font-black text-white shadow-hero">
+            {initial}
+          </div>
+          <h1 className="font-display text-xl font-extrabold text-foreground">{displayName}</h1>
+          <p className="text-[13px] font-semibold text-muted-foreground mt-0.5">{displayPhone}</p>
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-action/10 px-3 py-1 text-[11px] font-bold text-action">
+            🔥 {completedCount} orders completed
           </div>
         </div>
-        <button className="text-sm font-semibold text-primary">Edit</button>
-      </div>
 
-      {/* Menu Items */}
-      <div className="mx-5 mt-4 overflow-hidden rounded-xl bg-card shadow-sm">
-        {menuItems.map((item, i) => {
-          if ('divider' in item && item.divider) {
-            return <div key={i} className="border-t border-border" />;
-          }
-          const content = (
-            <div className="flex items-center gap-3 px-5 py-3.5">
-              {'icon' in item && item.icon && <item.icon className={`h-5 w-5 ${'destructive' in item && item.destructive ? "text-destructive" : "text-muted-foreground"}`} />}
-              <span className={`flex-1 font-medium ${'destructive' in item && item.destructive ? "text-destructive" : "text-foreground"}`}>
-                {'label' in item ? item.label : ''}
-              </span>
-              {'badge' in item && item.badge && (
-                <span className="text-xs text-muted-foreground">{item.badge}</span>
-              )}
-              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
-            </div>
-          );
-
-          if ('href' in item && item.href) {
-            return <a key={i} href={item.href}>{content}</a>;
-          }
-          if ('destructive' in item && item.destructive) {
-            return (
-              <button key={i} className="w-full" onClick={handleLogOut}>
-                {content}
+        {/* Account Section */}
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Account</p>
+          <div className="space-y-2">
+            {accountItems.map((item) => (
+              <button key={item.title} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
+                <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-bg-warm text-lg flex-shrink-0">
+                  {item.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground">{item.title}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground">{item.desc}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
               </button>
-            );
-          }
-          return <button key={i} className="w-full text-left">{content}</button>;
-        })}
+            ))}
+          </div>
+        </div>
+
+        {/* Support Section */}
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Support</p>
+          <div className="space-y-2">
+            {supportItems.map((item) => {
+              const inner = (
+                <>
+                  <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-bg-warm text-lg flex-shrink-0">
+                    {item.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground">{item.title}</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground">{item.desc}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
+                </>
+              );
+              if (item.href) {
+                return (
+                  <a key={item.title} href={item.href} className="flex items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
+                    {inner}
+                  </a>
+                );
+              }
+              return (
+                <button key={item.title} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
+                  {inner}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Help Callout */}
+        <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-border bg-surface-warm p-3.5">
+          <span className="text-2xl">📞</span>
+          <p className="flex-1 text-[13px] font-semibold text-muted-foreground leading-relaxed">
+            Need help? Call <strong className="text-action">8484</strong> anytime, 24/7
+          </p>
+        </div>
+
+        {/* Logout */}
+        <button
+          onClick={handleLogOut}
+          className="flex w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-border-strong bg-card py-3.5 text-sm font-bold text-destructive transition-all hover:bg-destructive/5"
+        >
+          <LogOut className="h-4 w-4" />
+          Log Out
+        </button>
       </div>
     </div>
   );

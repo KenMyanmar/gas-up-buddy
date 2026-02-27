@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=Padauk:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,43 +6,49 @@
 
 @layer base {
   :root {
-    --background: 30 14% 97%;
-    --foreground: 0 0% 10%;
+    --background: 33 80% 97%;
+    --foreground: 22 76% 8%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 22 76% 8%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 22 76% 8%;
 
-    --primary: 18 82% 50%;
+    --primary: 27 85% 49%;
     --primary-foreground: 0 0% 100%;
-    --primary-dark: 18 85% 41%;
+    --primary-dark: 27 88% 40%;
 
     --secondary: 30 14% 95%;
-    --secondary-foreground: 0 0% 10%;
+    --secondary-foreground: 22 76% 8%;
 
-    --muted: 30 10% 90%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 30 20% 92%;
+    --muted-foreground: 30 16% 44%;
 
     --accent: 38 91% 55%;
     --accent-foreground: 0 0% 100%;
     --accent-light: 45 100% 95%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 4 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --action: 18 82% 50%;
+    --action: 27 85% 49%;
     --action-foreground: 0 0% 100%;
-    --action-dark: 18 85% 41%;
-    --action-light: 20 100% 96%;
+    --action-dark: 27 88% 40%;
+    --action-light: 33 100% 94%;
+
+    --surface-warm: 33 60% 97%;
+    --bg-warm: 33 100% 90%;
+    --border-strong: 30 25% 79%;
+    --divider: 33 40% 93%;
 
     --warning: 43 96% 56%;
     --info: 217 91% 60%;
+    --success: 135 50% 40%;
 
-    --border: 30 10% 90%;
-    --input: 30 10% 90%;
-    --ring: 18 82% 50%;
+    --border: 30 30% 88%;
+    --input: 30 30% 88%;
+    --ring: 27 85% 49%;
 
     --radius: 0.75rem;
 
@@ -53,7 +59,7 @@
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 18 82% 50%;
+    --sidebar-ring: 27 85% 49%;
   }
 }
 
@@ -64,7 +70,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Padauk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'DM Sans', 'Padauk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -75,4 +81,38 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  .font-display {
+    font-family: 'Outfit', 'DM Sans', sans-serif;
+  }
+
+  .gradient-hero {
+    background: linear-gradient(135deg, hsl(27, 85%, 49%) 0%, hsl(38, 91%, 55%) 50%, hsl(45, 100%, 67%) 100%);
+  }
+
+  .gradient-action {
+    background: linear-gradient(135deg, hsl(27, 85%, 49%) 0%, hsl(38, 91%, 55%) 100%);
+  }
+
+  .gradient-warm {
+    background: linear-gradient(180deg, hsl(33, 60%, 97%) 0%, hsl(33, 80%, 92%) 100%);
+  }
+
+  .shadow-hero {
+    box-shadow: 0 12px 40px hsla(27, 85%, 49%, 0.2);
+  }
+
+  .shadow-action {
+    box-shadow: 0 6px 20px hsla(27, 85%, 49%, 0.25);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: hsla(27, 85%, 49%, 0.2); }
+  50% { border-color: hsla(27, 85%, 49%, 0.5); }
 }
