@@ -50,17 +50,14 @@ const PhoneEntry = () => {
         </p>
       </div>
 
-      <div className="mb-6 flex gap-2.5">
-        <div className="flex w-20 items-center justify-center rounded-[14px] border-[1.5px] border-border-strong bg-surface-warm px-3 py-4 text-base font-bold text-foreground flex-shrink-0">
-          +95
-        </div>
+      <div className="mb-6">
         <input
           type="tel"
           inputMode="numeric"
           placeholder="09xxxxxxxxx"
           value={phone}
           onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-          className="flex-1 rounded-[14px] border-[1.5px] border-border-strong bg-card px-4 py-4 text-lg font-semibold text-foreground outline-none tracking-wide transition-colors focus:border-action placeholder:text-muted-foreground/50 placeholder:tracking-normal placeholder:text-[15px]"
+          className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-card px-4 py-4 text-lg font-semibold text-foreground outline-none tracking-wide transition-colors focus:border-action placeholder:text-muted-foreground/50 placeholder:tracking-normal placeholder:text-[15px]"
           autoFocus
         />
       </div>
