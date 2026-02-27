@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Flame, MapPin, ClipboardList, Phone, HelpCircle, RefreshCw } from "lucide-react";
+import { Bell, ChevronRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders, useCustomerProfile } from "@/hooks/useOrders";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,7 @@ const HomePage = () => {
   const { data: orders } = useOrders(customer?.id);
 
   const lastOrder = orders?.[0];
-  const initial = customer?.full_name?.charAt(0)?.toUpperCase() ?? "A";
+  const displayName = customer?.full_name ?? "there";
 
   const { data: activeOrder } = useQuery({
     queryKey: ["active-order", customer?.id],
@@ -33,130 +33,148 @@ const HomePage = () => {
     refetchInterval: 30000,
   });
 
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  })();
+
   return (
     <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <header className="flex items-center justify-between bg-primary px-5 py-4 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20">
-            <Flame className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold text-primary-foreground">AnyGas 8484</span>
-        </div>
-        <button
-          onClick={() => navigate("/profile")}
-          className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/30 bg-white/20 text-sm font-bold text-primary-foreground"
-        >
-          {initial}
-        </button>
-      </header>
-
-      {/* Location Bar */}
-      <div className="flex items-center gap-2 bg-card px-5 py-2.5 border-t border-border">
-        <MapPin className="h-4 w-4 text-action" />
-        <span className="text-sm font-medium text-foreground">
-          {customer?.address ? customer.address : "Hlaing Township, Yangon"}
-        </span>
-        <button className="ml-auto text-xs font-semibold text-primary">Change</button>
-      </div>
-
-      {/* Active Order Banner */}
-      {activeOrder && (
-        <button
-          onClick={() => navigate(`/order/tracking/${activeOrder.id}`)}
-          className="mx-5 mt-3 flex items-center justify-between rounded-xl border border-action/20 bg-action-light p-4"
-        >
+      <div className="px-5 pt-5 space-y-4">
+        {/* Greeting Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-bold text-action">
-              🔶 {activeOrder.status === "dispatched" ? "On the Way" : activeOrder.status === "confirmed" ? "Agent Assigned" : "Finding Agent..."}
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {activeOrder.cylinder_type ?? "Gas"} · {(activeOrder.total_amount ?? 0).toLocaleString()} MMK
+            <p className="text-[13px] font-semibold text-muted-foreground">{greeting} 👋</p>
+            <h1 className="font-display text-[22px] font-extrabold text-foreground">{displayName}</h1>
+          </div>
+          <button className="relative flex h-11 w-11 items-center justify-center rounded-[14px] border border-border bg-card shadow-sm">
+            <Bell className="h-[18px] w-[18px] text-muted-foreground" />
+            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive border-2 border-card" />
+          </button>
+        </div>
+
+        {/* Delivery Address Bar */}
+        <button
+          className="flex w-full items-center gap-2.5 rounded-[14px] border border-border bg-card p-3 shadow-sm text-left"
+          onClick={() => {}}
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-action/10 text-base flex-shrink-0">
+            📍
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-muted-foreground">Deliver to</p>
+            <p className="text-[13px] font-bold text-foreground truncate">
+              {customer?.township ?? "Hlaing Township"}, Yangon ▾
             </p>
           </div>
-          <span className="text-sm font-bold text-action">Track →</span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         </button>
-      )}
 
-      <div className="space-y-4 px-5 pt-5">
-        {/* Hero Button */}
-        <Button
-          variant="hero"
-          size="xl"
-          className="w-full flex-col gap-1 rounded-2xl py-8"
+        {/* Hero CTA Card */}
+        <button
           onClick={() => navigate("/order/configure")}
+          className="relative w-full overflow-hidden rounded-[28px] gradient-hero p-6 text-left shadow-hero transition-transform active:scale-[0.99]"
         >
-          <span className="text-2xl">🔥 ORDER GAS NOW</span>
-          {lastOrder ? (
-            <span className="text-sm font-normal opacity-90">
-              {lastOrder.cylinder_type ?? "?"} · {lastOrder.order_type ?? "refill"} · {(lastOrder.total_amount ?? 0).toLocaleString()} MMK
-            </span>
-          ) : (
-            <span className="text-sm font-normal opacity-90">Fast delivery to your door</span>
-          )}
-        </Button>
+          <span className="pointer-events-none absolute -right-2 -top-2 text-[90px] opacity-[0.15]">🍳</span>
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[60px]" style={{
+            background: "repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.04) 8px, rgba(255,255,255,0.04) 16px)"
+          }} />
+          <h2 className="relative z-10 font-display text-2xl font-black text-white">Order Gas Now</h2>
+          <p className="relative z-10 mt-1 text-sm font-semibold text-white/90">Keep your kitchen cooking!</p>
+          <div className="relative z-10 mt-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/20 px-5 py-2.5 text-sm font-extrabold text-white backdrop-blur-sm">
+            Order Now
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/30 text-xs">→</span>
+          </div>
+        </button>
 
-        {/* Order Again Card */}
-        {lastOrder && (
+        {/* Active Order Banner */}
+        {activeOrder && (
           <button
-            onClick={() => navigate("/order/configure")}
-            className="w-full rounded-xl border-2 border-action bg-action-light p-4 text-left transition-transform active:scale-[0.98]"
+            onClick={() => navigate(`/order/tracking/${activeOrder.id}`)}
+            className="flex w-full items-center gap-3 rounded-[14px] border-[1.5px] bg-action-light p-3.5 text-left animate-pulse-border"
           >
-            <div className="flex items-center gap-3">
-              <RefreshCw className="h-5 w-5 text-action" />
-              <div>
-                <p className="font-bold text-foreground">Order Again</p>
-                <p className="text-sm text-muted-foreground">
-                  Last order: {lastOrder.cylinder_type ?? "?"} · {new Date(lastOrder.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </p>
-              </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-action text-white text-lg flex-shrink-0">
+              🚛
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-bold text-action-dark">
+                {activeOrder.status === "dispatched" ? "Order on the way!" : activeOrder.status === "confirmed" ? "Agent Assigned" : "Finding Agent..."}
+              </p>
+              <p className="text-[11px] font-semibold text-muted-foreground">
+                {activeOrder.cylinder_type ?? "Gas"} · ETA ~18 min
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-action flex-shrink-0" />
           </button>
         )}
 
-        {/* Quick Actions */}
+        {/* Quick Actions Grid */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { icon: ClipboardList, label: "My Orders", path: "/orders" },
-            { icon: Phone, label: "Call 8484", href: "tel:8484" },
-            { icon: HelpCircle, label: "Help", path: "/profile" },
-          ].map((item) =>
-            item.href ? (
-              <a
-                key={item.label}
-                href={item.href}
-                className="flex items-center gap-3 rounded-xl bg-card p-4 shadow-sm transition-transform active:scale-[0.97]"
-              >
-                <item.icon className="h-5 w-5 text-primary" />
-                <span className="font-semibold text-foreground">{item.label}</span>
-              </a>
-            ) : (
+            { emoji: "🔄", title: "Order Again", desc: lastOrder ? `${lastOrder.cylinder_type ?? "?"} · ${lastOrder.order_type ?? "refill"}` : "Place a new order", onClick: () => navigate("/order/configure") },
+            { emoji: "📋", title: "My Orders", desc: "Track & history", onClick: () => navigate("/orders") },
+            { emoji: "🛒", title: "Accessories", desc: "Regulators, hoses", onClick: () => {} },
+            { emoji: "☎️", title: "Call 8484", desc: "24/7 support", href: "tel:8484" },
+          ].map((item) => {
+            const inner = (
+              <>
+                <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-bg-warm text-[22px] mb-2.5">
+                  {item.emoji}
+                </div>
+                <p className="text-sm font-bold text-foreground">{item.title}</p>
+                <p className="text-[11px] font-semibold text-muted-foreground">{item.desc}</p>
+              </>
+            );
+
+            if ('href' in item && item.href) {
+              return (
+                <a
+                  key={item.title}
+                  href={item.href}
+                  className="rounded-[20px] border border-border bg-card p-4 shadow-sm transition-all hover:border-action hover:shadow-md hover:-translate-y-0.5"
+                >
+                  {inner}
+                </a>
+              );
+            }
+            return (
               <button
-                key={item.label}
-                onClick={() => navigate(item.path!)}
-                className="flex items-center gap-3 rounded-xl bg-card p-4 shadow-sm transition-transform active:scale-[0.97]"
+                key={item.title}
+                onClick={item.onClick}
+                className="rounded-[20px] border border-border bg-card p-4 shadow-sm text-left transition-all hover:border-action hover:shadow-md hover:-translate-y-0.5"
               >
-                <item.icon className="h-5 w-5 text-primary" />
-                <span className="font-semibold text-foreground">{item.label}</span>
+                {inner}
               </button>
-            )
-          )}
+            );
+          })}
         </div>
 
-        {/* Promo Cards */}
-        <div className="space-y-3 pt-2">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Tips & Promos</h2>
+        {/* Promo Card */}
+        <button className="flex w-full items-center gap-3.5 rounded-[14px] border border-amber-200 bg-gradient-to-r from-amber-50 to-amber-100 p-3.5 text-left">
+          <span className="text-[28px]">🎉</span>
+          <div className="flex-1">
+            <p className="text-[13px] font-bold text-amber-900">Free Delivery This Week!</p>
+            <p className="text-[11px] font-semibold text-amber-700">No minimum order required</p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-amber-600 flex-shrink-0" />
+        </button>
+
+        {/* Tips & Safety */}
+        <div>
+          <h2 className="text-base font-extrabold text-foreground mb-3">🍽️ Tips & Safety</h2>
           {[
-            { emoji: "🎁", title: "Refer a friend", desc: "Get 1,000 Ks off your next order" },
-            { emoji: "🔒", title: "Gas Safety Tip", desc: "Always check cylinder seal before use" },
-          ].map((promo) => (
-            <div key={promo.title} className="flex items-center gap-4 rounded-xl bg-card p-4 shadow-sm">
-              <span className="text-2xl">{promo.emoji}</span>
-              <div>
-                <p className="font-bold text-foreground">{promo.title}</p>
-                <p className="text-sm text-muted-foreground">{promo.desc}</p>
+            { emoji: "🔥", title: "LPG Safety Guide", desc: "Important tips for safe gas usage" },
+            { emoji: "👨‍🍳", title: "Cooking Tips", desc: "Get the most from your cylinder" },
+          ].map((tip) => (
+            <button key={tip.title} className="mb-2.5 flex w-full items-center gap-3 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:border-action">
+              <span className="text-2xl flex-shrink-0">{tip.emoji}</span>
+              <div className="flex-1">
+                <p className="text-[13px] font-bold text-foreground">{tip.title}</p>
+                <p className="text-[11px] font-semibold text-muted-foreground">{tip.desc}</p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>

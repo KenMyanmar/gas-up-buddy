@@ -14,7 +14,7 @@ const statusStyles: Record<string, string> = {
   confirmed: "bg-amber-50 text-amber-700",
   assigned: "bg-amber-50 text-amber-700",
   in_transit: "bg-amber-50 text-amber-700",
-  cancelled: "bg-red-50 text-destructive",
+  cancelled: "bg-destructive/10 text-destructive",
 };
 
 const activeStatuses = ["new", "pending", "confirmed", "assigned", "in_transit", "dispatched", "in_progress"];
@@ -36,19 +36,21 @@ const OrdersPage = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <header className="bg-card px-5 py-4 shadow-sm">
-        <h1 className="text-xl font-bold text-foreground">My Orders</h1>
-      </header>
+      <div className="px-5 pt-5 pb-3">
+        <h1 className="font-display text-xl font-extrabold text-foreground">My Orders</h1>
+      </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto bg-card px-5 pb-3">
+      <div className="flex gap-2 overflow-x-auto px-5 pb-4">
         {tabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
-              activeTab === tab ? "bg-action text-action-foreground" : "bg-secondary text-muted-foreground"
+              "whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-bold transition-all border-[1.5px]",
+              activeTab === tab
+                ? "bg-action border-action text-action-foreground"
+                : "bg-card border-border text-muted-foreground"
             )}
           >
             {tab}
@@ -57,15 +59,15 @@ const OrdersPage = () => {
       </div>
 
       {/* Orders List */}
-      <div className="space-y-3 px-5 pt-4">
+      <div className="space-y-3 px-5">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-xl" />
+            <Skeleton key={i} className="h-32 rounded-[20px]" />
           ))
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
             <p className="text-lg font-semibold text-muted-foreground">No orders yet</p>
-            <button onClick={() => navigate("/home")} className="mt-2 font-semibold text-action">
+            <button onClick={() => navigate("/home")} className="mt-2 font-bold text-action">
               Place your first order!
             </button>
           </div>
@@ -73,42 +75,48 @@ const OrdersPage = () => {
           filtered.map((order) => (
             <div
               key={order.id}
-              className="rounded-xl bg-card p-4 shadow-sm"
+              className="rounded-[20px] border border-border bg-card p-4 shadow-sm cursor-pointer transition-all hover:shadow-md"
               onClick={() => {
                 if (activeStatuses.includes(order.status)) {
                   navigate(`/order/tracking/${order.id}`);
                 }
               }}
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    {" · "}
-                    {new Date(order.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                  </p>
-                  <p className="mt-1 font-bold text-foreground">
+              <div className="flex items-start justify-between mb-2.5">
+                <span className="text-xs font-bold text-muted-foreground">
+                  #{order.id.slice(0, 8).toUpperCase()}
+                </span>
+                <span className="text-[11px] font-semibold text-muted-foreground">
+                  {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-bg-warm text-xl flex-shrink-0">
+                  🧯
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground">
                     {order.cylinder_type ?? "?"} · {order.order_type ?? "refill"}
                   </p>
-                  {order.brands?.name && (
-                    <p className="mt-0.5 text-sm text-muted-foreground">{order.brands.name}</p>
-                  )}
+                  <p className="text-xs text-muted-foreground font-semibold">
+                    {order.brands?.name ?? ""}
+                  </p>
                 </div>
-                <div className="text-right">
-                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold capitalize", statusStyles[order.status] ?? "bg-secondary text-muted-foreground")}>
+                <div className="text-right flex-shrink-0">
+                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold capitalize", statusStyles[order.status] ?? "bg-secondary text-muted-foreground")}>
                     {order.status.replace("_", " ")}
                   </span>
-                  <p className="mt-2 font-bold text-foreground">{order.total_amount.toLocaleString()} MMK</p>
+                  <p className="mt-1.5 font-display text-base font-extrabold text-action">{order.total_amount.toLocaleString()} K</p>
                 </div>
               </div>
               {activeStatuses.includes(order.status) ? (
-                <div className="mt-3 w-full rounded-lg bg-action py-2 text-center text-sm font-bold text-action-foreground">
+                <div className="mt-3 w-full rounded-xl gradient-action py-2.5 text-center text-sm font-extrabold text-action-foreground">
                   Track Order →
                 </div>
               ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); navigate("/order/configure"); }}
-                  className="mt-3 w-full rounded-lg bg-action-light py-2 text-center text-sm font-bold text-action transition-colors active:bg-action/20"
+                  className="mt-3 w-full rounded-xl bg-action-light py-2.5 text-center text-sm font-extrabold text-action transition-colors active:bg-action/20"
                 >
                   Reorder
                 </button>

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin, Minus, Plus } from "lucide-react";
+import { ArrowLeft, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCylinderTypes } from "@/hooks/useCylinderTypes";
 import { useGasPrices } from "@/hooks/useGasPrices";
@@ -22,15 +22,11 @@ const OrderConfigure = () => {
   const [quantity, setQuantity] = useState(1);
 
   const isLoading = loadingCylinders || loadingPrices;
-
-  // Auto-select first size
   const activeSizeId = selectedSizeId ?? cylinderTypes?.[0]?.id ?? null;
   const selectedSize = cylinderTypes?.find((ct) => ct.id === activeSizeId) ?? null;
 
-  // Brands with active pricing
   const availableBrands = useMemo(() => {
     if (!gasPrices) return [];
-    // Dedupe by brand — one price entry per brand (effective_to is null)
     const seen = new Set<string>();
     return gasPrices.filter((gp) => {
       if (!gp.brands || seen.has(gp.brand_id)) return false;
@@ -39,7 +35,6 @@ const OrderConfigure = () => {
     });
   }, [gasPrices]);
 
-  // Auto-select brand when only one option, or reset when size changes
   useEffect(() => {
     if (availableBrands.length === 1) {
       setSelectedBrandId(availableBrands[0].brand_id);
@@ -49,7 +44,6 @@ const OrderConfigure = () => {
   const activeBrandId = selectedBrandId ?? (availableBrands.length === 1 ? availableBrands[0]?.brand_id : null);
   const selectedBrandPrice = gasPrices?.find((gp) => gp.brand_id === activeBrandId) ?? null;
 
-  // Price calculation
   const pricing = useMemo(() => {
     if (!selectedSize || !selectedBrandPrice) return null;
     const refillPrice = selectedSize.size_kg * selectedBrandPrice.price_per_kg;
@@ -64,84 +58,60 @@ const OrderConfigure = () => {
   const showBrandSelector = availableBrands.length > 1;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background pb-32">
+    <div className="flex min-h-screen flex-col bg-background pb-36">
       {/* Header */}
-      <header className="flex items-center gap-3 bg-card px-5 py-4 shadow-sm">
-        <button onClick={() => navigate("/home")} className="text-muted-foreground">
-          <ArrowLeft className="h-6 w-6" />
+      <div className="flex items-center gap-3 px-5 py-4">
+        <button
+          onClick={() => navigate("/home")}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card shadow-sm"
+        >
+          <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
-        <h1 className="text-xl font-bold text-foreground">Configure Order</h1>
-      </header>
+        <h1 className="font-display text-[22px] font-extrabold text-foreground flex-1">🔥 Order Gas</h1>
+      </div>
 
-      <div className="space-y-6 px-5 pt-5">
-        {/* Delivery Location */}
-        <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Delivery Location</h2>
-          <div className="flex items-center gap-3 rounded-xl bg-card p-4 shadow-sm">
-            <MapPin className="h-5 w-5 shrink-0 text-action" />
-            <div className="flex-1">
-              <p className="font-semibold text-foreground">{customer?.township ?? "—"}</p>
-              <p className="text-sm text-muted-foreground">{customer?.address ?? "No address on file"}</p>
-            </div>
-            <button className="text-xs font-semibold text-primary">Change</button>
-          </div>
-        </section>
+      <div className="space-y-5 px-5">
+        {/* Order Type Tabs */}
+        <div className="flex gap-2 rounded-[14px] bg-bg-warm p-1">
+          {[
+            { key: "refill" as const, label: "🔄 Refill", },
+            { key: "new" as const, label: "🆕 New Setup", },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setDeliveryType(tab.key)}
+              className={cn(
+                "flex-1 rounded-[10px] py-3 text-[13px] font-bold transition-all",
+                deliveryType === tab.key
+                  ? "bg-card text-action shadow-sm"
+                  : "text-muted-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Gas Size */}
-        <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Gas Size</h2>
-          {isLoading ? (
-            <div className="grid grid-cols-3 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-24 rounded-xl" />
-              ))}
-            </div>
-          ) : !cylinderTypes?.length ? (
-            <p className="py-8 text-center text-muted-foreground">No gas sizes available</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {cylinderTypes.map((ct) => (
-                <button
-                  key={ct.id}
-                  onClick={() => setSelectedSizeId(ct.id)}
-                  className={cn(
-                    "flex flex-col items-center gap-1 rounded-xl border-2 p-4 transition-all active:scale-95",
-                    activeSizeId === ct.id
-                      ? "border-action bg-action-light shadow-sm"
-                      : "border-border bg-card"
-                  )}
-                >
-                  <span className="text-xl font-bold text-foreground">{ct.display_name}</span>
-                  <span className="text-xs text-muted-foreground">{ct.size_kg} kg</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Brand Selector — only when multiple brands exist */}
+        {/* Brand Selector */}
         {showBrandSelector && (
           <section>
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Brand</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <h2 className="mb-3 text-base font-extrabold text-foreground">Brand</h2>
+            <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
               {availableBrands.map((gp) => {
                 const brandName = gp.brands?.name ?? "Unknown";
-                const priceForSize = selectedSize
-                  ? (selectedSize.size_kg * gp.price_per_kg).toLocaleString()
-                  : "—";
                 return (
                   <button
                     key={gp.brand_id}
                     onClick={() => setSelectedBrandId(gp.brand_id)}
                     className={cn(
-                      "flex flex-col items-center gap-1 rounded-xl border-2 p-4 transition-all active:scale-95",
+                      "flex items-center gap-2 whitespace-nowrap rounded-full border-[1.5px] px-4 py-2.5 text-[13px] font-bold transition-all flex-shrink-0",
                       activeBrandId === gp.brand_id
-                        ? "border-action bg-action-light shadow-sm"
-                        : "border-border bg-card"
+                        ? "border-action bg-action/10 text-action"
+                        : "border-border bg-card text-foreground"
                     )}
                   >
-                    <span className="font-bold text-foreground">{brandName}</span>
-                    <span className="text-xs text-muted-foreground">{priceForSize} Ks/refill</span>
+                    <span className={cn("h-2 w-2 rounded-full", activeBrandId === gp.brand_id ? "bg-action" : "bg-muted-foreground/30")} />
+                    {brandName}
                   </button>
                 );
               })}
@@ -149,76 +119,92 @@ const OrderConfigure = () => {
           </section>
         )}
 
-        {/* Delivery Type */}
+        {/* Cylinder Size */}
         <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Delivery Type</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setDeliveryType("refill")}
-              className={cn(
-                "flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all active:scale-95",
-                deliveryType === "refill"
-                  ? "border-action bg-action-light shadow-sm"
-                  : "border-border bg-card"
-              )}
-            >
-              <span className="text-3xl">🔄</span>
-              <span className="font-bold text-foreground">Refill</span>
-              {pricing && (
-                <span className="text-xs font-semibold text-action">{pricing.refill.toLocaleString()} Ks</span>
-              )}
-            </button>
-            <button
-              onClick={() => setDeliveryType("new")}
-              className={cn(
-                "flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all active:scale-95",
-                deliveryType === "new"
-                  ? "border-action bg-action-light shadow-sm"
-                  : "border-border bg-card"
-              )}
-            >
-              <span className="text-3xl">🆕</span>
-              <span className="font-bold text-foreground">New Cylinder</span>
-              {pricing && (
-                <span className="text-xs font-semibold text-action">{pricing.new.toLocaleString()} Ks</span>
-              )}
-            </button>
-          </div>
+          <h2 className="mb-3 text-base font-extrabold text-foreground">Cylinder Size</h2>
+          {isLoading ? (
+            <div className="grid grid-cols-3 gap-2.5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 rounded-[20px]" />
+              ))}
+            </div>
+          ) : !cylinderTypes?.length ? (
+            <p className="py-8 text-center text-muted-foreground">No gas sizes available</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2.5">
+              {cylinderTypes.map((ct) => {
+                const isSelected = activeSizeId === ct.id;
+                const priceForSize = selectedBrandPrice
+                  ? (ct.size_kg * selectedBrandPrice.price_per_kg + (deliveryType === "new" ? ct.cylinder_price : 0)).toLocaleString()
+                  : "—";
+                return (
+                  <button
+                    key={ct.id}
+                    onClick={() => setSelectedSizeId(ct.id)}
+                    className={cn(
+                      "relative flex flex-col items-center gap-1 rounded-[20px] border-2 p-4 transition-all active:scale-95",
+                      isSelected
+                        ? "border-action bg-surface-warm shadow-md"
+                        : "border-border bg-card shadow-sm"
+                    )}
+                  >
+                    {isSelected && (
+                      <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-action text-[11px] font-extrabold text-white">✓</span>
+                    )}
+                    <span className="text-[26px]">🧯</span>
+                    <span className="font-display text-[22px] font-black text-foreground">{ct.size_kg}</span>
+                    <span className="text-[11px] font-bold text-muted-foreground">kg</span>
+                    <span className="text-xs font-extrabold text-action mt-1">{priceForSize} K</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* Quantity */}
         <section>
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Quantity</h2>
-          <div className="flex items-center justify-center gap-6 rounded-xl bg-card p-4 shadow-sm">
-            <button
-              onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-foreground transition-colors active:bg-muted"
-            >
-              <Minus className="h-5 w-5" />
-            </button>
-            <span className="min-w-[3rem] text-center text-2xl font-bold text-foreground">{quantity}</span>
-            <button
-              onClick={() => setQuantity(Math.min(5, quantity + 1))}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-action text-action-foreground transition-colors active:bg-action-dark"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
+          <div className="flex items-center justify-between rounded-[14px] border border-border bg-card p-4">
+            <span className="text-sm font-bold text-foreground">Quantity</span>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-[10px] border-[1.5px] border-border-strong bg-card text-lg font-bold text-foreground"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="font-display text-xl font-extrabold text-foreground min-w-[28px] text-center">{quantity}</span>
+              <button
+                onClick={() => setQuantity(Math.min(5, quantity + 1))}
+                className="flex h-9 w-9 items-center justify-center rounded-[10px] border-[1.5px] border-border-strong bg-card text-lg font-bold text-foreground"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </section>
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-card px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-divider bg-card px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div className="mx-auto max-w-md">
-          <div className="mb-3 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">💰 Total</span>
-            <span className="text-xl font-bold text-foreground">{total.toLocaleString()} MMK</span>
-          </div>
-          <div className="mb-3 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">🚚 Delivery</span>
-            <span className={deliveryFee > 0 ? "font-semibold text-foreground" : "font-semibold text-action"}>
-              {deliveryFee > 0 ? `${deliveryFee.toLocaleString()} MMK` : "Free"}
-            </span>
+          <div className="rounded-[20px] border border-border bg-card p-4 mb-3 shadow-sm">
+            <div className="flex justify-between items-center py-1.5">
+              <span className="text-[13px] font-semibold text-muted-foreground">Gas × {quantity}</span>
+              <span className="text-sm font-bold text-foreground">{(unitPrice * quantity).toLocaleString()} K</span>
+            </div>
+            <div className="h-px bg-divider my-2" />
+            <div className="flex justify-between items-center py-1.5">
+              <span className="text-[13px] font-semibold text-muted-foreground">Delivery</span>
+              <span className={cn("text-xs font-extrabold", deliveryFee > 0 ? "text-foreground" : "text-success")}>
+                {deliveryFee > 0 ? `${deliveryFee.toLocaleString()} K` : "Free"}
+              </span>
+            </div>
+            <div className="h-px bg-divider my-2" />
+            <div className="flex justify-between items-center pt-1">
+              <span className="text-sm font-extrabold text-foreground">Total</span>
+              <span className="font-display text-[22px] font-black text-action">{total.toLocaleString()} K</span>
+            </div>
           </div>
           <Button
             variant="action"
@@ -234,10 +220,7 @@ const OrderConfigure = () => {
                   quantity,
                   unitPrice,
                   gasSubtotal: unitPrice * quantity,
-                  cylinderSubtotal:
-                    deliveryType === "new"
-                      ? selectedSize!.cylinder_price * quantity
-                      : 0,
+                  cylinderSubtotal: deliveryType === "new" ? selectedSize!.cylinder_price * quantity : 0,
                   deliveryFee,
                   totalAmount: total,
                   gasPricePerKg: selectedBrandPrice?.price_per_kg ?? 0,
