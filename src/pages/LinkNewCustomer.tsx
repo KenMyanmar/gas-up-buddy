@@ -43,8 +43,8 @@ const LinkNewCustomer = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const { error } = await supabase.functions.invoke('link-customer-account', {
-        body: { action: 'create_new', full_name: name, address, township: townshipName }
+      const { error } = await supabase.functions.invoke('register-customer', {
+        body: { full_name: name, address, township: townshipName }
       });
       if (error) throw error;
       navigate("/home");
