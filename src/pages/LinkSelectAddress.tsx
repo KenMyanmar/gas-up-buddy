@@ -31,10 +31,12 @@ const LinkSelectAddress = () => {
   const handleConfirm = async () => {
     setConfirming(true);
     try {
-      const { error } = await supabase.functions.invoke('link-customer-account', {
-        body: { action: 'link_selected', customer_ids: selected }
-      });
-      if (error) throw error;
+      for (const customerId of selected) {
+        const { error } = await supabase.functions.invoke('link-customer-account', {
+          body: { action: 'link', customer_id: customerId }
+        });
+        if (error) throw error;
+      }
       navigate("/home");
     } catch (err: any) {
       toast({ title: "Linking failed", description: err?.message || "Please try again.", variant: "destructive" });

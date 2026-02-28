@@ -384,6 +384,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
+          logo_url: string | null
           name: string
           sort_order: number | null
           type: Database["public"]["Enums"]["brand_type"]
@@ -394,6 +395,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          logo_url?: string | null
           name: string
           sort_order?: number | null
           type: Database["public"]["Enums"]["brand_type"]
@@ -404,6 +406,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          logo_url?: string | null
           name?: string
           sort_order?: number | null
           type?: Database["public"]["Enums"]["brand_type"]
@@ -823,6 +826,7 @@ export type Database = {
           cylinder_price: number
           display_name: string
           id: string
+          image_url: string | null
           is_active: boolean | null
           size_kg: number
           sort_order: number | null
@@ -833,6 +837,7 @@ export type Database = {
           cylinder_price?: number
           display_name: string
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           size_kg: number
           sort_order?: number | null
@@ -843,6 +848,7 @@ export type Database = {
           cylinder_price?: number
           display_name?: string
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           size_kg?: number
           sort_order?: number | null

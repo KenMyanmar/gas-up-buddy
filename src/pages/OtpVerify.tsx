@@ -54,14 +54,17 @@ const OtpVerify = () => {
       } else if (existingCustomers && existingCustomers.length > 1) {
         navigate('/onboarding/link-select', { state: { candidates: existingCustomers } });
       } else {
+        const userPhone = phone!;
+        const localPhone = userPhone.startsWith('+959') ? '09' + userPhone.slice(4) : userPhone.startsWith('+95') ? '0' + userPhone.slice(3) : userPhone;
         const response = await supabase.functions.invoke('link-customer-account', {
-          body: { action: 'check_phone' },
+          body: { action: 'lookup', phone: localPhone },
         });
         const result = response.data;
-        if (result?.status === 'single') {
-          navigate('/onboarding/link-welcome', { state: { customer: result.customer } });
-        } else if (result?.status === 'multiple') {
-          navigate('/onboarding/link-select', { state: { candidates: result.candidates } });
+        const customers = result?.customers ?? [];
+        if (customers.length === 1) {
+          navigate('/onboarding/link-welcome', { state: { customer: customers[0] } });
+        } else if (customers.length > 1) {
+          navigate('/onboarding/link-select', { state: { candidates: customers } });
         } else {
           navigate('/onboarding/link-new');
         }
