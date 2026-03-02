@@ -1,10 +1,11 @@
-import { Home, ClipboardList, User } from "lucide-react";
+import { Home, ClipboardList, Bell, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const tabs = [
   { path: "/home", icon: Home, label: "Home" },
   { path: "/orders", icon: ClipboardList, label: "Orders" },
+  { path: "/alerts", icon: Bell, label: "Alerts" },
   { path: "/profile", icon: User, label: "Profile" },
 ];
 

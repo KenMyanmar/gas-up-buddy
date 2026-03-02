@@ -52,8 +52,8 @@ function MapBounds({ agentPos, customerPos }: { agentPos: [number, number] | nul
 }
 
 const statusSteps = [
-  { key: "new", label: "Order Placed", icon: "📝" },
-  { key: "confirmed", label: "Agent Assigned", icon: "✓" },
+  { key: "new", label: "Placed", icon: "📝" },
+  { key: "in_progress", label: "Accepted", icon: "✓" },
   { key: "dispatched", label: "On the Way", icon: "🚚" },
   { key: "delivered", label: "Delivered", icon: "✅" },
 ];
@@ -186,7 +186,7 @@ const OrderTracking = () => {
         </div>
         <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/20 px-3.5 py-1.5 text-xs font-bold backdrop-blur-sm">
           {isActive && <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />}
-          {order.status === "dispatched" ? "On the Way" : order.status === "delivered" ? "Delivered" : order.status === "confirmed" ? "Agent Assigned" : "Finding Agent"}
+          {order.status === "dispatched" ? "On the Way" : order.status === "delivered" ? "Delivered" : order.status === "in_progress" ? "Accepted" : "Placed"}
         </div>
       </div>
 
