@@ -7,14 +7,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const tabs = ["All", "Active", "Completed", "Cancelled"];
 
+const statusLabels: Record<string, string> = {
+  new: "Placed",
+  in_progress: "Accepted",
+  dispatched: "On the Way",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  failed: "Failed",
+};
+
 const statusStyles: Record<string, string> = {
-  delivered: "bg-action-light text-action-dark",
-  completed: "bg-action-light text-action-dark",
-  pending: "bg-amber-50 text-amber-700",
-  confirmed: "bg-amber-50 text-amber-700",
-  assigned: "bg-amber-50 text-amber-700",
-  in_transit: "bg-amber-50 text-amber-700",
+  new: "bg-orange-100 text-orange-700",
+  in_progress: "bg-yellow-100 text-yellow-700",
+  dispatched: "bg-blue-100 text-blue-700",
+  delivered: "bg-green-100 text-green-700",
   cancelled: "bg-destructive/10 text-destructive",
+  failed: "bg-destructive/10 text-destructive",
 };
 
 const activeStatuses = ["new", "pending", "confirmed", "assigned", "in_transit", "dispatched", "in_progress"];
@@ -103,8 +111,8 @@ const OrdersPage = () => {
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold capitalize", statusStyles[order.status] ?? "bg-secondary text-muted-foreground")}>
-                    {order.status.replace("_", " ")}
+                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold", statusStyles[order.status] ?? "bg-secondary text-muted-foreground")}>
+                    {statusLabels[order.status] ?? order.status.replace("_", " ")}
                   </span>
                   <p className="mt-1.5 font-display text-base font-extrabold text-action">{order.total_amount.toLocaleString()} K</p>
                 </div>

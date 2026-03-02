@@ -7,6 +7,7 @@ export interface Brand {
   type: string;
   description: string | null;
   is_active: boolean;
+  logo_url: string | null;
   sort_order: number | null;
   created_at: string;
   updated_at: string | null;
