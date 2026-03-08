@@ -281,15 +281,13 @@ const OrderConfigure = () => {
             variant="action"
             size="full"
             onClick={() => {
-              const isExchange = deliveryType === "exchange";
               navigate("/order/confirm", {
                 state: {
                   cylinderType: selectedSize!.display_name,
                   sizeKg: selectedSize!.size_kg,
                   brandId: activeBrandId,
                   brandName: selectedBrandPrice?.brands?.name ?? "",
-                  orderType: isExchange ? "refill" : deliveryType,
-                  displayOrderType: deliveryType,
+                  orderType: deliveryType,
                   quantity,
                   unitPrice,
                   gasSubtotal: unitPrice * quantity,
@@ -297,7 +295,6 @@ const OrderConfigure = () => {
                   deliveryFee,
                   totalAmount: total,
                   gasPricePerKg: selectedBrandPrice?.price_per_kg ?? 0,
-                  deliveryInstructions: isExchange ? "Exchange order" : undefined,
                 },
               });
             }}

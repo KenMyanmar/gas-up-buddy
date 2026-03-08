@@ -77,9 +77,7 @@ const OrderConfirm = () => {
   };
 
   const orderTypeLabel =
-    displayType === "exchange" ? "Exchange Old Cylinder" :
-    displayType === "new" ? "New Cylinder" :
-    "Refill My Cylinder";
+    orderState.orderType === "new" ? "New Cylinder" : "Refill My Cylinder";
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-32">
