@@ -2,6 +2,7 @@ import { ChevronRight, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile, useOrders } from "@/hooks/useOrders";
+import { toast } from "@/hooks/use-toast";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -19,17 +20,21 @@ const ProfilePage = () => {
     navigate("/");
   };
 
+  const handleComingSoon = () => {
+    toast({ title: "Coming soon!", description: "This feature will be available in a future update." });
+  };
+
   const accountItems = [
-    { emoji: "📍", title: "Delivery Addresses", desc: customer?.township ?? "Manage addresses" },
-    { emoji: "💳", title: "Payment Methods", desc: "Cash, KBZ Pay, Wave" },
-    { emoji: "⚙️", title: "Preferences", desc: "Notifications, language" },
+    { emoji: "📍", title: "Delivery Addresses", desc: customer?.township ?? "Manage addresses", action: () => navigate("/profile/addresses") },
+    { emoji: "💳", title: "Payment Methods", desc: "Cash, KBZ Pay, Wave", action: handleComingSoon },
+    { emoji: "⚙️", title: "Preferences", desc: "Notifications, language", action: handleComingSoon },
   ];
 
   const supportItems = [
     { emoji: "☎️", title: "Call 8484", desc: "24/7 support", href: "tel:8484" },
-    { emoji: "❓", title: "Help & FAQ", desc: "Common questions" },
-    { emoji: "📄", title: "Terms & Conditions", desc: "Legal info" },
-    { emoji: "🔒", title: "Privacy Policy", desc: "Your data rights" },
+    { emoji: "❓", title: "Help & FAQ", desc: "Common questions", action: () => navigate("/profile/faq") },
+    { emoji: "📄", title: "Terms & Conditions", desc: "Legal info", action: () => navigate("/profile/terms") },
+    { emoji: "🔒", title: "Privacy Policy", desc: "Your data rights", action: () => navigate("/profile/privacy") },
   ];
 
   return (
@@ -52,7 +57,7 @@ const ProfilePage = () => {
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Account</p>
           <div className="space-y-2">
             {accountItems.map((item) => (
-              <button key={item.title} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
+              <button key={item.title} onClick={item.action} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
                 <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-bg-warm text-lg flex-shrink-0">
                   {item.emoji}
                 </div>
@@ -91,7 +96,7 @@ const ProfilePage = () => {
                 );
               }
               return (
-                <button key={item.title} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
+                <button key={item.title} onClick={item.action} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
                   {inner}
                 </button>
               );
