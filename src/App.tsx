@@ -80,6 +80,10 @@ const AppRoutes = () => (
       <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
       <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/profile/addresses" element={<ProtectedRoute><ProfileAddresses /></ProtectedRoute>} />
+      <Route path="/profile/faq" element={<ProtectedRoute><ProfileFAQ /></ProtectedRoute>} />
+      <Route path="/profile/terms" element={<ProtectedRoute><ProfileTerms /></ProtectedRoute>} />
+      <Route path="/profile/privacy" element={<ProtectedRoute><ProfilePrivacy /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
     <BottomNav />
