@@ -114,7 +114,6 @@ const OrderConfigure = () => {
           {[
             { key: "refill" as const, label: "🔄 Refill" },
             { key: "new" as const, label: "🆕 New Setup" },
-            { key: "exchange" as const, label: "🔁 Exchange" },
           ].map((tab) => (
             <button
               key={tab.key}
