@@ -1,6 +1,7 @@
 import { Home, ClipboardList, Bell, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { isKBZPayMiniApp } from "@/utils/kbzpay";
 
 const tabs = [
   { path: "/home", icon: Home, label: "Home" },
