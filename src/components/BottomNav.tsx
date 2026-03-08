@@ -14,6 +14,9 @@ const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // KBZ Pay provides its own navigation
+  if (isKBZPayMiniApp()) return null;
+
   if (location.pathname === "/" || location.pathname.startsWith("/onboarding") || location.pathname.startsWith("/order/")) {
     return null;
   }
