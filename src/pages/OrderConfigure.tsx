@@ -36,10 +36,10 @@ const OrderConfigure = () => {
   }, [gasPrices]);
 
   useEffect(() => {
-    if (availableBrands.length === 1) {
+    if (availableBrands.length >= 1 && !selectedBrandId) {
       setSelectedBrandId(availableBrands[0].brand_id);
     }
-  }, [availableBrands]);
+  }, [availableBrands, selectedBrandId]);
 
   const activeBrandId = selectedBrandId ?? (availableBrands.length === 1 ? availableBrands[0]?.brand_id : null);
   const selectedBrandPrice = gasPrices?.find((gp) => gp.brand_id === activeBrandId) ?? null;
