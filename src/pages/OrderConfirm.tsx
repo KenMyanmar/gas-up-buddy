@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, ChevronDown, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
@@ -15,6 +15,7 @@ interface OrderState {
   brandId: string;
   brandName: string;
   orderType: "refill" | "new";
+  displayOrderType?: "refill" | "new" | "exchange";
   quantity: number;
   unitPrice: number;
   gasSubtotal: number;
@@ -22,6 +23,7 @@ interface OrderState {
   deliveryFee: number;
   totalAmount: number;
   gasPricePerKg: number;
+  deliveryInstructions?: string;
 }
 
 const standardPaymentMethods = [
@@ -49,10 +51,14 @@ const OrderConfirm = () => {
     return <Navigate to="/order/configure" replace />;
   }
 
+  const displayType = orderState.displayOrderType ?? orderState.orderType;
+
   const handlePlaceOrder = async () => {
     if (placing) return;
     setPlacing(true);
     try {
+      // Combine exchange prefix with user instructions
+      const allInstructions = [orderState.deliveryInstructions, instructions].filter(Boolean).join(" | ");
       const { data, error } = await supabase.functions.invoke("create-customer-order", {
         body: {
           cylinderType: orderState.cylinderType,
@@ -61,7 +67,7 @@ const OrderConfirm = () => {
           orderType: orderState.orderType,
           quantity: orderState.quantity,
           clientTotal: orderState.totalAmount,
-          deliveryInstructions: instructions || undefined,
+          deliveryInstructions: allInstructions || undefined,
           orderSource: getOrderSource(),
         },
       });
@@ -76,6 +82,11 @@ const OrderConfirm = () => {
     }
   };
 
+  const orderTypeLabel =
+    displayType === "exchange" ? "Exchange Old Cylinder" :
+    displayType === "new" ? "New Cylinder" :
+    "Refill My Cylinder";
+
   return (
     <div className="flex min-h-screen flex-col bg-background pb-32">
       {/* Header */}
@@ -87,6 +98,31 @@ const OrderConfirm = () => {
       </div>
 
       <div className="space-y-4 px-5">
+        {/* Step Indicator */}
+        <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
+            <span className="text-xs font-bold text-muted-foreground">Configure</span>
+          </div>
+          <div className="h-px w-8 bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 rounded-full bg-action" />
+            <span className="text-xs font-bold text-action">Confirm</span>
+          </div>
+        </div>
+
+        {/* Delivering To Bar */}
+        {customer?.address && (
+          <div className="flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3">
+            <MapPin className="h-4 w-4 text-green-600 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wider">Delivering to</p>
+              <p className="text-sm text-foreground truncate">{customer.address}, {customer.township}</p>
+            </div>
+            <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+          </div>
+        )}
+
         {/* Order Summary Card */}
         <div className="rounded-[20px] border border-border bg-card p-5 shadow-sm">
           <h2 className="text-[13px] font-extrabold text-foreground mb-3">Order Summary</h2>
@@ -99,9 +135,7 @@ const OrderConfirm = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground font-semibold">Type</span>
-              <span className="font-bold text-foreground">
-                {orderState.orderType === "refill" ? "Refill My Cylinder" : "New Cylinder"}
-              </span>
+              <span className="font-bold text-foreground">{orderTypeLabel}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground font-semibold">Quantity</span>
@@ -117,25 +151,25 @@ const OrderConfirm = () => {
             <div className="h-px bg-divider my-2" />
             <div className="flex justify-between">
               <span className="text-muted-foreground font-semibold">Gas</span>
-              <span className="text-foreground font-bold">{orderState.gasSubtotal.toLocaleString()} K</span>
+              <span className="text-foreground font-bold">{orderState.gasSubtotal.toLocaleString()} MMK</span>
             </div>
             {orderState.cylinderSubtotal > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground font-semibold">Cylinder Deposit</span>
-                <span className="text-foreground font-bold">{orderState.cylinderSubtotal.toLocaleString()} K</span>
+                <span className="text-foreground font-bold">{orderState.cylinderSubtotal.toLocaleString()} MMK</span>
               </div>
             )}
             <div className="flex justify-between">
               <span className="text-muted-foreground font-semibold">Delivery</span>
               <span className={cn("font-extrabold text-xs", orderState.deliveryFee > 0 ? "text-foreground" : "text-success")}>
-                {orderState.deliveryFee > 0 ? `${orderState.deliveryFee.toLocaleString()} K` : "Free"}
+                {orderState.deliveryFee > 0 ? `${orderState.deliveryFee.toLocaleString()} MMK` : "Free"}
               </span>
             </div>
             <div className="h-px bg-divider my-2" />
             <div className="flex justify-between items-center pt-1">
               <span className="font-extrabold text-foreground">Total</span>
               <span className="font-display text-[22px] font-black text-action">
-                {orderState.totalAmount.toLocaleString()} K
+                {orderState.totalAmount.toLocaleString()} MMK
               </span>
             </div>
           </div>
@@ -145,8 +179,6 @@ const OrderConfirm = () => {
         <div className="rounded-[20px] border border-border bg-card p-5 shadow-sm">
           <h2 className="text-[13px] font-extrabold text-foreground mb-3">Payment Method</h2>
           {isMiniApp ? (
-            // KBZ Pay Mini App — single payment option
-            // TODO: Replace with window.ma.callNativeAPI('startPay', ...) JSSDK call
             <button
               className="flex w-full items-center justify-center gap-3 rounded-[14px] p-4 font-bold text-white"
               style={{ backgroundColor: '#0066CC' }}
@@ -203,7 +235,7 @@ const OrderConfirm = () => {
                 Placing Order...
               </>
             ) : (
-              `PLACE ORDER — ${orderState.totalAmount.toLocaleString()} K`
+              `PLACE ORDER — ${orderState.totalAmount.toLocaleString()} MMK`
             )}
           </Button>
         </div>
