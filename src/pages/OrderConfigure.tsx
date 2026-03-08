@@ -22,7 +22,7 @@ const OrderConfigure = () => {
 
   const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
-  const [deliveryType, setDeliveryType] = useState<"refill" | "new" | "exchange">("refill");
+  const [deliveryType, setDeliveryType] = useState<"refill" | "new">("refill");
   const [quantity, setQuantity] = useState(1);
 
   const isLoading = loadingCylinders || loadingPrices;
