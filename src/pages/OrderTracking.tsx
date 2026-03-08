@@ -282,7 +282,7 @@ const OrderTracking = () => {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground font-semibold">Total</span>
-            <span className="font-display font-extrabold text-action">{(order.total_amount ?? 0).toLocaleString()} K</span>
+            <span className="font-display font-extrabold text-action">{(order.total_amount ?? 0).toLocaleString()} MMK</span>
           </div>
           <div className="h-px bg-divider my-1" />
           <div className="flex justify-between">

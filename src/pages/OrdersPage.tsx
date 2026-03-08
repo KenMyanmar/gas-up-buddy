@@ -114,7 +114,7 @@ const OrdersPage = () => {
                   <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold", statusStyles[order.status] ?? "bg-secondary text-muted-foreground")}>
                     {statusLabels[order.status] ?? order.status.replace("_", " ")}
                   </span>
-                  <p className="mt-1.5 font-display text-base font-extrabold text-action">{order.total_amount.toLocaleString()} K</p>
+                  <p className="mt-1.5 font-display text-base font-extrabold text-action">{order.total_amount.toLocaleString()} MMK</p>
                 </div>
               </div>
               {activeStatuses.includes(order.status) ? (

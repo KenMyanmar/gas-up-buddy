@@ -34,7 +34,7 @@ const OrderSuccess = () => {
           <div className="h-px bg-divider my-3" />
           <p className="text-sm text-muted-foreground">Total</p>
           <p className="font-display text-xl font-black text-action">
-            {(state.totalAmount ?? 0).toLocaleString()} K
+            {(state.totalAmount ?? 0).toLocaleString()} MMK
           </p>
           <div className="h-px bg-divider my-3" />
           <p className="text-sm text-muted-foreground">⏱ Estimated Delivery</p>

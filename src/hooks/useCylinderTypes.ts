@@ -17,7 +17,7 @@ export const useCylinderTypes = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cylinder_types')
-        .select('id, size_kg, display_name, cylinder_price, is_active, sort_order')
+        .select('id, size_kg, display_name, cylinder_price, is_active, sort_order, image_url')
         .eq('is_active', true)
         .lte('size_kg', 20)
         .order('sort_order');
