@@ -61,7 +61,7 @@ const OrderConfirm = () => {
           orderType: orderState.orderType,
           quantity: orderState.quantity,
           clientTotal: orderState.totalAmount,
-          deliveryInstructions: allInstructions || undefined,
+          deliveryInstructions: instructions || undefined,
           orderSource: getOrderSource(),
         },
       });
