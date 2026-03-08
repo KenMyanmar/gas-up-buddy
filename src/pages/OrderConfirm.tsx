@@ -15,7 +15,6 @@ interface OrderState {
   brandId: string;
   brandName: string;
   orderType: "refill" | "new";
-  displayOrderType?: "refill" | "new" | "exchange";
   quantity: number;
   unitPrice: number;
   gasSubtotal: number;
@@ -23,7 +22,6 @@ interface OrderState {
   deliveryFee: number;
   totalAmount: number;
   gasPricePerKg: number;
-  deliveryInstructions?: string;
 }
 
 const standardPaymentMethods = [
@@ -51,14 +49,10 @@ const OrderConfirm = () => {
     return <Navigate to="/order/configure" replace />;
   }
 
-  const displayType = orderState.displayOrderType ?? orderState.orderType;
-
   const handlePlaceOrder = async () => {
     if (placing) return;
     setPlacing(true);
     try {
-      // Combine exchange prefix with user instructions
-      const allInstructions = [orderState.deliveryInstructions, instructions].filter(Boolean).join(" | ");
       const { data, error } = await supabase.functions.invoke("create-customer-order", {
         body: {
           cylinderType: orderState.cylinderType,
@@ -67,7 +61,7 @@ const OrderConfirm = () => {
           orderType: orderState.orderType,
           quantity: orderState.quantity,
           clientTotal: orderState.totalAmount,
-          deliveryInstructions: allInstructions || undefined,
+          deliveryInstructions: instructions || undefined,
           orderSource: getOrderSource(),
         },
       });
@@ -83,9 +77,7 @@ const OrderConfirm = () => {
   };
 
   const orderTypeLabel =
-    displayType === "exchange" ? "Exchange Old Cylinder" :
-    displayType === "new" ? "New Cylinder" :
-    "Refill My Cylinder";
+    orderState.orderType === "new" ? "New Cylinder" : "Refill My Cylinder";
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-32">

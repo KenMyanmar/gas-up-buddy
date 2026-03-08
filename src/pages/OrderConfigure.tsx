@@ -22,7 +22,7 @@ const OrderConfigure = () => {
 
   const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
-  const [deliveryType, setDeliveryType] = useState<"refill" | "new" | "exchange">("refill");
+  const [deliveryType, setDeliveryType] = useState<"refill" | "new">("refill");
   const [quantity, setQuantity] = useState(1);
 
   const isLoading = loadingCylinders || loadingPrices;
@@ -59,7 +59,7 @@ const OrderConfigure = () => {
     if (!selectedSize || !selectedBrandPrice) return null;
     const refillPrice = selectedSize.size_kg * selectedBrandPrice.price_per_kg;
     const newPrice = refillPrice + selectedSize.cylinder_price;
-    return { refill: refillPrice, new: newPrice, exchange: refillPrice };
+    return { refill: refillPrice, new: newPrice };
   }, [selectedSize, selectedBrandPrice]);
 
   const unitPrice = pricing ? pricing[deliveryType] : 0;
@@ -114,7 +114,6 @@ const OrderConfigure = () => {
           {[
             { key: "refill" as const, label: "🔄 Refill" },
             { key: "new" as const, label: "🆕 New Setup" },
-            { key: "exchange" as const, label: "🔁 Exchange" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -282,15 +281,13 @@ const OrderConfigure = () => {
             variant="action"
             size="full"
             onClick={() => {
-              const isExchange = deliveryType === "exchange";
               navigate("/order/confirm", {
                 state: {
                   cylinderType: selectedSize!.display_name,
                   sizeKg: selectedSize!.size_kg,
                   brandId: activeBrandId,
                   brandName: selectedBrandPrice?.brands?.name ?? "",
-                  orderType: isExchange ? "refill" : deliveryType,
-                  displayOrderType: deliveryType,
+                  orderType: deliveryType,
                   quantity,
                   unitPrice,
                   gasSubtotal: unitPrice * quantity,
@@ -298,7 +295,6 @@ const OrderConfigure = () => {
                   deliveryFee,
                   totalAmount: total,
                   gasPricePerKg: selectedBrandPrice?.price_per_kg ?? 0,
-                  deliveryInstructions: isExchange ? "Exchange order" : undefined,
                 },
               });
             }}

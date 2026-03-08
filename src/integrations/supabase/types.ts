@@ -995,6 +995,7 @@ export type Database = {
           brand_id: string
           created_at: string | null
           created_by: string | null
+          cylinder_type_id: string | null
           description: string | null
           end_date: string | null
           exchange_fee: number | null
@@ -1011,6 +1012,7 @@ export type Database = {
           brand_id: string
           created_at?: string | null
           created_by?: string | null
+          cylinder_type_id?: string | null
           description?: string | null
           end_date?: string | null
           exchange_fee?: number | null
@@ -1027,6 +1029,7 @@ export type Database = {
           brand_id?: string
           created_at?: string | null
           created_by?: string | null
+          cylinder_type_id?: string | null
           description?: string | null
           end_date?: string | null
           exchange_fee?: number | null
@@ -1045,6 +1048,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exchange_programs_cylinder_type_id_fkey"
+            columns: ["cylinder_type_id"]
+            isOneToOne: false
+            referencedRelation: "cylinder_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1423,6 +1433,7 @@ export type Database = {
           delivery_photo_path: string | null
           delivery_photo_url: string | null
           discount: number | null
+          exchange_photo_urls: Json | null
           exchange_program_id: string | null
           gas_price_per_kg: number | null
           gas_subtotal: number | null
@@ -1477,6 +1488,7 @@ export type Database = {
           delivery_photo_path?: string | null
           delivery_photo_url?: string | null
           discount?: number | null
+          exchange_photo_urls?: Json | null
           exchange_program_id?: string | null
           gas_price_per_kg?: number | null
           gas_subtotal?: number | null
@@ -1531,6 +1543,7 @@ export type Database = {
           delivery_photo_path?: string | null
           delivery_photo_url?: string | null
           discount?: number | null
+          exchange_photo_urls?: Json | null
           exchange_program_id?: string | null
           gas_price_per_kg?: number | null
           gas_subtotal?: number | null
