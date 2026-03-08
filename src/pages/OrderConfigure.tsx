@@ -59,7 +59,7 @@ const OrderConfigure = () => {
     if (!selectedSize || !selectedBrandPrice) return null;
     const refillPrice = selectedSize.size_kg * selectedBrandPrice.price_per_kg;
     const newPrice = refillPrice + selectedSize.cylinder_price;
-    return { refill: refillPrice, new: newPrice, exchange: refillPrice };
+    return { refill: refillPrice, new: newPrice };
   }, [selectedSize, selectedBrandPrice]);
 
   const unitPrice = pricing ? pricing[deliveryType] : 0;
