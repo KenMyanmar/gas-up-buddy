@@ -8,6 +8,7 @@ export interface CylinderType {
   cylinder_price: number;
   is_active: boolean;
   sort_order: number;
+  image_url: string | null;
 }
 
 export const useCylinderTypes = () => {
