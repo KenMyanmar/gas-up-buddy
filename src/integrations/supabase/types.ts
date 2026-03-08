@@ -3170,6 +3170,7 @@ export type Database = {
           p_discount?: number
           p_lines?: Json
           p_notes?: string
+          p_override_duplicate?: boolean
           p_payment_method?: string
           p_scheduled_delivery_date?: string
           p_supplier_id?: string
