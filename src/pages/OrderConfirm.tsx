@@ -49,14 +49,10 @@ const OrderConfirm = () => {
     return <Navigate to="/order/configure" replace />;
   }
 
-  const displayType = orderState.displayOrderType ?? orderState.orderType;
-
   const handlePlaceOrder = async () => {
     if (placing) return;
     setPlacing(true);
     try {
-      // Combine exchange prefix with user instructions
-      const allInstructions = [orderState.deliveryInstructions, instructions].filter(Boolean).join(" | ");
       const { data, error } = await supabase.functions.invoke("create-customer-order", {
         body: {
           cylinderType: orderState.cylinderType,
