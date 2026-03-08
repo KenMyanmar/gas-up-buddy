@@ -36,10 +36,10 @@ const OrderConfigure = () => {
   }, [gasPrices]);
 
   useEffect(() => {
-    if (availableBrands.length === 1) {
+    if (availableBrands.length >= 1 && !selectedBrandId) {
       setSelectedBrandId(availableBrands[0].brand_id);
     }
-  }, [availableBrands]);
+  }, [availableBrands, selectedBrandId]);
 
   const activeBrandId = selectedBrandId ?? (availableBrands.length === 1 ? availableBrands[0]?.brand_id : null);
   const selectedBrandPrice = gasPrices?.find((gp) => gp.brand_id === activeBrandId) ?? null;
@@ -154,7 +154,11 @@ const OrderConfigure = () => {
                     <span className="text-[26px]">🧯</span>
                     <span className="font-display text-[22px] font-black text-foreground">{ct.size_kg}</span>
                     <span className="text-[11px] font-bold text-muted-foreground">kg</span>
-                    <span className="text-xs font-extrabold text-action mt-1">{priceForSize} K</span>
+                    {selectedBrandPrice ? (
+                      <span className="text-xs font-extrabold text-action mt-1">{priceForSize} MMK</span>
+                    ) : (
+                      <span className="text-xs font-semibold text-muted-foreground mt-1">Select brand</span>
+                    )}
                   </button>
                 );
               })}

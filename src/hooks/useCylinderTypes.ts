@@ -18,6 +18,7 @@ export const useCylinderTypes = () => {
         .from('cylinder_types')
         .select('id, size_kg, display_name, cylinder_price, is_active, sort_order')
         .eq('is_active', true)
+        .lte('size_kg', 20)
         .order('sort_order');
 
       if (error) {
