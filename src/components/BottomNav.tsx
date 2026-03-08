@@ -1,6 +1,7 @@
 import { Home, ClipboardList, Bell, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { isKBZPayMiniApp } from "@/utils/kbzpay";
 
 const tabs = [
   { path: "/home", icon: Home, label: "Home" },
@@ -12,6 +13,9 @@ const tabs = [
 const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // KBZ Pay provides its own navigation
+  if (isKBZPayMiniApp()) return null;
 
   if (location.pathname === "/" || location.pathname.startsWith("/onboarding") || location.pathname.startsWith("/order/")) {
     return null;

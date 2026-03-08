@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin, ChevronDown, Loader2 } from "lucide-react";
@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { isKBZPayMiniApp, getOrderSource } from "@/utils/kbzpay";
 
 interface OrderState {
   cylinderType: string;
@@ -23,7 +24,7 @@ interface OrderState {
   gasPricePerKg: number;
 }
 
-const paymentMethods = [
+const standardPaymentMethods = [
   { id: "cash", label: "Cash on Delivery", icon: "💵" },
   { id: "kbz", label: "KBZ Pay", icon: "🏦" },
   { id: "wave", label: "Wave Money", icon: "📱" },
@@ -37,8 +38,9 @@ const OrderConfirm = () => {
   const { data: customer } = useCustomerProfile(user?.id);
   const { toast } = useToast();
 
+  const isMiniApp = isKBZPayMiniApp();
   const orderState = location.state as OrderState | null;
-  const [payment, setPayment] = useState("cash");
+  const [payment, setPayment] = useState(isMiniApp ? "kbzpay" : "cash");
   const [placing, setPlacing] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState("");
@@ -60,6 +62,7 @@ const OrderConfirm = () => {
           quantity: orderState.quantity,
           clientTotal: orderState.totalAmount,
           deliveryInstructions: instructions || undefined,
+          orderSource: getOrderSource(),
         },
       });
       if (error) throw error;
@@ -141,22 +144,34 @@ const OrderConfirm = () => {
         {/* Payment Method */}
         <div className="rounded-[20px] border border-border bg-card p-5 shadow-sm">
           <h2 className="text-[13px] font-extrabold text-foreground mb-3">Payment Method</h2>
-          <div className="space-y-2">
-            {paymentMethods.map((pm) => (
-              <button
-                key={pm.id}
-                onClick={() => setPayment(pm.id)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-[14px] border-2 p-3.5 transition-all active:scale-[0.98]",
-                  payment === pm.id ? "border-action bg-action-light" : "border-border bg-background"
-                )}
-              >
-                <span className="text-xl">{pm.icon}</span>
-                <span className="font-bold text-foreground">{pm.label}</span>
-                {payment === pm.id && <span className="ml-auto text-action font-extrabold">✓</span>}
-              </button>
-            ))}
-          </div>
+          {isMiniApp ? (
+            // KBZ Pay Mini App — single payment option
+            // TODO: Replace with window.ma.callNativeAPI('startPay', ...) JSSDK call
+            <button
+              className="flex w-full items-center justify-center gap-3 rounded-[14px] p-4 font-bold text-white"
+              style={{ backgroundColor: '#0066CC' }}
+              disabled
+            >
+              🏦 Pay with KBZ Pay
+            </button>
+          ) : (
+            <div className="space-y-2">
+              {standardPaymentMethods.map((pm) => (
+                <button
+                  key={pm.id}
+                  onClick={() => setPayment(pm.id)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-[14px] border-2 p-3.5 transition-all active:scale-[0.98]",
+                    payment === pm.id ? "border-action bg-action-light" : "border-border bg-background"
+                  )}
+                >
+                  <span className="text-xl">{pm.icon}</span>
+                  <span className="font-bold text-foreground">{pm.label}</span>
+                  {payment === pm.id && <span className="ml-auto text-action font-extrabold">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Special Instructions */}

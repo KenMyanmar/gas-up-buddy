@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { toInternational } from "@/lib/phoneUtils";
+import { isKBZPayMiniApp } from "@/utils/kbzpay";
 
 const PhoneEntry = () => {
   const navigate = useNavigate();
@@ -13,6 +14,16 @@ const PhoneEntry = () => {
   const { toast } = useToast();
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const isMiniApp = isKBZPayMiniApp();
+  const [miniAppTimedOut, setMiniAppTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isMiniApp) return;
+    // TODO: Replace with window.ma.getAuthCode() JSSDK call
+    const timer = setTimeout(() => setMiniAppTimedOut(true), 2000);
+    return () => clearTimeout(timer);
+  }, [isMiniApp]);
 
   const isValid = /^09\d{7,9}$/.test(phone);
 
@@ -35,6 +46,17 @@ const PhoneEntry = () => {
       setLoading(false);
     }
   };
+
+  // KBZ Pay mini app loading placeholder
+  if (isMiniApp && !miniAppTimedOut) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
+        <Loader2 className="h-10 w-10 animate-spin text-action mb-4" />
+        <p className="text-lg font-bold text-foreground">Connecting via KBZ Pay...</p>
+        <p className="text-sm text-muted-foreground mt-2">Please wait</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-6">
