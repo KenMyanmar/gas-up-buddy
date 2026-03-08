@@ -15,7 +15,6 @@ interface OrderState {
   brandId: string;
   brandName: string;
   orderType: "refill" | "new";
-  displayOrderType?: "refill" | "new" | "exchange";
   quantity: number;
   unitPrice: number;
   gasSubtotal: number;
@@ -23,7 +22,6 @@ interface OrderState {
   deliveryFee: number;
   totalAmount: number;
   gasPricePerKg: number;
-  deliveryInstructions?: string;
 }
 
 const standardPaymentMethods = [
