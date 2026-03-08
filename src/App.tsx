@@ -21,6 +21,10 @@ import OrderSuccess from "./pages/OrderSuccess";
 import OrderTracking from "./pages/OrderTracking";
 import OrdersPage from "./pages/OrdersPage";
 import ProfilePage from "./pages/ProfilePage";
+import ProfileAddresses from "./pages/ProfileAddresses";
+import ProfileFAQ from "./pages/ProfileFAQ";
+import ProfileTerms from "./pages/ProfileTerms";
+import ProfilePrivacy from "./pages/ProfilePrivacy";
 import AlertsPage from "./pages/AlertsPage";
 import NotFound from "./pages/NotFound";
 
