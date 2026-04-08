@@ -450,6 +450,80 @@ export type Database = {
           },
         ]
       }
+      call_attempts: {
+        Row: {
+          attempted_by: string | null
+          call_status: string
+          called_at: string
+          confirmed_address: string | null
+          confirmed_contact_name: string | null
+          confirmed_phone: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          shop_id: string
+          trip_day_id: string | null
+          visit_window: string | null
+        }
+        Insert: {
+          attempted_by?: string | null
+          call_status: string
+          called_at?: string
+          confirmed_address?: string | null
+          confirmed_contact_name?: string | null
+          confirmed_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          shop_id: string
+          trip_day_id?: string | null
+          visit_window?: string | null
+        }
+        Update: {
+          attempted_by?: string | null
+          call_status?: string
+          called_at?: string
+          confirmed_address?: string | null
+          confirmed_contact_name?: string | null
+          confirmed_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          shop_id?: string
+          trip_day_id?: string | null
+          visit_window?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_attempts_attempted_by_fkey"
+            columns: ["attempted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_attempts_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_attempts_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_attempts_trip_day_id_fkey"
+            columns: ["trip_day_id"]
+            isOneToOne: false
+            referencedRelation: "trip_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_logs: {
         Row: {
           answered_at: string | null
@@ -855,6 +929,289 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      dealer_order_items: {
+        Row: {
+          brand_id: string
+          brand_name: string
+          brand_product_id: string
+          created_at: string | null
+          cylinder_display_name: string | null
+          cylinder_type_id: string | null
+          dealer_order_id: string
+          id: string
+          line_total: number
+          quantity: number
+          size_kg: number | null
+          unit_price: number
+        }
+        Insert: {
+          brand_id: string
+          brand_name: string
+          brand_product_id: string
+          created_at?: string | null
+          cylinder_display_name?: string | null
+          cylinder_type_id?: string | null
+          dealer_order_id: string
+          id?: string
+          line_total: number
+          quantity: number
+          size_kg?: number | null
+          unit_price: number
+        }
+        Update: {
+          brand_id?: string
+          brand_name?: string
+          brand_product_id?: string
+          created_at?: string | null
+          cylinder_display_name?: string | null
+          cylinder_type_id?: string | null
+          dealer_order_id?: string
+          id?: string
+          line_total?: number
+          quantity?: number
+          size_kg?: number | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dealer_order_items_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealer_order_items_brand_product_id_fkey"
+            columns: ["brand_product_id"]
+            isOneToOne: false
+            referencedRelation: "brand_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealer_order_items_cylinder_type_id_fkey"
+            columns: ["cylinder_type_id"]
+            isOneToOne: false
+            referencedRelation: "cylinder_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealer_order_items_dealer_order_id_fkey"
+            columns: ["dealer_order_id"]
+            isOneToOne: false
+            referencedRelation: "dealer_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dealer_orders: {
+        Row: {
+          cancellation_reason: string | null
+          confirmed_by: string | null
+          confirmed_date: string | null
+          created_at: string | null
+          created_by: string | null
+          delivered_by: string | null
+          delivered_date: string | null
+          delivery_fee: number
+          delivery_method: string
+          discount: number
+          id: string
+          notes: string | null
+          order_number: string
+          order_source: string
+          order_type: string
+          payment_method: string | null
+          payment_status: string
+          requested_date: string | null
+          shop_id: string | null
+          status: string
+          subtotal: number
+          supplier_id: string
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          cancellation_reason?: string | null
+          confirmed_by?: string | null
+          confirmed_date?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          delivered_by?: string | null
+          delivered_date?: string | null
+          delivery_fee?: number
+          delivery_method?: string
+          discount?: number
+          id?: string
+          notes?: string | null
+          order_number: string
+          order_source?: string
+          order_type?: string
+          payment_method?: string | null
+          payment_status?: string
+          requested_date?: string | null
+          shop_id?: string | null
+          status?: string
+          subtotal?: number
+          supplier_id: string
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Update: {
+          cancellation_reason?: string | null
+          confirmed_by?: string | null
+          confirmed_date?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          delivered_by?: string | null
+          delivered_date?: string | null
+          delivery_fee?: number
+          delivery_method?: string
+          discount?: number
+          id?: string
+          notes?: string | null
+          order_number?: string
+          order_source?: string
+          order_type?: string
+          payment_method?: string | null
+          payment_status?: string
+          requested_date?: string | null
+          shop_id?: string | null
+          status?: string
+          subtotal?: number
+          supplier_id?: string
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dealer_orders_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealer_orders_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealer_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dealer_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          dealer_order_id: string
+          id: string
+          notes: string | null
+          payment_date: string | null
+          payment_method: string
+          recorded_by: string | null
+          reference_number: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          dealer_order_id: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method: string
+          recorded_by?: string | null
+          reference_number?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          dealer_order_id?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method?: string
+          recorded_by?: string | null
+          reference_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dealer_payments_dealer_order_id_fkey"
+            columns: ["dealer_order_id"]
+            isOneToOne: false
+            referencedRelation: "dealer_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dealer_pricing: {
+        Row: {
+          brand_product_id: string
+          created_at: string | null
+          created_by: string | null
+          cylinder_deposit: number | null
+          cylinder_ownership: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          payment_term: string
+          pricing_model: string
+          settlement_basis: string | null
+          unit_price: number
+          updated_at: string | null
+        }
+        Insert: {
+          brand_product_id: string
+          created_at?: string | null
+          created_by?: string | null
+          cylinder_deposit?: number | null
+          cylinder_ownership?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          payment_term?: string
+          pricing_model: string
+          settlement_basis?: string | null
+          unit_price: number
+          updated_at?: string | null
+        }
+        Update: {
+          brand_product_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          cylinder_deposit?: number | null
+          cylinder_ownership?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          payment_term?: string
+          pricing_model?: string
+          settlement_basis?: string | null
+          unit_price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dealer_pricing_brand_product_id_fkey"
+            columns: ["brand_product_id"]
+            isOneToOne: false
+            referencedRelation: "brand_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       delivery_proofs: {
         Row: {
@@ -1887,6 +2244,81 @@ export type Database = {
           },
         ]
       }
+      referrals: {
+        Row: {
+          converted_shop_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          referred_address: string | null
+          referred_phone: string | null
+          referred_shop_name: string
+          source_shop_id: string | null
+          township: string | null
+        }
+        Insert: {
+          converted_shop_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          referred_address?: string | null
+          referred_phone?: string | null
+          referred_shop_name: string
+          source_shop_id?: string | null
+          township?: string | null
+        }
+        Update: {
+          converted_shop_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          referred_address?: string | null
+          referred_phone?: string | null
+          referred_shop_name?: string
+          source_shop_id?: string | null
+          township?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_converted_shop_id_fkey"
+            columns: ["converted_shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_converted_shop_id_fkey"
+            columns: ["converted_shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_source_shop_id_fkey"
+            columns: ["source_shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_source_shop_id_fkey"
+            columns: ["source_shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       refill_reminders: {
         Row: {
           auth_user_id: string
@@ -2075,6 +2507,308 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_contacts: {
+        Row: {
+          contact_name: string | null
+          created_at: string
+          id: string
+          is_primary: boolean
+          is_verified: boolean
+          notes: string | null
+          phone: string | null
+          role_label: string | null
+          shop_id: string
+          updated_at: string
+        }
+        Insert: {
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          is_verified?: boolean
+          notes?: string | null
+          phone?: string | null
+          role_label?: string | null
+          shop_id: string
+          updated_at?: string
+        }
+        Update: {
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          is_verified?: boolean
+          notes?: string | null
+          phone?: string | null
+          role_label?: string | null
+          shop_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_contacts_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_contacts_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: string
+          new_initiative_response: string | null
+          new_lead_status: string | null
+          note: string | null
+          old_initiative_response: string | null
+          old_lead_status: string | null
+          shop_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_initiative_response?: string | null
+          new_lead_status?: string | null
+          note?: string | null
+          old_initiative_response?: string | null
+          old_lead_status?: string | null
+          shop_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_initiative_response?: string | null
+          new_lead_status?: string | null
+          note?: string | null
+          old_initiative_response?: string | null
+          old_lead_status?: string | null
+          shop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_status_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_status_history_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_status_history_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_suppressions: {
+        Row: {
+          active: boolean
+          attempted_by: string | null
+          created_at: string
+          id: string
+          last_attempted_at: string | null
+          notes: string | null
+          reason: string
+          shop_id: string
+        }
+        Insert: {
+          active?: boolean
+          attempted_by?: string | null
+          created_at?: string
+          id?: string
+          last_attempted_at?: string | null
+          notes?: string | null
+          reason: string
+          shop_id: string
+        }
+        Update: {
+          active?: boolean
+          attempted_by?: string | null
+          created_at?: string
+          id?: string
+          last_attempted_at?: string | null
+          notes?: string | null
+          reason?: string
+          shop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_suppressions_attempted_by_fkey"
+            columns: ["attempted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_suppressions_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_suppressions_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shops: {
+        Row: {
+          address: string | null
+          brands_observed: string | null
+          canonical_name: string
+          confidence_score: number | null
+          converted_supplier_id: string | null
+          created_at: string
+          delivery_indicated: string | null
+          external_source_id: string | null
+          facebook_url: string | null
+          first_order_id: string | null
+          geolocation_source: string | null
+          google_maps_url: string | null
+          id: string
+          initiative_response: string
+          is_route_ready: boolean
+          landmark: string | null
+          last_called_at: string | null
+          last_visited_at: string | null
+          lat: number | null
+          lead_status: string
+          lng: number | null
+          location_confidence: string | null
+          location_verified_at: string | null
+          needs_cleanup: boolean
+          notes: string | null
+          onboarded_at: string | null
+          phone_all: string | null
+          primary_phone: string | null
+          segment: string
+          shop_type: string | null
+          source: string | null
+          source_type: string | null
+          suppression_reason: string | null
+          township: string | null
+          updated_at: string
+          visit_status: string | null
+          ward: string | null
+        }
+        Insert: {
+          address?: string | null
+          brands_observed?: string | null
+          canonical_name: string
+          confidence_score?: number | null
+          converted_supplier_id?: string | null
+          created_at?: string
+          delivery_indicated?: string | null
+          external_source_id?: string | null
+          facebook_url?: string | null
+          first_order_id?: string | null
+          geolocation_source?: string | null
+          google_maps_url?: string | null
+          id?: string
+          initiative_response?: string
+          is_route_ready?: boolean
+          landmark?: string | null
+          last_called_at?: string | null
+          last_visited_at?: string | null
+          lat?: number | null
+          lead_status?: string
+          lng?: number | null
+          location_confidence?: string | null
+          location_verified_at?: string | null
+          needs_cleanup?: boolean
+          notes?: string | null
+          onboarded_at?: string | null
+          phone_all?: string | null
+          primary_phone?: string | null
+          segment?: string
+          shop_type?: string | null
+          source?: string | null
+          source_type?: string | null
+          suppression_reason?: string | null
+          township?: string | null
+          updated_at?: string
+          visit_status?: string | null
+          ward?: string | null
+        }
+        Update: {
+          address?: string | null
+          brands_observed?: string | null
+          canonical_name?: string
+          confidence_score?: number | null
+          converted_supplier_id?: string | null
+          created_at?: string
+          delivery_indicated?: string | null
+          external_source_id?: string | null
+          facebook_url?: string | null
+          first_order_id?: string | null
+          geolocation_source?: string | null
+          google_maps_url?: string | null
+          id?: string
+          initiative_response?: string
+          is_route_ready?: boolean
+          landmark?: string | null
+          last_called_at?: string | null
+          last_visited_at?: string | null
+          lat?: number | null
+          lead_status?: string
+          lng?: number | null
+          location_confidence?: string | null
+          location_verified_at?: string | null
+          needs_cleanup?: boolean
+          notes?: string | null
+          onboarded_at?: string | null
+          phone_all?: string | null
+          primary_phone?: string | null
+          segment?: string
+          shop_type?: string | null
+          source?: string | null
+          source_type?: string | null
+          suppression_reason?: string | null
+          township?: string | null
+          updated_at?: string
+          visit_status?: string | null
+          ward?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shops_converted_supplier_id_fkey"
+            columns: ["converted_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shops_first_order_id_fkey"
+            columns: ["first_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -2647,6 +3381,139 @@ export type Database = {
         }
         Relationships: []
       }
+      trip_days: {
+        Row: {
+          assigned_to: string | null
+          cluster_name: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          route_day_label: string | null
+          status: string
+          trip_date: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          cluster_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          route_day_label?: string | null
+          status?: string
+          trip_date: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          cluster_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          route_day_label?: string | null
+          status?: string
+          trip_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_days_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_days_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_stops: {
+        Row: {
+          call_status: string
+          completed_at: string | null
+          confirmed_address: string | null
+          confirmed_contact_name: string | null
+          created_at: string
+          field_action: string | null
+          id: string
+          planned_window: string | null
+          route_ready: boolean
+          shop_id: string
+          started_at: string | null
+          stop_order: number
+          team_notes: string | null
+          trip_day_id: string
+          updated_at: string
+          visit_status_snapshot: string | null
+        }
+        Insert: {
+          call_status?: string
+          completed_at?: string | null
+          confirmed_address?: string | null
+          confirmed_contact_name?: string | null
+          created_at?: string
+          field_action?: string | null
+          id?: string
+          planned_window?: string | null
+          route_ready?: boolean
+          shop_id: string
+          started_at?: string | null
+          stop_order: number
+          team_notes?: string | null
+          trip_day_id: string
+          updated_at?: string
+          visit_status_snapshot?: string | null
+        }
+        Update: {
+          call_status?: string
+          completed_at?: string | null
+          confirmed_address?: string | null
+          confirmed_contact_name?: string | null
+          created_at?: string
+          field_action?: string | null
+          id?: string
+          planned_window?: string | null
+          route_ready?: boolean
+          shop_id?: string
+          started_at?: string | null
+          stop_order?: number
+          team_notes?: string | null
+          trip_day_id?: string
+          updated_at?: string
+          visit_status_snapshot?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_stops_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_stops_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_stops_trip_day_id_fkey"
+            columns: ["trip_day_id"]
+            isOneToOne: false
+            referencedRelation: "trip_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -2667,6 +3534,152 @@ export type Database = {
           {
             foreignKeyName: "user_roles_profile_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visit_photos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          photo_url: string
+          visit_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          photo_url: string
+          visit_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          photo_url?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_photos_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visits: {
+        Row: {
+          accepts_8484_orders: boolean | null
+          confirmed_address: string | null
+          confirmed_phone: string | null
+          created_at: string
+          device_recorded_offline: boolean
+          gps_accuracy_meters: number | null
+          id: string
+          interest_level: string
+          interested_15kg: boolean | null
+          interested_50kg: boolean | null
+          interested_5kg: boolean | null
+          lat: number | null
+          lng: number | null
+          next_follow_up_date: string | null
+          notes: string | null
+          owner_contact_name: string | null
+          products_sold: string | null
+          shop_id: string
+          trip_day_id: string | null
+          trip_stop_id: string | null
+          visit_result: string
+          visited_at: string
+          visited_by: string | null
+        }
+        Insert: {
+          accepts_8484_orders?: boolean | null
+          confirmed_address?: string | null
+          confirmed_phone?: string | null
+          created_at?: string
+          device_recorded_offline?: boolean
+          gps_accuracy_meters?: number | null
+          id?: string
+          interest_level?: string
+          interested_15kg?: boolean | null
+          interested_50kg?: boolean | null
+          interested_5kg?: boolean | null
+          lat?: number | null
+          lng?: number | null
+          next_follow_up_date?: string | null
+          notes?: string | null
+          owner_contact_name?: string | null
+          products_sold?: string | null
+          shop_id: string
+          trip_day_id?: string | null
+          trip_stop_id?: string | null
+          visit_result: string
+          visited_at?: string
+          visited_by?: string | null
+        }
+        Update: {
+          accepts_8484_orders?: boolean | null
+          confirmed_address?: string | null
+          confirmed_phone?: string | null
+          created_at?: string
+          device_recorded_offline?: boolean
+          gps_accuracy_meters?: number | null
+          id?: string
+          interest_level?: string
+          interested_15kg?: boolean | null
+          interested_50kg?: boolean | null
+          interested_5kg?: boolean | null
+          lat?: number | null
+          lng?: number | null
+          next_follow_up_date?: string | null
+          notes?: string | null
+          owner_contact_name?: string | null
+          products_sold?: string | null
+          shop_id?: string
+          trip_day_id?: string | null
+          trip_stop_id?: string | null
+          visit_result?: string
+          visited_at?: string
+          visited_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "route_ready_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_trip_day_id_fkey"
+            columns: ["trip_day_id"]
+            isOneToOne: false
+            referencedRelation: "trip_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_trip_stop_id_fkey"
+            columns: ["trip_stop_id"]
+            isOneToOne: false
+            referencedRelation: "trip_stops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_visited_by_fkey"
+            columns: ["visited_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2903,6 +3916,16 @@ export type Database = {
           },
         ]
       }
+      conversion_funnel: {
+        Row: {
+          pct_of_previous: number | null
+          pct_of_total: number | null
+          shop_count: number | null
+          stage: string | null
+          stage_order: number | null
+        }
+        Relationships: []
+      }
       current_gas_prices: {
         Row: {
           brand_id: string | null
@@ -3031,6 +4054,65 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      route_ready_queue: {
+        Row: {
+          address: string | null
+          canonical_name: string | null
+          confidence_score: number | null
+          google_maps_url: string | null
+          id: string | null
+          initiative_response: string | null
+          is_route_ready: boolean | null
+          lat: number | null
+          lead_status: string | null
+          lng: number | null
+          primary_phone: string | null
+          segment: string | null
+          township: string | null
+        }
+        Insert: {
+          address?: string | null
+          canonical_name?: string | null
+          confidence_score?: number | null
+          google_maps_url?: string | null
+          id?: string | null
+          initiative_response?: string | null
+          is_route_ready?: boolean | null
+          lat?: number | null
+          lead_status?: string | null
+          lng?: number | null
+          primary_phone?: string | null
+          segment?: string | null
+          township?: string | null
+        }
+        Update: {
+          address?: string | null
+          canonical_name?: string | null
+          confidence_score?: number | null
+          google_maps_url?: string | null
+          id?: string | null
+          initiative_response?: string | null
+          is_route_ready?: boolean | null
+          lat?: number | null
+          lead_status?: string | null
+          lng?: number | null
+          primary_phone?: string | null
+          segment?: string | null
+          township?: string | null
+        }
+        Relationships: []
+      }
+      township_coverage: {
+        Row: {
+          onboarded_pct: number | null
+          onboarded_shops: number | null
+          total_shops: number | null
+          township: string | null
+          visited_pct: number | null
+          visited_shops: number | null
+        }
+        Relationships: []
       }
       v_agent_latest_locations: {
         Row: {
@@ -3170,6 +4252,29 @@ export type Database = {
       }
       calculate_next_retry: {
         Args: { base_delay_minutes?: number; retry_count: number }
+        Returns: string
+      }
+      can_view_onboarding_trip: {
+        Args: { _trip_day_id: string }
+        Returns: boolean
+      }
+      can_write_onboarding_shop: {
+        Args: { _shop_id: string }
+        Returns: boolean
+      }
+      create_dealer_order: {
+        Args: {
+          p_delivery_fee?: number
+          p_delivery_method?: string
+          p_discount?: number
+          p_items?: Json
+          p_notes?: string
+          p_order_source?: string
+          p_payment_method?: string
+          p_payment_term?: string
+          p_requested_date?: string
+          p_supplier_id: string
+        }
         Returns: string
       }
       create_refill_order: {
