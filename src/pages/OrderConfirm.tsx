@@ -81,8 +81,13 @@ const OrderConfirm = () => {
           const payResult = payData as any;
           if (!payResult?.success) throw new Error(payResult?.error ?? "Payment initiation failed");
 
-          // Call KBZ JSSDK startPay
-          await startPay(payResult.startPayParams);
+          // Call KBZ JSSDK startPay with new orderInfo shape
+          await startPay({
+            prepayId: payResult.prepay_id,
+            orderInfo: payResult.orderinfo,
+            sign: payResult.sign,
+            signType: payResult.signType,
+          });
 
           // Poll for payment confirmation
           const paymentStatus = await pollOrderUntilPaid(supabase, result.order_id, 120_000);
