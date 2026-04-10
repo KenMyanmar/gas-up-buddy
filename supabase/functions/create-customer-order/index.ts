@@ -67,9 +67,7 @@ Deno.serve(async (req) => {
     if (orderSource === "kbzpay_miniapp" && paymentMethod !== "kbzpay") {
       return json({ error: "kbzpay_miniapp orders must use kbzpay payment" }, 400);
     }
-    if (paymentMethod === "kbzpay" && orderSource !== "kbzpay_miniapp") {
-      return json({ error: "kbzpay payment requires kbzpay_miniapp source" }, 400);
-    }
+    // NOTE: kbzpay from customer_app allowed during UAT testing
 
     // Basic validation
     if (!cylinderType || !sizeKg || !brandId || !quantity) {
@@ -176,6 +174,7 @@ Deno.serve(async (req) => {
       success: true,
       order_id: order.id,
       total_amount: order.total_amount,
+      payment_method: paymentMethod,
     });
   } catch (err) {
     console.error("Unexpected error:", err);

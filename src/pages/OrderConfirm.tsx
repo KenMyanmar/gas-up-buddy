@@ -27,7 +27,7 @@ interface OrderState {
 
 const standardPaymentMethods = [
   { id: "cash", label: "Cash on Delivery", icon: "💵" },
-  { id: "kbz", label: "KBZ Pay", icon: "🏦" },
+  { id: "kbzpay", label: "KBZ Pay", icon: "🏦" },
   { id: "wave", label: "Wave Money", icon: "📱" },
   { id: "cb", label: "CB Pay", icon: "💳" },
 ];
@@ -64,7 +64,7 @@ const OrderConfirm = () => {
           clientTotal: orderState.totalAmount,
           deliveryInstructions: instructions || undefined,
           orderSource: getOrderSource(),
-          paymentMethod: isMiniApp ? "kbzpay" : "cash",
+          paymentMethod: payment,
         },
       });
       if (error) throw error;
@@ -72,7 +72,7 @@ const OrderConfirm = () => {
       if (!result?.success) throw new Error(result?.error ?? "Order creation failed");
 
       // KBZ Pay flow: create payment → startPay → poll
-      if (isMiniApp && result.order_id) {
+      if (payment === "kbzpay" && result.order_id) {
         try {
           const { data: payData, error: payErr } = await supabase.functions.invoke("kbzpay-create-payment", {
             body: { orderId: result.order_id },
