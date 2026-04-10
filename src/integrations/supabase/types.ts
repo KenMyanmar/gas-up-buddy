@@ -1801,6 +1801,9 @@ export type Database = {
           old_cylinder_condition: string | null
           order_source: string
           order_type: Database["public"]["Enums"]["order_type"] | null
+          paid_at: string | null
+          payment_method: string
+          payment_status: string
           preferred_delivery_time: string | null
           quantity: number
           rescheduled_from: string | null
@@ -1856,6 +1859,9 @@ export type Database = {
           old_cylinder_condition?: string | null
           order_source?: string
           order_type?: Database["public"]["Enums"]["order_type"] | null
+          paid_at?: string | null
+          payment_method?: string
+          payment_status?: string
           preferred_delivery_time?: string | null
           quantity: number
           rescheduled_from?: string | null
@@ -1911,6 +1917,9 @@ export type Database = {
           old_cylinder_condition?: string | null
           order_source?: string
           order_type?: Database["public"]["Enums"]["order_type"] | null
+          paid_at?: string | null
+          payment_method?: string
+          payment_status?: string
           preferred_delivery_time?: string | null
           quantity?: number
           rescheduled_from?: string | null
@@ -1977,30 +1986,45 @@ export type Database = {
           amount: number
           created_at: string | null
           id: string
+          metadata: Json | null
           method: Database["public"]["Enums"]["payment_method"]
           notes: string | null
           order_id: string
+          paid_at: string | null
+          provider_ref: string | null
+          raw_response: Json | null
           recorded_by: string | null
+          status: string
           transaction_id: string | null
         }
         Insert: {
           amount: number
           created_at?: string | null
           id?: string
+          metadata?: Json | null
           method: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           order_id: string
+          paid_at?: string | null
+          provider_ref?: string | null
+          raw_response?: Json | null
           recorded_by?: string | null
+          status?: string
           transaction_id?: string | null
         }
         Update: {
           amount?: number
           created_at?: string | null
           id?: string
+          metadata?: Json | null
           method?: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           order_id?: string
+          paid_at?: string | null
+          provider_ref?: string | null
+          raw_response?: Json | null
           recorded_by?: string | null
+          status?: string
           transaction_id?: string | null
         }
         Relationships: [
@@ -4405,7 +4429,7 @@ export type Database = {
         | "cancelled"
         | "failed"
       order_type: "refill" | "new_setup" | "exchange" | "service_call"
-      payment_method: "kbz_pay" | "wave" | "cb_pay" | "cash"
+      payment_method: "kbz_pay" | "wave" | "cb_pay" | "cash" | "kbzpay"
       social_channel: "facebook_dm" | "facebook_comment" | "zoho_messenger"
       social_conversation_status: "new" | "in_progress" | "closed"
     }
@@ -4558,7 +4582,7 @@ export const Constants = {
         "failed",
       ],
       order_type: ["refill", "new_setup", "exchange", "service_call"],
-      payment_method: ["kbz_pay", "wave", "cb_pay", "cash"],
+      payment_method: ["kbz_pay", "wave", "cb_pay", "cash", "kbzpay"],
       social_channel: ["facebook_dm", "facebook_comment", "zoho_messenger"],
       social_conversation_status: ["new", "in_progress", "closed"],
     },
