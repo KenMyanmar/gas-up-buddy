@@ -1,44 +1,37 @@
 
 
-# Fix: startPay callback signature + webhook empty-value filtering
+# Fix Batch 4 — KBZ Pay Flow Wiring
 
-## Two changes, two files
+## Root Cause
 
-### 1. `src/lib/kbzpay-bridge.ts` — Move callbacks out of params object
+The frontend hardcodes `paymentMethod: isMiniApp ? "kbzpay" : "cash"` (line 67), ignoring the user's payment method selection (`payment` state). When Ken tested from a regular browser, `isMiniApp` was false, so it always sent `"cash"`. Additionally, the standard payment method list uses `id: "kbz"` but the backend expects `"kbzpay"`.
 
-**Current (broken):** `success` and `fail` callbacks are inside the params object passed as the second argument. KBZ JSSDK never invokes them — promise never resolves.
+## Fixes (3 files)
 
-**Fix:** Pass callbacks as separate 3rd and 4th arguments to `callNativeAPI`:
+### 1. `src/pages/OrderConfirm.tsx` — Use selected payment method
 
-```typescript
-ma.callNativeAPI("startPay", {
-  prepayId: params.prepayId,
-  orderInfo: params.orderInfo,
-  sign: params.sign,
-  signType: params.signType,
-  useMiniResultFlag: true,
-}, (res: any) => {
-  clearTimeout(timer);
-  resolve(res);
-}, (err: any) => {
-  clearTimeout(timer);
-  reject(new Error(err?.errorMessage || "startPay failed"));
-});
-```
+**Line 30**: Change payment method id from `"kbz"` to `"kbzpay"` so it matches the backend allowlist.
 
-Lines 66-80 replaced.
+**Line 67**: Replace hardcoded `isMiniApp ? "kbzpay" : "cash"` with the `payment` state variable (which already defaults to `"kbzpay"` in mini app, `"cash"` otherwise).
 
-### 2. `supabase/functions/kbzpay-webhook/index.ts` — Filter empty values from signature
+**Lines 75-116**: Change KBZ Pay flow condition from `if (isMiniApp && result.order_id)` to `if (payment === "kbzpay" && result.order_id)` — so KBZ Pay flow triggers based on user selection, not environment detection.
 
-**Current:** Line 74 includes all non-sign keys, even if the value is empty string, null, or undefined. KBZ spec excludes empty params from signature computation.
+### 2. `supabase/functions/create-customer-order/index.ts` — Relax constraint + return payment_method
 
-**Fix:** Add empty-value filter before joining:
+**Lines 70-72**: Remove the constraint `if (paymentMethod === "kbzpay" && orderSource !== "kbzpay_miniapp")`. Keep the reverse constraint (kbzpay_miniapp must use kbzpay). This allows KBZ Pay testing from the regular customer app.
 
-```typescript
-const sorted = Object.keys(copy)
-  .filter((k) => copy[k] !== "" && copy[k] !== null && copy[k] !== undefined)
-  .sort();
-```
+**Line 175-179**: Add `payment_method: paymentMethod` to the response body so the frontend has confirmation of what was stored.
 
-Line 73-74 replaced. Redeploy webhook after.
+### 3. `src/lib/kbzpay-bridge.ts` — No changes needed
+
+The `startPay` function already has the correct callback signature from the previous fix. No changes required.
+
+## Files Modified
+
+1. **`src/pages/OrderConfirm.tsx`** — Fix payment method id, use `payment` state, branch on selection not environment
+2. **`supabase/functions/create-customer-order/index.ts`** — Remove blocking constraint, return payment_method in response
+
+## After Deploy
+
+Ken can re-test: select KBZ Pay from the regular customer app, place order, and `kbzpay-create-payment` should be called. The `startPay` native call will only work inside the actual KBZ Pay app (where `window.ma` exists), but we'll at least verify the precreate API call succeeds and returns a `prepay_id`.
 
