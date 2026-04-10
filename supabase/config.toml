@@ -2,3 +2,12 @@ project_id = "rtbkhrenswgzhuzltpgd"
 
 [functions.create-customer-order]
 verify_jwt = false
+
+[functions.kbzpay-auto-login]
+verify_jwt = false
+
+[functions.kbzpay-link-customer]
+verify_jwt = false
+
+[functions.kbzpay-webhook]
+verify_jwt = false

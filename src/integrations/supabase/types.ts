@@ -1554,6 +1554,36 @@ export type Database = {
           },
         ]
       }
+      kbzpay_link_tokens: {
+        Row: {
+          candidate_ids: string[]
+          created_at: string
+          expires_at: string
+          id: string
+          phone_local: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          candidate_ids: string[]
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone_local: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          candidate_ids?: string[]
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone_local?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           content: string

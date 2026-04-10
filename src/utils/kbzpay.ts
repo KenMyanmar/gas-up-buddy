@@ -12,5 +12,5 @@ export function isKBZPayMiniApp(): boolean {
 }
 
 export function getOrderSource(): string {
-  return isKBZPayMiniApp() ? 'kbzpay' : 'customer_app';
+  return isKBZPayMiniApp() ? 'kbzpay_miniapp' : 'customer_app';
 }

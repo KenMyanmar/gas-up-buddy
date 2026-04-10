@@ -51,6 +51,26 @@ Deno.serve(async (req) => {
       deliveryInstructions,
     } = body;
 
+    // ── Order source & payment method validation ─────────────
+    const ALLOWED_ORDER_SOURCES = ["customer_app", "kbzpay_miniapp"];
+    const ALLOWED_PAYMENT_METHODS = ["cash", "kbzpay"];
+    const orderSource = body.orderSource || "customer_app";
+    const paymentMethod = body.paymentMethod || "cash";
+
+    if (!ALLOWED_ORDER_SOURCES.includes(orderSource)) {
+      return json({ error: `Invalid orderSource: ${orderSource}` }, 400);
+    }
+    if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
+      return json({ error: `Invalid paymentMethod: ${paymentMethod}` }, 400);
+    }
+    // Cross-field constraint: kbzpay_miniapp ⇔ kbzpay
+    if (orderSource === "kbzpay_miniapp" && paymentMethod !== "kbzpay") {
+      return json({ error: "kbzpay_miniapp orders must use kbzpay payment" }, 400);
+    }
+    if (paymentMethod === "kbzpay" && orderSource !== "kbzpay_miniapp") {
+      return json({ error: "kbzpay payment requires kbzpay_miniapp source" }, 400);
+    }
+
     // Basic validation
     if (!cylinderType || !sizeKg || !brandId || !quantity) {
       return json({ error: "Missing required fields" }, 400);
@@ -140,7 +160,8 @@ Deno.serve(async (req) => {
         total_amount: totalAmount,
         status: "new",
         created_by: userId,
-        order_source: "customer_app",
+        order_source: orderSource,
+        payment_method: paymentMethod,
         delivery_instructions: deliveryInstructions || null,
       })
       .select("id, total_amount")
