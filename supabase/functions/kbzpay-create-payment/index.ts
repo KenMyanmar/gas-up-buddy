@@ -14,9 +14,32 @@ function json(body: Record<string, unknown>, status = 200) {
 }
 
 function generateMerchOrderId(orderId: string, nonceStr: string): string {
-  const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const ts = Math.floor(Date.now() / 1000);
   const nonce = nonceStr.slice(0, 4);
-  return `AG-${orderId.slice(0, 8)}-${timestamp}-${nonce}`;
+  return `AG-${orderId.slice(0, 8)}-${ts}-${nonce}`;
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(input),
+  );
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+}
+
+/**
+ * Sign params: flatten all keys (excluding sign, sign_type), sort, join, append &key=KEY, SHA256 uppercase.
+ */
+async function signParams(
+  params: Record<string, string>,
+  appKey: string,
+): Promise<string> {
+  const sorted = Object.keys(params).sort();
+  const qs = sorted.map((k) => `${k}=${params[k]}`).join("&");
+  return sha256Hex(qs + "&key=" + appKey);
 }
 
 Deno.serve(async (req) => {
@@ -88,18 +111,22 @@ Deno.serve(async (req) => {
       return json({ error: "Order already paid" }, 400);
     }
 
-    // ── Build KBZ precreate request ────────────────────────────
+    // ── KBZ config ─────────────────────────────────────────────
     const env = Deno.env.get("KBZPAY_ENV") || "UAT";
-    const proxyUrl = Deno.env.get(`KBZPAY_${env}_VPS_PROXY_URL`);
-    const proxySecret = Deno.env.get(`KBZPAY_${env}_PROXY_SECRET`);
     const appId = Deno.env.get(`KBZPAY_${env}_APP_ID`);
     const appKey = Deno.env.get(`KBZPAY_${env}_APP_KEY`);
     const merchCode = Deno.env.get(`KBZPAY_${env}_MERCH_CODE`);
 
-    if (!proxyUrl || !proxySecret || !appId || !appKey || !merchCode) {
+    if (!appId || !appKey || !merchCode) {
       console.error("Missing KBZ Pay env vars for:", env);
       return json({ error: "Payment service not configured" }, 503);
     }
+
+    // Fix 6: Direct KBZ endpoints (no proxy)
+    const PRECREATE_URL =
+      env === "UAT"
+        ? "http://api-uat.kbzpay.com/payment/gateway/uat/precreate"
+        : "https://api.kbzpay.com/payment/gateway/precreate";
 
     // Determine merch_order_id: reuse within 15 min for same order, fresh precreate always
     let merchOrderId: string;
@@ -109,74 +136,91 @@ Deno.serve(async (req) => {
     if (
       existingPayment?.status === "pending" &&
       existingPayment.provider_ref &&
-      (Date.now() - new Date(existingPayment.created_at).getTime()) < fifteenMin
+      Date.now() - new Date(existingPayment.created_at).getTime() < fifteenMin
     ) {
-      // Reuse merch_order_id but do FRESH precreate (Add 2 — no stale signatures)
       merchOrderId = existingPayment.provider_ref;
     } else {
       merchOrderId = generateMerchOrderId(orderId, nonceStr);
     }
 
-    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    // Fix 7: Unix seconds timestamp (10-digit)
+    const timestamp = String(Math.floor(Date.now() / 1000));
     const totalKyats = String(order.total_amount);
+    const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/kbzpay-webhook`;
 
-    // Build sorted query string for signature (always fresh timestamp + nonce)
-    const params: Record<string, string> = {
-      appid: appId,
-      merch_code: merchCode,
+    // Fix 7: Split into outer params + biz_content
+    const bizContent: Record<string, string> = {
       merch_order_id: merchOrderId,
-      method: "kbz.payment.precreate",
-      nonce_str: nonceStr,
-      notify_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/kbzpay-webhook`,
-      timestamp,
-      total_amount: totalKyats,
+      merch_code: merchCode,
+      appid: appId,
       trade_type: "MINIAPP",
+      title: "AnyGas LPG Order",
+      total_amount: totalKyats,
+      trans_currency: "MMK",
+      timeout_express: "15m",
+    };
+
+    const outerParams: Record<string, string> = {
+      timestamp,
+      method: "kbz.payment.precreate",
+      notify_url: notifyUrl,
+      nonce_str: nonceStr,
+      sign_type: "SHA256",
       version: "1.0",
     };
 
-    // SHA256 signature
-    const sortedKeys = Object.keys(params).sort();
-    const queryString = sortedKeys.map((k) => `${k}=${params[k]}`).join("&");
-    const signInput = queryString + "&key=" + appKey;
+    // Signature: flatten ALL (outer + biz_content), excluding sign and sign_type
+    const allForSign: Record<string, string> = { ...outerParams, ...bizContent };
+    delete allForSign.sign_type; // excluded from signature
+    const sign = await signParams(allForSign, appKey);
 
-    const signBuffer = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(signInput),
-    );
-    const sign = Array.from(new Uint8Array(signBuffer))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-      .toUpperCase();
+    // Build nested request body per KBZ spec
+    const requestBody = {
+      Request: {
+        ...outerParams,
+        sign,
+        biz_content: bizContent,
+      },
+    };
 
-    // ── Call KBZ precreate via VPS proxy (always fresh) ─────────
+    // ── Call KBZ precreate directly (Fix 6) ────────────────────
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const precreateRes = await fetch(`${proxyUrl}/precreate`, {
+    const precreateRes = await fetch(PRECREATE_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Proxy-Secret": proxySecret,
-      },
-      body: JSON.stringify({ ...params, sign, sign_type: "SHA256" }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     if (!precreateRes.ok) {
       const errText = await precreateRes.text();
-      console.error("KBZ precreate error:", precreateRes.status, errText);
+      console.error("KBZ precreate HTTP error:", precreateRes.status, errText);
       return json({ error: "Payment initiation failed" }, 502);
     }
 
     const precreateData = await precreateRes.json();
+    console.log("KBZ precreate response:", JSON.stringify(precreateData));
 
-    if (precreateData.result_code !== "SUCCESS") {
-      console.error("KBZ precreate failed:", precreateData);
-      return json({ error: "Payment initiation rejected by KBZ Pay" }, 502);
+    // Fix 7: Parse nested response
+    const kbzResponse = precreateData.Response || precreateData;
+    if (kbzResponse.result !== "SUCCESS") {
+      console.error("KBZ precreate failed:", kbzResponse);
+      return json(
+        { error: kbzResponse.msg || "Payment initiation rejected by KBZ Pay" },
+        502,
+      );
     }
 
-    // Store/update payment record via upsert (P0-4 fix — handles retry safely)
+    const prepayId = kbzResponse.prepay_id;
+    if (!prepayId) {
+      console.error("No prepay_id in KBZ response:", kbzResponse);
+      return json({ error: "Missing prepay_id from KBZ" }, 502);
+    }
+
+    // ── Store/update payment record via upsert ─────────────────
     await supabaseAdmin.from("payments").upsert(
       {
         order_id: orderId,
@@ -185,25 +229,40 @@ Deno.serve(async (req) => {
         status: "pending",
         provider_ref: merchOrderId,
         metadata: {
-          precreate_response: precreateData,
+          merch_order_id: merchOrderId,
+          precreate_response: kbzResponse,
           last_attempt_at: new Date().toISOString(),
         },
       },
       { onConflict: "order_id" },
     );
 
-    // Return startPay params for the JSSDK bridge (always fresh)
+    // ── Fix 8: Build signed orderInfo for frontend ─────────────
+    const responseNonceStr = kbzResponse.nonce_str || nonceStr;
+
+    const orderInfoFields: Record<string, string> = {
+      appid: appId,
+      merch_code: merchCode,
+      nonce_str: responseNonceStr,
+      prepay_id: prepayId,
+      timestamp,
+    };
+
+    // orderInfo string: 5 fields alphabetically
+    const orderInfoString = Object.keys(orderInfoFields)
+      .sort()
+      .map((k) => `${k}=${orderInfoFields[k]}`)
+      .join("&");
+
+    // Second signature over orderInfo
+    const orderInfoSign = await sha256Hex(orderInfoString + "&key=" + appKey);
+
     return json({
       success: true,
-      startPayParams: {
-        appId,
-        merchOrderId,
-        prepayId: precreateData.prepay_id,
-        sign: precreateData.sign || sign,
-        signType: "SHA256",
-        timeStamp: timestamp,
-        nonceStr,
-      },
+      prepay_id: prepayId,
+      orderinfo: orderInfoString,
+      sign: orderInfoSign,
+      signType: "SHA256",
     });
   } catch (err) {
     console.error("Unexpected error:", err);

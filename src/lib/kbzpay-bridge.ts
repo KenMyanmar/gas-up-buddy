@@ -49,7 +49,14 @@ export function getAuthCode(): Promise<string> {
 }
 
 // ── JSSDK: startPay ──────────────────────────────────────────────
-export function startPay(params: Record<string, string>): Promise<{ resultCode: string }> {
+export interface StartPayParams {
+  prepayId: string;
+  orderInfo: string;
+  sign: string;
+  signType: string;
+}
+
+export function startPay(params: StartPayParams): Promise<{ resultCode: string }> {
   return new Promise((resolve, reject) => {
     const ma = (window as any).ma;
     if (!ma?.callNativeAPI) {
@@ -57,7 +64,11 @@ export function startPay(params: Record<string, string>): Promise<{ resultCode: 
     }
     const timer = setTimeout(() => reject(new Error("startPay timed out")), 60_000);
     ma.callNativeAPI("startPay", {
-      ...params,
+      prepayId: params.prepayId,
+      orderInfo: params.orderInfo,
+      sign: params.sign,
+      signType: params.signType,
+      useMiniResultFlag: true,
       success: (res: any) => {
         clearTimeout(timer);
         resolve(res);
