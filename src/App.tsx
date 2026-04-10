@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
@@ -27,6 +27,7 @@ import ProfileTerms from "./pages/ProfileTerms";
 import ProfilePrivacy from "./pages/ProfilePrivacy";
 import AlertsPage from "./pages/AlertsPage";
 import NotFound from "./pages/NotFound";
+import KbzProfileComplete from "./pages/KbzProfileComplete";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,7 @@ const AppRoutes = () => (
       <Route path="/onboarding/link-welcome" element={<AuthOnlyRoute><LinkWelcomeBack /></AuthOnlyRoute>} />
       <Route path="/onboarding/link-select" element={<AuthOnlyRoute><LinkSelectAddress /></AuthOnlyRoute>} />
       <Route path="/onboarding/link-new" element={<AuthOnlyRoute><LinkNewCustomer /></AuthOnlyRoute>} />
+      <Route path="/onboarding/kbz-profile" element={<AuthOnlyRoute><KbzProfileComplete /></AuthOnlyRoute>} />
 
       {/* Protected app screens */}
       <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
@@ -96,11 +98,11 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <HashRouter>
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>
-      </BrowserRouter>
+      </HashRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
