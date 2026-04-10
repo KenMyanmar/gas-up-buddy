@@ -13,13 +13,19 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function generateMerchOrderId(orderId: string, nonceStr: string): string {
+  const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const nonce = nonceStr.slice(0, 4);
+  return `AG-${orderId.slice(0, 8)}-${timestamp}-${nonce}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // ── Auth (verify_jwt = true by default) ────────────────────
+    // ── Auth (verify_jwt = true enforced at platform level) ────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Unauthorized" }, 401);
@@ -71,6 +77,17 @@ Deno.serve(async (req) => {
       return json({ error: "Order already paid" }, 400);
     }
 
+    // ── Check existing payment for retry safety (P0-4 fix) ─────
+    const { data: existingPayment } = await supabaseAdmin
+      .from("payments")
+      .select("id, status, provider_ref, metadata, created_at")
+      .eq("order_id", orderId)
+      .maybeSingle();
+
+    if (existingPayment?.status === "paid") {
+      return json({ error: "Order already paid" }, 400);
+    }
+
     // ── Build KBZ precreate request ────────────────────────────
     const env = Deno.env.get("KBZPAY_ENV") || "UAT";
     const proxyUrl = Deno.env.get(`KBZPAY_${env}_VPS_PROXY_URL`);
@@ -84,17 +101,32 @@ Deno.serve(async (req) => {
       return json({ error: "Payment service not configured" }, 503);
     }
 
+    // Determine merch_order_id: reuse within 15 min for same order, fresh precreate always
+    let merchOrderId: string;
+    const nonceStr = crypto.randomUUID().replace(/-/g, "");
+    const fifteenMin = 15 * 60 * 1000;
+
+    if (
+      existingPayment?.status === "pending" &&
+      existingPayment.provider_ref &&
+      (Date.now() - new Date(existingPayment.created_at).getTime()) < fifteenMin
+    ) {
+      // Reuse merch_order_id but do FRESH precreate (Add 2 — no stale signatures)
+      merchOrderId = existingPayment.provider_ref;
+    } else {
+      merchOrderId = generateMerchOrderId(orderId, nonceStr);
+    }
+
     const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-    const merchOrderId = `AG-${orderId.slice(0, 8)}-${timestamp}`;
     const totalKyats = String(order.total_amount);
 
-    // Build sorted query string for signature
+    // Build sorted query string for signature (always fresh timestamp + nonce)
     const params: Record<string, string> = {
       appid: appId,
       merch_code: merchCode,
       merch_order_id: merchOrderId,
       method: "kbz.payment.precreate",
-      nonce_str: crypto.randomUUID().replace(/-/g, ""),
+      nonce_str: nonceStr,
       notify_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/kbzpay-webhook`,
       timestamp,
       total_amount: totalKyats,
@@ -116,7 +148,7 @@ Deno.serve(async (req) => {
       .join("")
       .toUpperCase();
 
-    // ── Call KBZ precreate via VPS proxy ────────────────────────
+    // ── Call KBZ precreate via VPS proxy (always fresh) ─────────
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
@@ -144,17 +176,23 @@ Deno.serve(async (req) => {
       return json({ error: "Payment initiation rejected by KBZ Pay" }, 502);
     }
 
-    // Store payment record
-    await supabaseAdmin.from("payments").insert({
-      order_id: orderId,
-      amount: order.total_amount,
-      method: "kbzpay",
-      status: "pending",
-      provider_ref: merchOrderId,
-      metadata: { precreate_response: precreateData },
-    });
+    // Store/update payment record via upsert (P0-4 fix — handles retry safely)
+    await supabaseAdmin.from("payments").upsert(
+      {
+        order_id: orderId,
+        amount: order.total_amount,
+        method: "kbzpay",
+        status: "pending",
+        provider_ref: merchOrderId,
+        metadata: {
+          precreate_response: precreateData,
+          last_attempt_at: new Date().toISOString(),
+        },
+      },
+      { onConflict: "order_id" },
+    );
 
-    // Return startPay params for the JSSDK bridge
+    // Return startPay params for the JSSDK bridge (always fresh)
     return json({
       success: true,
       startPayParams: {
@@ -164,7 +202,7 @@ Deno.serve(async (req) => {
         sign: precreateData.sign || sign,
         signType: "SHA256",
         timeStamp: timestamp,
-        nonceStr: params.nonce_str,
+        nonceStr,
       },
     });
   } catch (err) {

@@ -124,6 +124,27 @@ Deno.serve(async (req) => {
       })
       .eq("id", existingPayment.order_id);
 
+    // ── Activity log (P1-1 fix) — with user_id from orders.created_by ──
+    const { data: ord } = await supabaseAdmin
+      .from("orders")
+      .select("created_by")
+      .eq("id", existingPayment.order_id)
+      .single();
+
+    await supabaseAdmin.from("activity_logs").insert({
+      action_type: isPaid ? "kbzpay.payment.succeeded" : "kbzpay.payment.failed",
+      entity_type: "order",
+      entity_id: existingPayment.order_id,
+      user_id: ord?.created_by || null,
+      summary: `Payment ${merchOrderId} → ${newStatus}`,
+      metadata: {
+        merch_order_id: merchOrderId,
+        transaction_id: transactionId,
+        trade_status: tradeStatus,
+        amount: existingPayment.order_id,
+      },
+    });
+
     console.log(`Payment ${merchOrderId} → ${newStatus}`);
 
     return new Response(

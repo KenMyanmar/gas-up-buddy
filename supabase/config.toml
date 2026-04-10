@@ -9,5 +9,8 @@ verify_jwt = false
 [functions.kbzpay-link-customer]
 verify_jwt = false
 
+[functions.kbzpay-create-payment]
+verify_jwt = true
+
 [functions.kbzpay-webhook]
 verify_jwt = false

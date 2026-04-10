@@ -27,6 +27,39 @@ function toE164(local09: string): string {
   return "+959" + local09.slice(2);
 }
 
+// ── Session minting via password-rotation ────────────────────────
+async function mintSession(
+  supabaseAdmin: any,
+  authUserId: string,
+  e164: string,
+): Promise<{ access_token: string; refresh_token: string; expires_at: number; expires_in: number }> {
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+  const otp = crypto.randomUUID();
+  const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, { password: otp });
+  if (pwErr) throw new Error(`Failed to set temp password: ${pwErr.message}`);
+
+  const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+
+  const { data, error } = await anonClient.auth.signInWithPassword({
+    phone: e164,
+    password: otp,
+  });
+  if (error || !data.session) throw new Error(`Session minting failed: ${error?.message || "no session"}`);
+
+  await supabaseAdmin.auth.admin.updateUserById(authUserId, { password: crypto.randomUUID() });
+
+  return {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    expires_at: data.session.expires_at,
+    expires_in: data.session.expires_in,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -70,6 +103,7 @@ Deno.serve(async (req) => {
     const phone = tokenData.phone_local;
     const candidateIds: string[] = tokenData.candidate_ids;
     const phoneMasked = "09xxxx" + phone.slice(-4);
+    const e164 = toE164(phone);
 
     // Validate selected_customer_id
     if (selected_customer_id !== null && selected_customer_id !== undefined) {
@@ -78,23 +112,54 @@ Deno.serve(async (req) => {
       }
     }
 
-    const e164 = toE164(phone);
-
     // ── Null selection → "none of these" escape ────────────────
     if (selected_customer_id === null || selected_customer_id === undefined) {
+      // Add 1 guard: reject if any candidate already has an auth account
+      // (prevents duplicate auth_user_id on customers → maybeSingle() breaks)
+      const { data: candidatesWithAuth } = await supabaseAdmin
+        .from("customers")
+        .select("id")
+        .in("id", candidateIds)
+        .not("auth_user_id", "is", null)
+        .limit(1);
+
+      if (candidatesWithAuth && candidatesWithAuth.length > 0) {
+        return json({
+          error: "phone_already_linked",
+          message: "This phone is already linked to an account. Please select the correct account from the list above.",
+        }, 409);
+      }
+
       // Create fresh auth user
       let userId: string;
       const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
         phone: e164,
         phone_confirm: true,
+        password: crypto.randomUUID(),
       });
 
       if (createErr) {
-        // Might already exist
-        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-        const existing = users?.find((u) => u.phone === e164);
+        // Might already exist — orphan auth user
+        const { data: { users }, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+        const existing = (users || []).find((u: any) => u.phone === e164);
         if (existing) {
           userId = existing.id;
+
+          // Log orphan detection
+          await supabaseAdmin.from("activity_logs").insert({
+            entity_type: "auth_user",
+            entity_id: userId,
+            action_type: "kbzpay.auto_login.orphan_auth_user_detected",
+            summary: `Orphan auth user detected for ${phoneMasked} during none_of_above link`,
+            user_id: userId,
+            metadata: {
+              phone_masked: phoneMasked,
+              fallback_reason: "createUser_duplicate_phone",
+              existing_user_id: userId,
+              source: "kbzpay_miniapp",
+              path: "link_customer.none_of_above",
+            },
+          });
         } else {
           console.error("Create user error:", createErr);
           return json({ error: "Failed to create account" }, 500);
@@ -103,22 +168,57 @@ Deno.serve(async (req) => {
         userId = newUser.user.id;
       }
 
+      // Create customers row (P0-3 fix)
+      const { data: newCustomer, error: custInsertErr } = await supabaseAdmin
+        .from("customers")
+        .insert({
+          auth_user_id: userId,
+          phone: phone,
+          full_name: "",
+          address: "",
+          township: "",
+          status: "active",
+        })
+        .select("id")
+        .single();
+
+      if (custInsertErr) {
+        console.error("Create customer error:", custInsertErr);
+      }
+
+      const customerId = newCustomer?.id || null;
+
+      // Create customer_phones row
+      if (customerId) {
+        await supabaseAdmin.from("customer_phones").insert({
+          customer_id: customerId,
+          phone: phone,
+          label: "primary",
+          is_primary: true,
+        }).catch((e: any) => console.error("customer_phones insert error:", e));
+      }
+
+      // Mint session (P0-1 fix)
+      const session = await mintSession(supabaseAdmin, userId, e164);
+
       // Log
       await supabaseAdmin.from("activity_logs").insert({
         entity_type: "customer",
-        entity_id: userId,
+        entity_id: customerId || userId,
         action_type: "kbzpay.customer.none_of_above_escape",
         summary: `KBZ Pay user ${phoneMasked} selected "none of these" — new account path`,
         user_id: userId,
-        metadata: { phone_masked: phoneMasked, candidate_count: candidateIds.length },
+        metadata: { phone_masked: phoneMasked, candidate_count: candidateIds.length, customer_id: customerId },
       });
 
       return json({
         status: "new_account",
-        customer_id: null,
+        customer_id: customerId,
         is_new_link: true,
-        auth_user_id: userId,
-        phone_e164: e164,
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        expires_at: session.expires_at,
+        expires_in: session.expires_in,
       });
     }
 
@@ -135,6 +235,8 @@ Deno.serve(async (req) => {
 
     if (customer.auth_user_id) {
       // Has auth → mint session for existing user
+      const session = await mintSession(supabaseAdmin, customer.auth_user_id, e164);
+
       await supabaseAdmin.from("activity_logs").insert({
         entity_type: "customer",
         entity_id: customer.id,
@@ -148,8 +250,10 @@ Deno.serve(async (req) => {
         status: "linked",
         customer_id: customer.id,
         is_new_link: false,
-        auth_user_id: customer.auth_user_id,
-        phone_e164: e164,
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        expires_at: session.expires_at,
+        expires_in: session.expires_in,
       });
     }
 
@@ -158,13 +262,30 @@ Deno.serve(async (req) => {
     const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       phone: e164,
       phone_confirm: true,
+      password: crypto.randomUUID(),
     });
 
     if (createErr) {
-      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-      const existing = users?.find((u) => u.phone === e164);
+      const { data: { users }, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+      const existing = (users || []).find((u: any) => u.phone === e164);
       if (existing) {
         userId = existing.id;
+
+        // Log orphan detection
+        await supabaseAdmin.from("activity_logs").insert({
+          entity_type: "auth_user",
+          entity_id: userId,
+          action_type: "kbzpay.auto_login.orphan_auth_user_detected",
+          summary: `Orphan auth user detected for ${phoneMasked} during link-no-auth`,
+          user_id: userId,
+          metadata: {
+            phone_masked: phoneMasked,
+            fallback_reason: "createUser_duplicate_phone",
+            existing_user_id: userId,
+            source: "kbzpay_miniapp",
+            path: "link_customer.link_no_auth",
+          },
+        });
       } else {
         console.error("Create user error:", createErr);
         return json({ error: "Failed to create account" }, 500);
@@ -184,6 +305,9 @@ Deno.serve(async (req) => {
       return json({ error: "Failed to link account" }, 500);
     }
 
+    // Mint session (P0-1 fix)
+    const session = await mintSession(supabaseAdmin, userId, e164);
+
     // Log
     await supabaseAdmin.from("activity_logs").insert({
       entity_type: "customer",
@@ -198,8 +322,10 @@ Deno.serve(async (req) => {
       status: "linked",
       customer_id: customer.id,
       is_new_link: true,
-      auth_user_id: userId,
-      phone_e164: e164,
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      expires_at: session.expires_at,
+      expires_in: session.expires_in,
     });
 
   } catch (err) {
