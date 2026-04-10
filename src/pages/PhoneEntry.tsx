@@ -51,7 +51,18 @@ const PhoneEntry = () => {
   };
 
   const handleCandidateSelect = async (customerId: string | null) => {
-    await kbz.selectCandidate(customerId);
+    try {
+      await kbz.selectCandidate(customerId);
+    } catch (err: any) {
+      // Handle phone_already_linked error (Add 1)
+      if (err?.message?.includes("phone_already_linked")) {
+        toast({
+          title: "Phone already linked",
+          description: "Please select the correct account from the list above.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   // KBZ Pay authenticating state
@@ -65,8 +76,15 @@ const PhoneEntry = () => {
     );
   }
 
+  // KBZ error state with phone_already_linked — show toast and stay on selection
+  if (isMiniApp && kbz.error?.includes("phone_already_linked")) {
+    // Fall through to candidate selection UI below
+  }
+
   // KBZ Pay candidate selection
   if (isMiniApp && (kbz.status === "linked_select" || kbz.status === "link_pending") && kbz.candidates.length > 0) {
+    const hasLinkedCandidate = kbz.candidates.some(c => c.has_auth_account);
+
     return (
       <div className="flex min-h-screen flex-col bg-background px-6 py-6">
         <div className="mb-6">
@@ -92,11 +110,17 @@ const PhoneEntry = () => {
         <div className="mt-6">
           <button
             onClick={() => handleCandidateSelect(null)}
-            disabled={kbz.selecting}
+            disabled={kbz.selecting || hasLinkedCandidate}
+            title={hasLinkedCandidate ? "Your phone is already linked to an account above. Please select it." : undefined}
             className="w-full rounded-[14px] border-2 border-border bg-card py-4 text-sm font-bold text-muted-foreground transition-colors active:bg-secondary disabled:opacity-50"
           >
             {kbz.selecting ? "Please wait..." : "None of these is me"}
           </button>
+          {hasLinkedCandidate && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Your phone is already linked to one of the accounts above
+            </p>
+          )}
         </div>
       </div>
     );
