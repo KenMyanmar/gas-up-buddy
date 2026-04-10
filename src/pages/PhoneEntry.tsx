@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { toInternational } from "@/lib/phoneUtils";
 import { isKBZPayMiniApp } from "@/utils/kbzpay";
+import { useKbzAutoLogin, type KbzCandidate } from "@/hooks/useKbzAutoLogin";
 
 const PhoneEntry = () => {
   const navigate = useNavigate();
@@ -16,14 +17,16 @@ const PhoneEntry = () => {
   const [loading, setLoading] = useState(false);
 
   const isMiniApp = isKBZPayMiniApp();
-  const [miniAppTimedOut, setMiniAppTimedOut] = useState(false);
+  const kbz = useKbzAutoLogin();
 
+  // Handle KBZ auto-login state transitions
   useEffect(() => {
-    if (!isMiniApp) return;
-    // TODO: Replace with window.ma.getAuthCode() JSSDK call
-    const timer = setTimeout(() => setMiniAppTimedOut(true), 2000);
-    return () => clearTimeout(timer);
-  }, [isMiniApp]);
+    if (kbz.status === "linked") {
+      navigate("/home", { replace: true });
+    } else if (kbz.status === "new_account") {
+      navigate("/onboarding/kbz-profile", { replace: true });
+    }
+  }, [kbz.status, navigate]);
 
   const isValid = /^09\d{7,9}$/.test(phone);
 
@@ -47,8 +50,12 @@ const PhoneEntry = () => {
     }
   };
 
-  // KBZ Pay mini app loading placeholder
-  if (isMiniApp && !miniAppTimedOut) {
+  const handleCandidateSelect = async (customerId: string | null) => {
+    await kbz.selectCandidate(customerId);
+  };
+
+  // KBZ Pay authenticating state
+  if (isMiniApp && (kbz.status === "idle" || kbz.status === "authenticating")) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
         <Loader2 className="h-10 w-10 animate-spin text-action mb-4" />
@@ -57,6 +64,46 @@ const PhoneEntry = () => {
       </div>
     );
   }
+
+  // KBZ Pay candidate selection
+  if (isMiniApp && (kbz.status === "linked_select" || kbz.status === "link_pending") && kbz.candidates.length > 0) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background px-6 py-6">
+        <div className="mb-6">
+          <h1 className="font-display text-[22px] font-extrabold text-foreground mb-1.5">
+            Select Your Account
+          </h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            We found accounts matching your KBZ Pay number. Please select yours.
+          </p>
+        </div>
+
+        <div className="space-y-3 flex-1">
+          {kbz.candidates.map((candidate) => (
+            <CandidateCard
+              key={candidate.customer_id}
+              candidate={candidate}
+              onSelect={() => handleCandidateSelect(candidate.customer_id)}
+              disabled={kbz.selecting}
+            />
+          ))}
+        </div>
+
+        <div className="mt-6">
+          <button
+            onClick={() => handleCandidateSelect(null)}
+            disabled={kbz.selecting}
+            className="w-full rounded-[14px] border-2 border-border bg-card py-4 text-sm font-bold text-muted-foreground transition-colors active:bg-secondary disabled:opacity-50"
+          >
+            {kbz.selecting ? "Please wait..." : "None of these is me"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state for KBZ — fall through to manual entry
+  // (kbz.status === "error" || kbz.status === "not-in-kbz" → show phone form)
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-6">
@@ -95,5 +142,54 @@ const PhoneEntry = () => {
     </div>
   );
 };
+
+// ── Candidate Card Component ─────────────────────────────────────
+function CandidateCard({
+  candidate,
+  onSelect,
+  disabled,
+}: {
+  candidate: KbzCandidate;
+  onSelect: () => void;
+  disabled: boolean;
+}) {
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  return (
+    <button
+      onClick={onSelect}
+      disabled={disabled}
+      className="w-full rounded-[16px] border-2 border-border bg-card p-4 text-left transition-all active:scale-[0.98] active:border-action disabled:opacity-50"
+    >
+      <div className="flex items-start justify-between mb-1">
+        <span className="text-[16px] font-bold text-foreground">{candidate.name}</span>
+        {candidate.has_auth_account && (
+          <span className="flex items-center gap-1 rounded-full bg-action-light px-2 py-0.5 text-[10px] font-bold text-action">
+            <Check className="h-3 w-3" /> Linked
+          </span>
+        )}
+      </div>
+      <p className="text-[14px] text-muted-foreground">{candidate.address_masked}</p>
+      <div className="mt-1.5 flex items-center gap-2 text-[12px] text-muted-foreground">
+        <span>{candidate.total_orders} orders</span>
+        {candidate.last_order_date && (
+          <>
+            <span>·</span>
+            <span>Last: {formatDate(candidate.last_order_date)}</span>
+          </>
+        )}
+      </div>
+      {candidate.member_since && (
+        <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+          Member since {formatDate(candidate.member_since)}
+        </p>
+      )}
+    </button>
+  );
+}
 
 export default PhoneEntry;

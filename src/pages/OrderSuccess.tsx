@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 interface OrderSuccessState {
   orderId: string;
   totalAmount: number;
+  paymentStatus?: "paid" | "failed" | "timeout" | "pending";
 }
 
 const OrderSuccess = () => {
@@ -16,6 +17,7 @@ const OrderSuccess = () => {
   }
 
   const shortId = state.orderId.slice(0, 8).toUpperCase();
+  const paymentStatus = state.paymentStatus;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 pb-24">
@@ -36,6 +38,22 @@ const OrderSuccess = () => {
           <p className="font-display text-xl font-black text-action">
             {(state.totalAmount ?? 0).toLocaleString()} MMK
           </p>
+
+          {/* Payment status for KBZ Pay */}
+          {paymentStatus && (
+            <>
+              <div className="h-px bg-divider my-3" />
+              <p className="text-sm text-muted-foreground">Payment</p>
+              {paymentStatus === "paid" ? (
+                <p className="font-bold text-success">✅ Payment confirmed</p>
+              ) : paymentStatus === "failed" ? (
+                <p className="font-bold text-destructive">❌ Payment failed — please retry</p>
+              ) : (
+                <p className="font-bold text-warning">⏳ Payment pending — check order history</p>
+              )}
+            </>
+          )}
+
           <div className="h-px bg-divider my-3" />
           <p className="text-sm text-muted-foreground">⏱ Estimated Delivery</p>
           <p className="font-bold text-foreground">30–45 minutes</p>

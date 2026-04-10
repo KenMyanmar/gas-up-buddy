@@ -8,6 +8,7 @@ import { useCustomerProfile } from "@/hooks/useOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isKBZPayMiniApp, getOrderSource } from "@/utils/kbzpay";
+import { startPay, pollOrderUntilPaid } from "@/lib/kbzpay-bridge";
 
 interface OrderState {
   cylinderType: string;
@@ -63,11 +64,52 @@ const OrderConfirm = () => {
           clientTotal: orderState.totalAmount,
           deliveryInstructions: instructions || undefined,
           orderSource: getOrderSource(),
+          paymentMethod: isMiniApp ? "kbzpay" : "cash",
         },
       });
       if (error) throw error;
       const result = data as { success?: boolean; order_id?: string; total_amount?: number; error?: string };
       if (!result?.success) throw new Error(result?.error ?? "Order creation failed");
+
+      // KBZ Pay flow: create payment → startPay → poll
+      if (isMiniApp && result.order_id) {
+        try {
+          const { data: payData, error: payErr } = await supabase.functions.invoke("kbzpay-create-payment", {
+            body: { orderId: result.order_id },
+          });
+          if (payErr) throw payErr;
+          const payResult = payData as any;
+          if (!payResult?.success) throw new Error(payResult?.error ?? "Payment initiation failed");
+
+          // Call KBZ JSSDK startPay
+          await startPay(payResult.startPayParams);
+
+          // Poll for payment confirmation
+          const paymentStatus = await pollOrderUntilPaid(supabase, result.order_id, 120_000);
+
+          navigate("/order/success", {
+            replace: true,
+            state: {
+              orderId: result.order_id,
+              totalAmount: result.total_amount,
+              paymentStatus,
+            },
+          });
+        } catch (payErr: any) {
+          console.error("KBZ Pay error:", payErr);
+          // Order was created but payment failed — still go to success with pending status
+          navigate("/order/success", {
+            replace: true,
+            state: {
+              orderId: result.order_id,
+              totalAmount: result.total_amount,
+              paymentStatus: "pending",
+            },
+          });
+        }
+        return;
+      }
+
       navigate("/order/success", { replace: true, state: { orderId: result.order_id, totalAmount: result.total_amount } });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
