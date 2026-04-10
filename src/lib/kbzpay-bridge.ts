@@ -69,14 +69,12 @@ export function startPay(params: StartPayParams): Promise<{ resultCode: string }
       sign: params.sign,
       signType: params.signType,
       useMiniResultFlag: true,
-      success: (res: any) => {
-        clearTimeout(timer);
-        resolve(res);
-      },
-      fail: (err: any) => {
-        clearTimeout(timer);
-        reject(new Error(err?.errorMessage || "startPay failed"));
-      },
+    }, (res: any) => {
+      clearTimeout(timer);
+      resolve(res);
+    }, (err: any) => {
+      clearTimeout(timer);
+      reject(new Error(err?.errorMessage || "startPay failed"));
     });
   });
 }
