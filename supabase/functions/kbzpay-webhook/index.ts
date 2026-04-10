@@ -70,7 +70,9 @@ async function computeSig(
   delete copy.sign;
   delete copy.sign_type;
 
-  const sorted = Object.keys(copy).sort();
+  const sorted = Object.keys(copy)
+    .filter((k) => copy[k] !== "" && copy[k] !== null && copy[k] !== undefined)
+    .sort();
   const qs = sorted.map((k) => `${k}=${copy[k]}`).join("&");
   return sha256Hex(qs + "&key=" + appKey);
 }
