@@ -195,9 +195,13 @@ Deno.serve(async (req) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const precreateRes = await fetch(PRECREATE_URL, {
+    const precreateRes = await fetch(VPS_PROXY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Proxy-Secret": VPS_PROXY_SECRET,
+        "X-Target-Url": targetUrl,
+      },
       body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
