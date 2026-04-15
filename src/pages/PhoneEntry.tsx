@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check, MapPin, CheckCircle, Smartphone } from "lucide-react";
+import { Loader2, Check, MapPin, CheckCircle } from "lucide-react";
+import KbzError from "@/components/KbzError";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import { isKBZPayMiniApp } from "@/utils/kbzpay";
@@ -179,7 +180,7 @@ const PhoneEntry = () => {
 
   // KBZ error state
   if (isMiniApp && kbz.status === "error") {
-    return <KbzError reason="authcode-fail" onRetry={kbz.retry} detail={kbz.error} />;
+    return <KbzError reason="authcode-fail" detail={kbz.error ?? undefined} />;
   }
 
   // Fallback: Not inside KBZ Pay
