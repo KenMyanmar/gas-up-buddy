@@ -122,8 +122,16 @@ Deno.serve(async (req) => {
       return json({ error: "Payment service not configured" }, 503);
     }
 
-    // Fix 6: Direct KBZ endpoints (no proxy)
-    const PRECREATE_URL =
+    // Fix Batch 5: Route through VPS proxy
+    const VPS_PROXY_URL = Deno.env.get("KBZPAY_VPS_PROXY_URL");
+    const VPS_PROXY_SECRET = Deno.env.get("KBZPAY_VPS_PROXY_SECRET");
+
+    if (!VPS_PROXY_URL || !VPS_PROXY_SECRET) {
+      console.error("VPS proxy not configured");
+      return json({ error: "Payment service not configured" }, 503);
+    }
+
+    const targetUrl =
       env === "UAT"
         ? "http://api-uat.kbzpay.com/payment/gateway/uat/precreate"
         : "https://api.kbzpay.com/payment/gateway/precreate";
@@ -187,9 +195,13 @@ Deno.serve(async (req) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const precreateRes = await fetch(PRECREATE_URL, {
+    const precreateRes = await fetch(VPS_PROXY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Proxy-Secret": VPS_PROXY_SECRET,
+        "X-Target-Url": targetUrl,
+      },
       body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
