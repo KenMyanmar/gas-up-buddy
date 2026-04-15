@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
       total_amount: totalKyats,
       trans_currency: "MMK",
       timeout_express: "15m",
+      callback_info: "KBZMINICallBack",  // Required by KBZ Pay MINIAPP precreate
     };
 
     const outerParams: Record<string, string> = {
