@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -7,6 +7,16 @@ import { Phone, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -68,6 +78,7 @@ const OrderTracking = () => {
   const [agentLocation, setAgentLocation] = useState<AgentLocation | null>(null);
   const [customerPos, setCustomerPos] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   // Fetch order
   useEffect(() => {
@@ -138,12 +149,12 @@ const OrderTracking = () => {
     }
   }, [user]);
 
-  const handleCancel = async () => {
+  const handleConfirmCancel = useCallback(async () => {
     if (!orderId || !order) return;
-    if (!confirm("Are you sure you want to cancel this order?")) return;
     await supabase.from("orders").update({ status: "cancelled" as any }).eq("id", orderId);
+    setShowCancelDialog(false);
     navigate("/orders");
-  };
+  }, [orderId, order, navigate]);
 
   if (loading) {
     return (
@@ -299,11 +310,28 @@ const OrderTracking = () => {
       {/* Cancel */}
       {canCancel && (
         <div className="mx-5 mt-4">
-          <button onClick={handleCancel} className="w-full rounded-[14px] border-[1.5px] border-destructive/30 bg-destructive/5 py-3.5 text-sm font-bold text-destructive transition-colors active:bg-destructive/10">
+          <button onClick={() => setShowCancelDialog(true)} className="w-full rounded-[14px] border-[1.5px] border-destructive/30 bg-destructive/5 py-3.5 text-sm font-bold text-destructive transition-colors active:bg-destructive/10">
             Cancel Order
           </button>
         </div>
       )}
+
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this order? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep order</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmCancel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, cancel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delivered */}
       {order.status === "delivered" && (
