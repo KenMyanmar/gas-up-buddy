@@ -1,45 +1,25 @@
 
 
-# Fix Batch 6 — Signature Debug Logging
+# Fix Batch 7 (Change #1 only) — Add `callback_info` field
 
-## Changes to `supabase/functions/kbzpay-create-payment/index.ts`
+## What
 
-### 1. Replace `signParams` function (lines 36-43)
+Add `callback_info: "KBZMINICallBack"` to the `bizContent` object in `supabase/functions/kbzpay-create-payment/index.ts` (after line 178). This is the missing field causing AUTHENTICATION_FAIL.
 
-Add debug logging for the sign input string, sorted keys, app key metadata, and computed signature. All lines tagged with `// TEMPORARY DEBUG — REMOVE`.
+## What stays unchanged
 
-```typescript
-async function signParams(
-  params: Record<string, string>,
-  appKey: string,
-): Promise<string> {
-  const sorted = Object.keys(params).sort();
-  const qs = sorted.map((k) => `${k}=${params[k]}`).join("&");
-  const signInput = qs + "&key=" + appKey;
-  // TEMPORARY DEBUG — REMOVE after signature bug is resolved
-  console.log("🔐 SIGN INPUT:", signInput);
-  console.log("🔐 PARAMS KEYS (sorted):", sorted.join(","));
-  console.log("🔐 APP KEY LENGTH:", appKey.length);
-  console.log("🔐 APP KEY FIRST 4:", appKey.slice(0, 4));
-  console.log("🔐 APP KEY LAST 4:", appKey.slice(-4));
-  const sig = await sha256Hex(signInput);
-  console.log("🔐 COMPUTED SIGN:", sig);
-  return sig;
-}
-```
+All debug logging (`// TEMPORARY DEBUG — REMOVE` lines) and the stale comment remain in place so Ken can verify the fix with full diagnostics. A separate cleanup deploy will follow once Ken confirms a successful `prepay_id` response.
 
-### 2. Before the `fetch(VPS_PROXY_URL, ...)` call (insert before line 198)
+## File Modified
+
+`supabase/functions/kbzpay-create-payment/index.ts` — line 178, add one field to `bizContent`:
 
 ```typescript
-// TEMPORARY DEBUG — REMOVE after signature bug is resolved
-console.log("📤 REQUEST BODY TO KBZ:", JSON.stringify(requestBody, null, 2));
-console.log("📤 TARGET URL:", targetUrl);
+timeout_express: "15m",
+callback_info: "KBZMINICallBack",  // Required by KBZ Pay MINIAPP precreate
 ```
 
-### After deploy
+## After Deploy
 
-Ken places one test order. Logs will show the exact sign input string for analysis. **All debug lines must be removed once the signature issue is identified.**
-
-## Files Modified
-1. `supabase/functions/kbzpay-create-payment/index.ts` — temporary debug logging
+Ken places a test KBZ Pay order. Edge function logs will show the full signature input (now including `callback_info`) and the KBZ response. If `prepay_id` is returned, we proceed with debug log cleanup in a second deploy.
 
