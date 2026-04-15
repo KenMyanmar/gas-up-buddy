@@ -1,43 +1,45 @@
 
-# Fix Batch 5 — VPS Proxy Wiring
 
-## Change
+# Fix Batch 6 — Signature Debug Logging
 
-Replace the direct KBZ API call (lines 125-195) with a proxy-routed call using the `KBZPAY_VPS_PROXY_URL` and `KBZPAY_VPS_PROXY_SECRET` secrets.
+## Changes to `supabase/functions/kbzpay-create-payment/index.ts`
 
-### `supabase/functions/kbzpay-create-payment/index.ts`
+### 1. Replace `signParams` function (lines 36-43)
 
-**Lines 125-129**: Replace the `PRECREATE_URL` block with proxy secret loading + validation:
+Add debug logging for the sign input string, sorted keys, app key metadata, and computed signature. All lines tagged with `// TEMPORARY DEBUG — REMOVE`.
+
 ```typescript
-const VPS_PROXY_URL = Deno.env.get("KBZPAY_VPS_PROXY_URL");
-const VPS_PROXY_SECRET = Deno.env.get("KBZPAY_VPS_PROXY_SECRET");
-
-if (!VPS_PROXY_URL || !VPS_PROXY_SECRET) {
-  console.error("VPS proxy not configured");
-  return json({ error: "Payment service not configured" }, 503);
+async function signParams(
+  params: Record<string, string>,
+  appKey: string,
+): Promise<string> {
+  const sorted = Object.keys(params).sort();
+  const qs = sorted.map((k) => `${k}=${params[k]}`).join("&");
+  const signInput = qs + "&key=" + appKey;
+  // TEMPORARY DEBUG — REMOVE after signature bug is resolved
+  console.log("🔐 SIGN INPUT:", signInput);
+  console.log("🔐 PARAMS KEYS (sorted):", sorted.join(","));
+  console.log("🔐 APP KEY LENGTH:", appKey.length);
+  console.log("🔐 APP KEY FIRST 4:", appKey.slice(0, 4));
+  console.log("🔐 APP KEY LAST 4:", appKey.slice(-4));
+  const sig = await sha256Hex(signInput);
+  console.log("🔐 COMPUTED SIGN:", sig);
+  return sig;
 }
-
-const targetUrl =
-  env === "UAT"
-    ? "http://api-uat.kbzpay.com/payment/gateway/uat/precreate"
-    : "https://api.kbzpay.com/payment/gateway/precreate";
 ```
 
-**Lines 190-195**: Replace `fetch(PRECREATE_URL, ...)` with proxy fetch:
+### 2. Before the `fetch(VPS_PROXY_URL, ...)` call (insert before line 198)
+
 ```typescript
-const precreateRes = await fetch(VPS_PROXY_URL, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-Proxy-Secret": VPS_PROXY_SECRET,
-    "X-Target-Url": targetUrl,
-  },
-  body: JSON.stringify(requestBody),
-  signal: controller.signal,
-});
+// TEMPORARY DEBUG — REMOVE after signature bug is resolved
+console.log("📤 REQUEST BODY TO KBZ:", JSON.stringify(requestBody, null, 2));
+console.log("📤 TARGET URL:", targetUrl);
 ```
 
-No other changes — signing, response parsing, DB writes all stay the same. Redeploy after edit.
+### After deploy
+
+Ken places one test order. Logs will show the exact sign input string for analysis. **All debug lines must be removed once the signature issue is identified.**
 
 ## Files Modified
-1. `supabase/functions/kbzpay-create-payment/index.ts` — proxy wiring
+1. `supabase/functions/kbzpay-create-payment/index.ts` — temporary debug logging
+
