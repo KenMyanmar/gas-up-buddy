@@ -320,6 +320,7 @@ export type Database = {
           default_low_stock_threshold: number
           display_name: string
           id: string
+          image_url: string | null
           is_active: boolean
           is_orderable: boolean
           price: number
@@ -336,6 +337,7 @@ export type Database = {
           default_low_stock_threshold?: number
           display_name: string
           id?: string
+          image_url?: string | null
           is_active?: boolean
           is_orderable?: boolean
           price?: number
@@ -352,6 +354,7 @@ export type Database = {
           default_low_stock_threshold?: number
           display_name?: string
           id?: string
+          image_url?: string | null
           is_active?: boolean
           is_orderable?: boolean
           price?: number
@@ -380,34 +383,40 @@ export type Database = {
       }
       brands: {
         Row: {
+          allow_new_setup: boolean | null
           created_at: string | null
           description: string | null
           id: string
           is_active: boolean | null
           logo_url: string | null
           name: string
+          refill_delivery_fee: number
           sort_order: number | null
           type: Database["public"]["Enums"]["brand_type"]
           updated_at: string | null
         }
         Insert: {
+          allow_new_setup?: boolean | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
           name: string
+          refill_delivery_fee?: number
           sort_order?: number | null
           type: Database["public"]["Enums"]["brand_type"]
           updated_at?: string | null
         }
         Update: {
+          allow_new_setup?: boolean | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
           name?: string
+          refill_delivery_fee?: number
           sort_order?: number | null
           type?: Database["public"]["Enums"]["brand_type"]
           updated_at?: string | null
@@ -1453,6 +1462,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      home_banners: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          ends_at: string | null
+          id: string
+          image_url: string
+          is_active: boolean | null
+          link_url: string | null
+          starts_at: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          ends_at?: string | null
+          id?: string
+          image_url: string
+          is_active?: boolean | null
+          link_url?: string | null
+          starts_at?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          ends_at?: string | null
+          id?: string
+          image_url?: string
+          is_active?: boolean | null
+          link_url?: string | null
+          starts_at?: string | null
+          title?: string | null
+        }
+        Relationships: []
       }
       inventory_positions: {
         Row: {
