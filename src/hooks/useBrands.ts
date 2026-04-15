@@ -9,6 +9,8 @@ export interface Brand {
   is_active: boolean;
   logo_url: string | null;
   sort_order: number | null;
+  refill_delivery_fee: number;
+  allow_new_setup: boolean;
   created_at: string;
   updated_at: string | null;
 }
@@ -19,9 +21,9 @@ export const useBrands = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('brands')
-        .select('*')
+        .select('id, name, type, description, is_active, logo_url, sort_order, refill_delivery_fee, allow_new_setup, created_at, updated_at')
         .eq('is_active', true)
-        .order('name');
+        .order('sort_order');
       if (error) throw error;
       return data as Brand[];
     },

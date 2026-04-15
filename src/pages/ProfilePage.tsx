@@ -26,12 +26,12 @@ const ProfilePage = () => {
 
   const accountItems = [
     { emoji: "📍", title: "Delivery Addresses", desc: customer?.township ?? "Manage addresses", action: () => navigate("/profile/addresses") },
-    { emoji: "💳", title: "Payment Methods", desc: "Cash, KBZ Pay, Wave", action: handleComingSoon },
+    { emoji: "💳", title: "Payment Methods", desc: "KBZ Pay", action: handleComingSoon },
     { emoji: "⚙️", title: "Preferences", desc: "Notifications, language", action: handleComingSoon },
   ];
 
   const supportItems = [
-    { emoji: "☎️", title: "Call 8484", desc: "24/7 support", href: "tel:8484" },
+    { emoji: "☎️", title: "Contact 8484", desc: "24/7 support", action: handleComingSoon },
     { emoji: "❓", title: "Help & FAQ", desc: "Common questions", action: () => navigate("/profile/faq") },
     { emoji: "📄", title: "Terms & Conditions", desc: "Legal info", action: () => navigate("/profile/terms") },
     { emoji: "🔒", title: "Privacy Policy", desc: "Your data rights", action: () => navigate("/profile/privacy") },
@@ -75,32 +75,18 @@ const ProfilePage = () => {
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Support</p>
           <div className="space-y-2">
-            {supportItems.map((item) => {
-              const inner = (
-                <>
-                  <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-bg-warm text-lg flex-shrink-0">
-                    {item.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-foreground">{item.title}</p>
-                    <p className="text-[11px] font-semibold text-muted-foreground">{item.desc}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
-                </>
-              );
-              if (item.href) {
-                return (
-                  <a key={item.title} href={item.href} className="flex items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
-                    {inner}
-                  </a>
-                );
-              }
-              return (
-                <button key={item.title} onClick={item.action} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
-                  {inner}
-                </button>
-              );
-            })}
+            {supportItems.map((item) => (
+              <button key={item.title} onClick={item.action} className="flex w-full items-center gap-3.5 rounded-[14px] border border-border bg-card p-3.5 shadow-sm text-left transition-all hover:shadow-md">
+                <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-bg-warm text-lg flex-shrink-0">
+                  {item.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground">{item.title}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground">{item.desc}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
+              </button>
+            ))}
           </div>
         </div>
 

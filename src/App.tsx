@@ -7,7 +7,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import BottomNav from "./components/BottomNav";
-import CallFallback from "./components/CallFallback";
 import Welcome from "./pages/Welcome";
 import PhoneEntry from "./pages/PhoneEntry";
 import OtpVerify from "./pages/OtpVerify";
@@ -89,7 +88,6 @@ const AppRoutes = () => (
       <Route path="*" element={<NotFound />} />
     </Routes>
     <BottomNav />
-    <CallFallback />
   </div>
 );
 

@@ -1,72 +1,72 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Minus, Plus, MapPin, Check, Package } from "lucide-react";
+import { ArrowLeft, Minus, Plus, MapPin, Check, Package, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCylinderTypes } from "@/hooks/useCylinderTypes";
-import { useGasPrices } from "@/hooks/useGasPrices";
 import { useBrands } from "@/hooks/useBrands";
+import { useBrandProducts } from "@/hooks/useBrandProducts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const brandColors = ["#E65100", "#1565C0", "#2E7D32", "#6A1B9A", "#C62828", "#00838F"];
 
 const OrderConfigure = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeState = location.state as { brandId?: string; orderType?: "refill" | "new" } | null;
+
   const { user } = useAuth();
   const { data: customer } = useCustomerProfile(user?.id);
-  const { data: cylinderTypes, isLoading: loadingCylinders } = useCylinderTypes();
-  const { data: gasPrices, isLoading: loadingPrices } = useGasPrices();
   const { data: brands } = useBrands();
 
-  const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null);
-  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
-  const [deliveryType, setDeliveryType] = useState<"refill" | "new">("refill");
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(routeState?.brandId ?? null);
+  const [deliveryType, setDeliveryType] = useState<"refill" | "new">(routeState?.orderType ?? "refill");
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
 
-  const isLoading = loadingCylinders || loadingPrices;
-  const activeSizeId = selectedSizeId ?? cylinderTypes?.[0]?.id ?? null;
-  const selectedSize = cylinderTypes?.find((ct) => ct.id === activeSizeId) ?? null;
+  // Filter brands by delivery type
+  const filteredBrands = useMemo(() => {
+    if (!brands) return [];
+    return deliveryType === "new"
+      ? brands.filter((b) => b.allow_new_setup)
+      : brands;
+  }, [brands, deliveryType]);
 
-  const availableBrands = useMemo(() => {
-    if (!gasPrices) return [];
-    const seen = new Set<string>();
-    return gasPrices.filter((gp) => {
-      if (!gp.brands || seen.has(gp.brand_id)) return false;
-      seen.add(gp.brand_id);
-      return true;
-    });
-  }, [gasPrices]);
-
-  // Build a map of brand_id → Brand for logo lookup
-  const brandMap = useMemo(() => {
-    const map = new Map<string, { name: string; logo_url: string | null }>();
-    brands?.forEach((b) => map.set(b.id, { name: b.name, logo_url: b.logo_url }));
-    return map;
-  }, [brands]);
-
+  // Auto-select first brand if current selection is invalid
   useEffect(() => {
-    if (availableBrands.length >= 1 && !selectedBrandId) {
-      setSelectedBrandId(availableBrands[0].brand_id);
+    if (filteredBrands.length > 0 && !filteredBrands.find((b) => b.id === selectedBrandId)) {
+      setSelectedBrandId(filteredBrands[0].id);
     }
-  }, [availableBrands, selectedBrandId]);
+  }, [filteredBrands, selectedBrandId]);
 
-  const activeBrandId = selectedBrandId ?? (availableBrands.length === 1 ? availableBrands[0]?.brand_id : null);
-  const selectedBrandPrice = gasPrices?.find((gp) => gp.brand_id === activeBrandId) ?? null;
+  const activeBrandId = selectedBrandId ?? filteredBrands[0]?.id ?? null;
+  const selectedBrand = brands?.find((b) => b.id === activeBrandId) ?? null;
+
+  const { data: brandProducts, isLoading: loadingProducts } = useBrandProducts(activeBrandId);
+
+  // Reset product selection when brand changes
+  useEffect(() => {
+    setSelectedProductId(null);
+  }, [activeBrandId]);
+
+  const activeProductId = selectedProductId ?? brandProducts?.[0]?.brand_product_id ?? null;
+  const selectedProduct = brandProducts?.find((p) => p.brand_product_id === activeProductId) ?? null;
 
   const pricing = useMemo(() => {
-    if (!selectedSize || !selectedBrandPrice) return null;
-    const refillPrice = selectedSize.size_kg * selectedBrandPrice.price_per_kg;
-    const newPrice = refillPrice + selectedSize.cylinder_price;
-    return { refill: refillPrice, new: newPrice };
-  }, [selectedSize, selectedBrandPrice]);
+    if (!selectedProduct || !selectedProduct.price_per_kg) return null;
+    const gasPrice = selectedProduct.size_kg * selectedProduct.price_per_kg;
+    const cylinderDeposit = deliveryType === "new" ? selectedProduct.cylinder_price : 0;
+    return { gasPrice, cylinderDeposit, unitPrice: gasPrice + cylinderDeposit };
+  }, [selectedProduct, deliveryType]);
 
-  const unitPrice = pricing ? pricing[deliveryType] : 0;
-  const deliveryFee = deliveryType === "new" ? 0 : 3000;
+  const deliveryFee = deliveryType === "refill" && selectedBrand
+    ? selectedBrand.refill_delivery_fee
+    : 0;
+  const unitPrice = pricing?.unitPrice ?? 0;
   const total = unitPrice * quantity + deliveryFee;
-  const canConfirm = !!selectedSize && !!activeBrandId && !!pricing;
-  const showBrandSelector = availableBrands.length > 1;
+  const canConfirm = !!selectedProduct && !!activeBrandId && !!pricing;
 
   const getDisplayBrandName = (name: string) => name === "Other Partners" ? "Any Brands" : name;
 
@@ -130,21 +130,19 @@ const OrderConfigure = () => {
           ))}
         </div>
 
-        {/* Brand Selector — Large Cards */}
-        {showBrandSelector && (
+        {/* Brand Selector */}
+        {filteredBrands.length > 1 && (
           <section>
             <h2 className="mb-3 text-base font-extrabold text-foreground">Brand</h2>
             <div className="grid grid-cols-2 gap-3">
-              {availableBrands.map((gp, index) => {
-                const brandInfo = brandMap.get(gp.brand_id);
-                const brandName = getDisplayBrandName(brandInfo?.name ?? gp.brands?.name ?? "Unknown");
-                const logoUrl = brandInfo?.logo_url ?? null;
-                const isSelected = activeBrandId === gp.brand_id;
+              {filteredBrands.map((brand, index) => {
+                const brandName = getDisplayBrandName(brand.name);
+                const isSelected = activeBrandId === brand.id;
                 const colorIndex = index % brandColors.length;
                 return (
                   <button
-                    key={gp.brand_id}
-                    onClick={() => setSelectedBrandId(gp.brand_id)}
+                    key={brand.id}
+                    onClick={() => setSelectedBrandId(brand.id)}
                     className={cn(
                       "relative flex flex-col items-center gap-2 rounded-[20px] border-2 p-4 transition-all active:scale-95",
                       isSelected
@@ -155,9 +153,9 @@ const OrderConfigure = () => {
                     {isSelected && (
                       <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-action text-[11px] font-extrabold text-white">✓</span>
                     )}
-                    {logoUrl ? (
+                    {brand.logo_url ? (
                       <img
-                        src={logoUrl}
+                        src={brand.logo_url}
                         alt={brandName}
                         className="h-[120px] w-full object-contain"
                       />
@@ -182,28 +180,28 @@ const OrderConfigure = () => {
           </section>
         )}
 
-        {/* Cylinder Size */}
+        {/* Cylinder Size from brand_products */}
         <section>
           <h2 className="mb-3 text-base font-extrabold text-foreground">Cylinder Size</h2>
-          {isLoading ? (
+          {loadingProducts ? (
             <div className="grid grid-cols-3 gap-2.5">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-28 rounded-[20px]" />
               ))}
             </div>
-          ) : !cylinderTypes?.length ? (
-            <p className="py-8 text-center text-muted-foreground">No gas sizes available</p>
+          ) : !brandProducts?.length ? (
+            <p className="py-8 text-center text-muted-foreground">No sizes available for this brand</p>
           ) : (
             <div className="grid grid-cols-3 gap-2.5">
-              {cylinderTypes.map((ct) => {
-                const isSelected = activeSizeId === ct.id;
-                const priceForSize = selectedBrandPrice
-                  ? (ct.size_kg * selectedBrandPrice.price_per_kg + (deliveryType === "new" ? ct.cylinder_price : 0)).toLocaleString()
+              {brandProducts.map((bp) => {
+                const isSelected = activeProductId === bp.brand_product_id;
+                const priceForSize = bp.price_per_kg
+                  ? (bp.size_kg * bp.price_per_kg + (deliveryType === "new" ? bp.cylinder_price : 0)).toLocaleString()
                   : null;
                 return (
                   <button
-                    key={ct.id}
-                    onClick={() => setSelectedSizeId(ct.id)}
+                    key={bp.brand_product_id}
+                    onClick={() => setSelectedProductId(bp.brand_product_id)}
                     className={cn(
                       "relative flex flex-col items-center gap-1 rounded-[20px] border-2 p-4 transition-all active:scale-95",
                       isSelected
@@ -214,17 +212,17 @@ const OrderConfigure = () => {
                     {isSelected && (
                       <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-action text-[11px] font-extrabold text-white">✓</span>
                     )}
-                    {ct.image_url ? (
-                      <img src={ct.image_url} alt={ct.display_name} className="h-20 w-20 object-contain" />
+                    {bp.image_url ? (
+                      <img src={bp.image_url} alt={bp.display_name} className="h-20 w-20 object-contain" />
                     ) : (
                       <Package className="h-10 w-10 text-muted-foreground" />
                     )}
-                    <span className="font-display text-[22px] font-black text-foreground">{ct.size_kg}</span>
+                    <span className="font-display text-[22px] font-black text-foreground">{bp.size_kg}</span>
                     <span className="text-[11px] font-bold text-muted-foreground">kg</span>
                     {priceForSize ? (
                       <span className="text-xs font-extrabold text-action mt-1">{priceForSize} MMK</span>
                     ) : (
-                      <span className="text-xs font-semibold text-muted-foreground mt-1">Select brand</span>
+                      <span className="text-xs font-semibold text-muted-foreground mt-1">—</span>
                     )}
                   </button>
                 );
@@ -266,7 +264,19 @@ const OrderConfigure = () => {
             </div>
             <div className="h-px bg-divider my-2" />
             <div className="flex justify-between items-center py-1.5">
-              <span className="text-[13px] font-semibold text-muted-foreground">Delivery</span>
+              <span className="text-[13px] font-semibold text-muted-foreground flex items-center gap-1">
+                Delivery
+                {deliveryFee === 6000 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px] text-xs">
+                      2-way delivery: we pick up your empty cylinder, refill at the factory, and deliver it back.
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </span>
               <span className={cn("text-xs font-extrabold", deliveryFee > 0 ? "text-foreground" : "text-success")}>
                 {deliveryFee > 0 ? `${deliveryFee.toLocaleString()} MMK` : "Free"}
               </span>
@@ -281,20 +291,21 @@ const OrderConfigure = () => {
             variant="action"
             size="full"
             onClick={() => {
+              if (!selectedProduct || !selectedBrand) return;
               navigate("/order/confirm", {
                 state: {
-                  cylinderType: selectedSize!.display_name,
-                  sizeKg: selectedSize!.size_kg,
+                  cylinderType: selectedProduct.display_name,
+                  sizeKg: selectedProduct.size_kg,
                   brandId: activeBrandId,
-                  brandName: selectedBrandPrice?.brands?.name ?? "",
+                  brandName: selectedBrand.name,
                   orderType: deliveryType,
                   quantity,
                   unitPrice,
-                  gasSubtotal: unitPrice * quantity,
-                  cylinderSubtotal: deliveryType === "new" ? selectedSize!.cylinder_price * quantity : 0,
+                  gasSubtotal: (pricing?.gasPrice ?? 0) * quantity,
+                  cylinderSubtotal: (pricing?.cylinderDeposit ?? 0) * quantity,
                   deliveryFee,
                   totalAmount: total,
-                  gasPricePerKg: selectedBrandPrice?.price_per_kg ?? 0,
+                  gasPricePerKg: selectedProduct.price_per_kg ?? 0,
                 },
               });
             }}

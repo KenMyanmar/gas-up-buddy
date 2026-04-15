@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin, ChevronDown, Loader2, Check } from "lucide-react";
+import { ArrowLeft, MapPin, ChevronDown, Loader2, Check, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { isKBZPayMiniApp, getOrderSource } from "@/utils/kbzpay";
 import { startPay, pollOrderUntilPaid } from "@/lib/kbzpay-bridge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface OrderState {
   cylinderType: string;
@@ -25,13 +25,6 @@ interface OrderState {
   gasPricePerKg: number;
 }
 
-const standardPaymentMethods = [
-  { id: "cash", label: "Cash on Delivery", icon: "💵" },
-  { id: "kbzpay", label: "KBZ Pay", icon: "🏦" },
-  { id: "wave", label: "Wave Money", icon: "📱" },
-  { id: "cb", label: "CB Pay", icon: "💳" },
-];
-
 const OrderConfirm = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,9 +32,7 @@ const OrderConfirm = () => {
   const { data: customer } = useCustomerProfile(user?.id);
   const { toast } = useToast();
 
-  const isMiniApp = isKBZPayMiniApp();
   const orderState = location.state as OrderState | null;
-  const [payment, setPayment] = useState(isMiniApp ? "kbzpay" : "cash");
   const [placing, setPlacing] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState("");
@@ -54,6 +45,7 @@ const OrderConfirm = () => {
     if (placing) return;
     setPlacing(true);
     try {
+      // 1. Create the order
       const { data, error } = await supabase.functions.invoke("create-customer-order", {
         body: {
           cylinderType: orderState.cylinderType,
@@ -63,59 +55,56 @@ const OrderConfirm = () => {
           quantity: orderState.quantity,
           clientTotal: orderState.totalAmount,
           deliveryInstructions: instructions || undefined,
-          orderSource: getOrderSource(),
-          paymentMethod: payment,
+          paymentMethod: "kbzpay",
+          orderSource: "kbzpay_miniapp",
         },
       });
       if (error) throw error;
       const result = data as { success?: boolean; order_id?: string; total_amount?: number; error?: string };
       if (!result?.success) throw new Error(result?.error ?? "Order creation failed");
 
-      // KBZ Pay flow: create payment → startPay → poll
-      if (payment === "kbzpay" && result.order_id) {
-        try {
-          const { data: payData, error: payErr } = await supabase.functions.invoke("kbzpay-create-payment", {
-            body: { orderId: result.order_id },
-          });
-          if (payErr) throw payErr;
-          const payResult = payData as any;
-          if (!payResult?.success) throw new Error(payResult?.error ?? "Payment initiation failed");
+      const orderId = result.order_id!;
 
-          // Call KBZ JSSDK startPay with new orderInfo shape
-          await startPay({
-            prepayId: payResult.prepay_id,
-            orderInfo: payResult.orderinfo,
-            sign: payResult.sign,
-            signType: payResult.signType,
-          });
+      // 2. Create KBZ Pay payment
+      const { data: payData, error: payErr } = await supabase.functions.invoke("kbzpay-create-payment", {
+        body: { orderId },
+      });
+      if (payErr) throw payErr;
+      const payResult = payData as any;
+      if (!payResult?.prepay_id) throw new Error(payResult?.error ?? "Payment setup failed");
 
-          // Poll for payment confirmation
-          const paymentStatus = await pollOrderUntilPaid(supabase, result.order_id, 120_000);
+      // 3. Invoke KBZ Pay cashier
+      try {
+        const paymentResult = await startPay({
+          prepayId: payResult.prepay_id,
+          orderInfo: payResult.orderinfo,
+          sign: payResult.sign,
+          signType: payResult.signType,
+        });
 
-          navigate("/order/success", {
+        // startPay resolved — check result
+        const resultCode = paymentResult?.resultCode;
+        if (resultCode === "0" || resultCode === "success") {
+          // Payment process completed — poll for webhook confirmation
+          const pollResult = await pollOrderUntilPaid(supabase, orderId, 120_000);
+          navigate(`/order/success`, {
             replace: true,
-            state: {
-              orderId: result.order_id,
-              totalAmount: result.total_amount,
-              paymentStatus,
-            },
+            state: { orderId, totalAmount: result.total_amount, paymentStatus: pollResult },
           });
-        } catch (payErr: any) {
-          console.error("KBZ Pay error:", payErr);
-          // Order was created but payment failed — still go to success with pending status
-          navigate("/order/success", {
+        } else {
+          navigate(`/order/success`, {
             replace: true,
-            state: {
-              orderId: result.order_id,
-              totalAmount: result.total_amount,
-              paymentStatus: "pending",
-            },
+            state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled" },
           });
         }
-        return;
+      } catch (payError: any) {
+        console.error("startPay failed:", payError);
+        // Order created but payment failed — go to success with pending status
+        navigate(`/order/success`, {
+          replace: true,
+          state: { orderId, totalAmount: result.total_amount, paymentStatus: "pending" },
+        });
       }
-
-      navigate("/order/success", { replace: true, state: { orderId: result.order_id, totalAmount: result.total_amount } });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Order Failed", description: message, variant: "destructive" });
@@ -199,7 +188,19 @@ const OrderConfirm = () => {
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-muted-foreground font-semibold">Delivery</span>
+              <span className="text-muted-foreground font-semibold flex items-center gap-1">
+                Delivery
+                {orderState.deliveryFee === 6000 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px] text-xs">
+                      2-way delivery: we pick up your empty cylinder, refill at the factory, and deliver it back.
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </span>
               <span className={cn("font-extrabold text-xs", orderState.deliveryFee > 0 ? "text-foreground" : "text-success")}>
                 {orderState.deliveryFee > 0 ? `${orderState.deliveryFee.toLocaleString()} MMK` : "Free"}
               </span>
@@ -212,37 +213,6 @@ const OrderConfirm = () => {
               </span>
             </div>
           </div>
-        </div>
-
-        {/* Payment Method */}
-        <div className="rounded-[20px] border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-[13px] font-extrabold text-foreground mb-3">Payment Method</h2>
-          {isMiniApp ? (
-            <button
-              className="flex w-full items-center justify-center gap-3 rounded-[14px] p-4 font-bold text-white"
-              style={{ backgroundColor: '#0066CC' }}
-              disabled
-            >
-              🏦 Pay with KBZ Pay
-            </button>
-          ) : (
-            <div className="space-y-2">
-              {standardPaymentMethods.map((pm) => (
-                <button
-                  key={pm.id}
-                  onClick={() => setPayment(pm.id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-[14px] border-2 p-3.5 transition-all active:scale-[0.98]",
-                    payment === pm.id ? "border-action bg-action-light" : "border-border bg-background"
-                  )}
-                >
-                  <span className="text-xl">{pm.icon}</span>
-                  <span className="font-bold text-foreground">{pm.label}</span>
-                  {payment === pm.id && <span className="ml-auto text-action font-extrabold">✓</span>}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Special Instructions */}
@@ -271,10 +241,10 @@ const OrderConfirm = () => {
             {placing ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                Placing Order...
+                Processing...
               </>
             ) : (
-              `PLACE ORDER — ${orderState.totalAmount.toLocaleString()} MMK`
+              `Pay with KBZ Pay — ${orderState.totalAmount.toLocaleString()} MMK`
             )}
           </Button>
         </div>

@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Flame } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders, useCustomerProfile } from "@/hooks/useOrders";
 import { useBrands } from "@/hooks/useBrands";
 import { supabase } from "@/integrations/supabase/client";
+import HomeBannerCarousel from "@/components/HomeBannerCarousel";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -12,8 +15,7 @@ const HomePage = () => {
   const { data: customer } = useCustomerProfile(user?.id);
   const { data: orders } = useOrders(customer?.id);
   const { data: brands } = useBrands();
-
-  const lastOrder = orders?.[0];
+  const [orderTab, setOrderTab] = useState<"refill" | "new">("refill");
 
   const { data: activeOrder } = useQuery({
     queryKey: ["active-order", customer?.id],
@@ -41,6 +43,10 @@ const HomePage = () => {
       : "Placed 📝"
     : "";
 
+  const filteredBrands = brands?.filter((b) =>
+    orderTab === "new" ? b.allow_new_setup : true
+  );
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Orange Header Bar */}
@@ -49,9 +55,6 @@ const HomePage = () => {
           <Flame className="h-6 w-6 text-white" />
           <span className="font-display text-xl font-black text-white tracking-tight">AnyGas 8484</span>
         </div>
-        <a href="tel:8484" className="rounded-full border border-white/30 bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
-          ☎️ Call 8484
-        </a>
       </div>
 
       <div className="px-5 pt-5 space-y-5">
@@ -97,11 +100,38 @@ const HomePage = () => {
         {brands && brands.length > 0 && (
           <div>
             <h2 className="text-base font-extrabold text-foreground mb-3">Our Brands</h2>
+
+            {/* Refill / New Setup Tabs */}
+            <div className="flex gap-1 rounded-[14px] bg-bg-warm p-1 mb-3">
+              {[
+                { key: "refill" as const, label: "🔄 Refill" },
+                { key: "new" as const, label: "🆕 New Setup" },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setOrderTab(tab.key)}
+                  className={cn(
+                    "flex-1 rounded-[10px] py-2.5 text-[12px] font-bold transition-all",
+                    orderTab === tab.key
+                      ? "bg-card text-action shadow-sm"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             <div className="grid grid-cols-3 gap-3">
-              {brands.map((brand) => (
-                <div
+              {filteredBrands?.map((brand) => (
+                <button
                   key={brand.id}
-                  className="flex flex-col items-center rounded-2xl border border-border bg-card p-4 shadow-sm"
+                  onClick={() =>
+                    navigate("/order/configure", {
+                      state: { brandId: brand.id, orderType: orderTab },
+                    })
+                  }
+                  className="flex flex-col items-center rounded-2xl border border-border bg-card p-4 shadow-sm transition-all active:scale-95 hover:border-action hover:shadow-md"
                 >
                   {brand.logo_url ? (
                     <img
@@ -115,43 +145,32 @@ const HomePage = () => {
                     </div>
                   )}
                   <p className="text-xs font-bold text-foreground text-center truncate w-full">{brand.name}</p>
-                </div>
+                </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { emoji: "🔄", title: "Order Again", desc: lastOrder ? `${lastOrder.cylinder_type ?? "?"} · ${lastOrder.order_type ?? "refill"}` : "Place a new order", onClick: () => navigate("/order/configure") },
-            { emoji: "📋", title: "My Orders", desc: "Track & history", onClick: () => navigate("/orders") },
-            { emoji: "🛒", title: "Accessories", desc: "Regulators, hoses", onClick: () => {} },
-            { emoji: "☎️", title: "Call 8484", desc: "24/7 support", href: "tel:8484" },
-          ].map((item) => {
-            const inner = (
-              <>
-                <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-bg-warm text-[22px] mb-2.5">
-                  {item.emoji}
-                </div>
-                <p className="text-sm font-bold text-foreground">{item.title}</p>
-                <p className="text-[11px] font-semibold text-muted-foreground">{item.desc}</p>
-              </>
-            );
+        {/* Banner Carousel */}
+        <div className="rounded-2xl overflow-hidden">
+          <HomeBannerCarousel />
+        </div>
 
-            if ('href' in item && item.href) {
-              return (
-                <a key={item.title} href={item.href} className="rounded-[20px] border border-border bg-card p-4 shadow-sm transition-all hover:border-action hover:shadow-md">
-                  {inner}
-                </a>
-              );
-            }
-            return (
-              <button key={item.title} onClick={item.onClick} className="rounded-[20px] border border-border bg-card p-4 shadow-sm text-left transition-all hover:border-action hover:shadow-md">
-                {inner}
-              </button>
-            );
-          })}
+        {/* Quick Actions — only My Orders */}
+        <div className="grid grid-cols-1 gap-3">
+          <button
+            onClick={() => navigate("/orders")}
+            className="flex items-center gap-3 rounded-[20px] border border-border bg-card p-4 shadow-sm text-left transition-all hover:border-action hover:shadow-md"
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-bg-warm text-[22px]">
+              📋
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">My Orders</p>
+              <p className="text-[11px] font-semibold text-muted-foreground">Track & history</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </button>
         </div>
       </div>
     </div>
