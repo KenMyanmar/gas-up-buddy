@@ -7,11 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import BottomNav from "./components/BottomNav";
-import Welcome from "./pages/Welcome";
 import PhoneEntry from "./pages/PhoneEntry";
-import OtpVerify from "./pages/OtpVerify";
-import LinkWelcomeBack from "./pages/LinkWelcomeBack";
-import LinkSelectAddress from "./pages/LinkSelectAddress";
 import LinkNewCustomer from "./pages/LinkNewCustomer";
 import HomePage from "./pages/HomePage";
 import OrderConfigure from "./pages/OrderConfigure";
@@ -49,26 +45,14 @@ const AuthOnlyRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Route guard: redirects to home if already authenticated
-const PublicOnlyRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  if (user) return <Navigate to="/home" replace />;
-  return <>{children}</>;
-};
-
 const AppRoutes = () => (
   <div className="mx-auto max-w-md min-h-screen bg-background">
     <Routes>
-      {/* Public-only (redirect if logged in) */}
-      <Route path="/" element={<PublicOnlyRoute><Welcome /></PublicOnlyRoute>} />
-      <Route path="/onboarding/phone" element={<PublicOnlyRoute><PhoneEntry /></PublicOnlyRoute>} />
-      {/* OTP verify — needs to stay mounted after auth succeeds to complete Edge Function linking */}
-      <Route path="/onboarding/otp" element={<OtpVerify />} />
+      {/* Root redirects to PhoneEntry — returning users handled by useEffect in PhoneEntry */}
+      <Route path="/" element={<Navigate to="/onboarding/phone" replace />} />
+      <Route path="/onboarding/phone" element={<PhoneEntry />} />
 
-      {/* Post-OTP linking (needs auth but part of onboarding) */}
-      <Route path="/onboarding/link-welcome" element={<AuthOnlyRoute><LinkWelcomeBack /></AuthOnlyRoute>} />
-      <Route path="/onboarding/link-select" element={<AuthOnlyRoute><LinkSelectAddress /></AuthOnlyRoute>} />
+      {/* Post-KBZ linking (needs auth but part of onboarding) */}
       <Route path="/onboarding/link-new" element={<AuthOnlyRoute><LinkNewCustomer /></AuthOnlyRoute>} />
       <Route path="/onboarding/kbz-profile" element={<AuthOnlyRoute><KbzProfileComplete /></AuthOnlyRoute>} />
 

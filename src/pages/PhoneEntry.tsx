@@ -1,23 +1,28 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Check } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Check, MapPin, CheckCircle, Smartphone } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useToast } from "@/hooks/use-toast";
-import { toInternational } from "@/lib/phoneUtils";
+import { useCustomerProfile } from "@/hooks/useOrders";
 import { isKBZPayMiniApp } from "@/utils/kbzpay";
 import { useKbzAutoLogin, type KbzCandidate } from "@/hooks/useKbzAutoLogin";
+import { useToast } from "@/hooks/use-toast";
 
 const PhoneEntry = () => {
   const navigate = useNavigate();
-  const { setPhone: setAuthPhone } = useAuth();
+  const { user } = useAuth();
+  const { data: customer } = useCustomerProfile(user?.id);
   const { toast } = useToast();
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const isMiniApp = isKBZPayMiniApp();
   const kbz = useKbzAutoLogin();
+
+  // A3: Returning user redirect — skip auto-login if session is valid
+  useEffect(() => {
+    if (user && customer) {
+      navigate("/home", { replace: true });
+    }
+  }, [user, customer, navigate]);
 
   // Handle KBZ auto-login state transitions
   useEffect(() => {
@@ -28,33 +33,10 @@ const PhoneEntry = () => {
     }
   }, [kbz.status, navigate]);
 
-  const isValid = /^09\d{7,9}$/.test(phone);
-
-  const handleSubmit = async () => {
-    if (!isValid) return;
-    setLoading(true);
-    const intlPhone = toInternational(phone);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: intlPhone });
-      if (error) throw error;
-      setAuthPhone(intlPhone);
-      navigate("/onboarding/otp");
-    } catch (err: any) {
-      toast({
-        title: "Could not send OTP",
-        description: err?.message || "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCandidateSelect = async (customerId: string | null) => {
     try {
       await kbz.selectCandidate(customerId);
     } catch (err: any) {
-      // Handle phone_already_linked error (Add 1)
       if (err?.message?.includes("phone_already_linked")) {
         toast({
           title: "Phone already linked",
@@ -81,7 +63,76 @@ const PhoneEntry = () => {
     // Fall through to candidate selection UI below
   }
 
-  // KBZ Pay candidate selection
+  // A2: Welcome-back hero for single candidate (link_pending with exactly 1 match)
+  if (isMiniApp && kbz.status === "link_pending" && kbz.candidates.length === 1) {
+    const candidate = kbz.candidates[0];
+    const formatDate = (dateStr: string | null) => {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    };
+
+    return (
+      <div className="flex min-h-screen flex-col items-center bg-background px-6 py-10">
+        {/* Hero icon */}
+        <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-action/10">
+          <CheckCircle className="h-10 w-10 text-action" />
+        </div>
+
+        <h1 className="font-display text-[24px] font-extrabold text-foreground mb-1.5 text-center">
+          Welcome back, {candidate.name.split(" ")[0]}!
+        </h1>
+        <p className="text-sm text-muted-foreground text-center mb-6">
+          We found your account linked to this KBZ Pay number.
+        </p>
+
+        {/* Account card */}
+        <div className="w-full max-w-sm rounded-[16px] border-2 border-action/30 bg-card p-5 mb-4">
+          <span className="text-[17px] font-bold text-foreground">{candidate.name}</span>
+          <div className="mt-2 flex items-center gap-1.5 text-[14px] text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span>{candidate.address_masked}</span>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-[12px] text-muted-foreground">
+            <span>{candidate.total_orders} orders</span>
+            {candidate.member_since && (
+              <>
+                <span>·</span>
+                <span>Member since {formatDate(candidate.member_since)}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="w-full max-w-sm space-y-3 mt-2">
+          <Button
+            variant="action"
+            size="full"
+            onClick={() => handleCandidateSelect(candidate.customer_id)}
+            disabled={kbz.selecting}
+            className="gap-2 text-[17px]"
+          >
+            {kbz.selecting ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <CheckCircle className="h-5 w-5" />
+            )}
+            {kbz.selecting ? "Linking..." : "That's me"}
+          </Button>
+          <button
+            onClick={() => handleCandidateSelect(null)}
+            disabled={kbz.selecting}
+            className="w-full py-3 text-sm font-semibold text-muted-foreground transition-colors active:text-foreground disabled:opacity-50"
+          >
+            Not me
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // KBZ Pay candidate selection (2+ candidates)
   if (isMiniApp && (kbz.status === "linked_select" || kbz.status === "link_pending") && kbz.candidates.length > 0) {
     const hasLinkedCandidate = kbz.candidates.some(c => c.has_auth_account);
 
@@ -126,43 +177,18 @@ const PhoneEntry = () => {
     );
   }
 
-  // Error state for KBZ — fall through to manual entry
-  // (kbz.status === "error" || kbz.status === "not-in-kbz" → show phone form)
-
+  // Fallback: Not inside KBZ Pay or error state
   return (
-    <div className="flex min-h-screen flex-col bg-background px-6 py-6">
-      <button onClick={() => navigate("/")} className="mb-8 flex items-center gap-1.5 self-start text-sm font-semibold text-muted-foreground">
-        <ArrowLeft className="h-5 w-5" />
-        Back
-      </button>
-
-      <div className="mb-8">
-        <h1 className="font-display text-[26px] font-extrabold text-foreground mb-1.5">Enter your phone</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          We'll send a verification code to confirm your number.
-        </p>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+        <Smartphone className="h-8 w-8 text-muted-foreground" />
       </div>
-
-      <div className="mb-6">
-        <input
-          type="tel"
-          inputMode="numeric"
-          placeholder="09xxxxxxxxx"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-          className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-card px-4 py-4 text-lg font-semibold text-foreground outline-none tracking-wide transition-colors focus:border-action placeholder:text-muted-foreground/50 placeholder:tracking-normal placeholder:text-[15px]"
-          autoFocus
-        />
-      </div>
-
-      <div className="mb-6 flex items-center gap-2 rounded-[10px] bg-bg-warm px-3.5 py-3 text-xs text-muted-foreground">
-        <span>💡</span>
-        <span>We'll send a 6-digit OTP code via SMS</span>
-      </div>
-
-      <Button variant="action" size="full" disabled={!isValid || loading} onClick={handleSubmit}>
-        {loading ? "Sending..." : "Send OTP Code"}
-      </Button>
+      <h2 className="text-lg font-bold text-foreground mb-2 text-center">
+        KBZ Pay Required
+      </h2>
+      <p className="text-sm text-muted-foreground text-center max-w-xs leading-relaxed">
+        Please open this app inside KBZ Pay to continue.
+      </p>
     </div>
   );
 };
@@ -197,7 +223,10 @@ function CandidateCard({
           </span>
         )}
       </div>
-      <p className="text-[14px] text-muted-foreground">{candidate.address_masked}</p>
+      <div className="flex items-center gap-1.5 text-[14px] text-muted-foreground">
+        <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span>{candidate.address_masked}</span>
+      </div>
       <div className="mt-1.5 flex items-center gap-2 text-[12px] text-muted-foreground">
         <span>{candidate.total_orders} orders</span>
         {candidate.last_order_date && (
