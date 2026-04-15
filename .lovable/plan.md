@@ -1,37 +1,43 @@
 
+# Fix Batch 5 — VPS Proxy Wiring
 
-# Fix Batch 4 — KBZ Pay Flow Wiring
+## Change
 
-## Root Cause
+Replace the direct KBZ API call (lines 125-195) with a proxy-routed call using the `KBZPAY_VPS_PROXY_URL` and `KBZPAY_VPS_PROXY_SECRET` secrets.
 
-The frontend hardcodes `paymentMethod: isMiniApp ? "kbzpay" : "cash"` (line 67), ignoring the user's payment method selection (`payment` state). When Ken tested from a regular browser, `isMiniApp` was false, so it always sent `"cash"`. Additionally, the standard payment method list uses `id: "kbz"` but the backend expects `"kbzpay"`.
+### `supabase/functions/kbzpay-create-payment/index.ts`
 
-## Fixes (3 files)
+**Lines 125-129**: Replace the `PRECREATE_URL` block with proxy secret loading + validation:
+```typescript
+const VPS_PROXY_URL = Deno.env.get("KBZPAY_VPS_PROXY_URL");
+const VPS_PROXY_SECRET = Deno.env.get("KBZPAY_VPS_PROXY_SECRET");
 
-### 1. `src/pages/OrderConfirm.tsx` — Use selected payment method
+if (!VPS_PROXY_URL || !VPS_PROXY_SECRET) {
+  console.error("VPS proxy not configured");
+  return json({ error: "Payment service not configured" }, 503);
+}
 
-**Line 30**: Change payment method id from `"kbz"` to `"kbzpay"` so it matches the backend allowlist.
+const targetUrl =
+  env === "UAT"
+    ? "http://api-uat.kbzpay.com/payment/gateway/uat/precreate"
+    : "https://api.kbzpay.com/payment/gateway/precreate";
+```
 
-**Line 67**: Replace hardcoded `isMiniApp ? "kbzpay" : "cash"` with the `payment` state variable (which already defaults to `"kbzpay"` in mini app, `"cash"` otherwise).
+**Lines 190-195**: Replace `fetch(PRECREATE_URL, ...)` with proxy fetch:
+```typescript
+const precreateRes = await fetch(VPS_PROXY_URL, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Proxy-Secret": VPS_PROXY_SECRET,
+    "X-Target-Url": targetUrl,
+  },
+  body: JSON.stringify(requestBody),
+  signal: controller.signal,
+});
+```
 
-**Lines 75-116**: Change KBZ Pay flow condition from `if (isMiniApp && result.order_id)` to `if (payment === "kbzpay" && result.order_id)` — so KBZ Pay flow triggers based on user selection, not environment detection.
-
-### 2. `supabase/functions/create-customer-order/index.ts` — Relax constraint + return payment_method
-
-**Lines 70-72**: Remove the constraint `if (paymentMethod === "kbzpay" && orderSource !== "kbzpay_miniapp")`. Keep the reverse constraint (kbzpay_miniapp must use kbzpay). This allows KBZ Pay testing from the regular customer app.
-
-**Line 175-179**: Add `payment_method: paymentMethod` to the response body so the frontend has confirmation of what was stored.
-
-### 3. `src/lib/kbzpay-bridge.ts` — No changes needed
-
-The `startPay` function already has the correct callback signature from the previous fix. No changes required.
+No other changes — signing, response parsing, DB writes all stay the same. Redeploy after edit.
 
 ## Files Modified
-
-1. **`src/pages/OrderConfirm.tsx`** — Fix payment method id, use `payment` state, branch on selection not environment
-2. **`supabase/functions/create-customer-order/index.ts`** — Remove blocking constraint, return payment_method in response
-
-## After Deploy
-
-Ken can re-test: select KBZ Pay from the regular customer app, place order, and `kbzpay-create-payment` should be called. The `startPay` native call will only work inside the actual KBZ Pay app (where `window.ma` exists), but we'll at least verify the precreate API call succeeds and returns a `prepay_id`.
-
+1. `supabase/functions/kbzpay-create-payment/index.ts` — proxy wiring
