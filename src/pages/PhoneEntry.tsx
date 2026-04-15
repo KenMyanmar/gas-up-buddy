@@ -177,20 +177,13 @@ const PhoneEntry = () => {
     );
   }
 
-  // Fallback: Not inside KBZ Pay or error state
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-        <Smartphone className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h2 className="text-lg font-bold text-foreground mb-2 text-center">
-        KBZ Pay Required
-      </h2>
-      <p className="text-sm text-muted-foreground text-center max-w-xs leading-relaxed">
-        Please open this app inside KBZ Pay to continue.
-      </p>
-    </div>
-  );
+  // KBZ error state
+  if (isMiniApp && kbz.status === "error") {
+    return <KbzError reason="authcode-fail" onRetry={kbz.retry} detail={kbz.error} />;
+  }
+
+  // Fallback: Not inside KBZ Pay
+  return <KbzError reason="outside-kbz" />;
 };
 
 // ── Candidate Card Component ─────────────────────────────────────

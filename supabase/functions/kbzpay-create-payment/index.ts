@@ -40,15 +40,7 @@ async function signParams(
   const sorted = Object.keys(params).sort();
   const qs = sorted.map((k) => `${k}=${params[k]}`).join("&");
   const signInput = qs + "&key=" + appKey;
-  // TEMPORARY DEBUG — REMOVE after signature bug is resolved
-  console.log("🔐 SIGN INPUT:", signInput);
-  console.log("🔐 PARAMS KEYS (sorted):", sorted.join(","));
-  console.log("🔐 APP KEY LENGTH:", appKey.length);
-  console.log("🔐 APP KEY FIRST 4:", appKey.slice(0, 4));
-  console.log("🔐 APP KEY LAST 4:", appKey.slice(-4));
-  const sig = await sha256Hex(signInput);
-  console.log("🔐 COMPUTED SIGN:", sig);
-  return sig;
+  return await sha256Hex(signInput);
 }
 
 Deno.serve(async (req) => {
@@ -201,13 +193,9 @@ Deno.serve(async (req) => {
       },
     };
 
-    // ── Call KBZ precreate directly (Fix 6) ────────────────────
+    // ── Call KBZ precreate via VPS proxy (whitelisted IP 188.166.229.251) ──
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
-
-    // TEMPORARY DEBUG — REMOVE after signature bug is resolved
-    console.log("📤 REQUEST BODY TO KBZ:", JSON.stringify(requestBody, null, 2));
-    console.log("📤 TARGET URL:", targetUrl);
 
     const precreateRes = await fetch(VPS_PROXY_URL, {
       method: "POST",
