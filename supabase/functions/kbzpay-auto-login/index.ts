@@ -155,39 +155,88 @@ Deno.serve(async (req) => {
       return json({ error: "authCode is required" }, 400);
     }
 
-    // ── Exchange authCode → phone via VPS proxy ────────────────
-    const env = Deno.env.get("KBZPAY_ENV") || "UAT";
-    const proxyUrl = Deno.env.get(`KBZPAY_${env}_VPS_PROXY_URL`);
-    const proxySecret = Deno.env.get(`KBZPAY_${env}_PROXY_SECRET`);
+    // ── Exchange authCode → phone via VPS proxy (two-call flow) ──
+    const env = (Deno.env.get("KBZPAY_ENV") || "UAT").toUpperCase();
+    const proxyUrl = Deno.env.get("KBZPAY_VPS_PROXY_URL");
+    const proxySecret = Deno.env.get("KBZPAY_VPS_PROXY_SECRET");
 
     if (!proxyUrl || !proxySecret) {
-      console.error("Missing KBZPAY proxy env vars for env:", env);
+      console.error("Missing KBZPAY_VPS_PROXY_URL/SECRET");
       return json({ error: "Payment service not configured" }, 503);
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const kbzHost =
+      env === "PROD"
+        ? "https://appcube.easy-run.kbzpay.com"
+        : "https://uat-miniapp.kbzpay.com";
 
-    const proxyRes = await fetch(proxyUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Proxy-Secret": proxySecret,
-      },
-      body: JSON.stringify({ authCode }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    const callProxy = async (
+      targetPath: string,
+      body: Record<string, unknown>,
+      tag: string,
+    ): Promise<any> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      try {
+        const res = await fetch(proxyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Proxy-Secret": proxySecret,
+            "X-Target-Url": `${kbzHost}${targetPath}`,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const errText = (await res.text()).slice(0, 300);
+          console.error(`VPS proxy ${tag} error:`, res.status, errText);
+          return null;
+        }
+        return await res.json();
+      } catch (e: any) {
+        console.error(`VPS proxy ${tag} exception:`, e?.name || "error");
+        return null;
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
 
-    if (!proxyRes.ok) {
-      const errText = await proxyRes.text();
-      console.error("VPS proxy error:", proxyRes.status, errText);
+    // Call 1: getAccessToken
+    const tokenData = await callProxy(
+      "/miniprogram/open/getAccessToken",
+      { authCode },
+      "getAccessToken",
+    );
+    if (!tokenData) {
+      return json({ error: "Failed to verify KBZ Pay account" }, 502);
+    }
+    const accessToken =
+      tokenData.accessToken ||
+      tokenData.access_token ||
+      tokenData?.Response?.accessToken ||
+      tokenData?.Response?.access_token;
+    if (!accessToken) {
+      console.error("getAccessToken: no accessToken in response (keys):", Object.keys(tokenData || {}));
       return json({ error: "Failed to verify KBZ Pay account" }, 502);
     }
 
-    const proxyData = await proxyRes.json();
-    const rawPhone = proxyData.phone || proxyData.msisdn;
+    // Call 2: getUserInfo
+    const userData = await callProxy(
+      "/miniprogram/open/getUserInfo",
+      { authCode, accessToken },
+      "getUserInfo",
+    );
+    if (!userData) {
+      return json({ error: "Failed to verify KBZ Pay account" }, 502);
+    }
+    const rawPhone =
+      userData.phone ||
+      userData.msisdn ||
+      userData?.Response?.phone ||
+      userData?.Response?.msisdn;
     if (!rawPhone) {
+      console.error("getUserInfo: no phone in response (keys):", Object.keys(userData || {}));
       return json({ error: "No phone returned from KBZ Pay" }, 502);
     }
 
