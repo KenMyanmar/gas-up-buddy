@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
     const gasPricePerKg = gasPrice.price_per_kg;
     const gasSubtotal = Math.round(gasPricePerKg * Number(cylType.size_kg) * quantity);
     const cylinderSubtotal =
-      safeOrderType === "new" ? cylType.cylinder_price * quantity : 0;
+      safeOrderType === "new_setup" ? cylType.cylinder_price * quantity : 0;
     const deliveryFee = safeOrderType === "refill" ? 3000 : 0;
     const totalAmount = gasSubtotal + cylinderSubtotal + deliveryFee;
 
