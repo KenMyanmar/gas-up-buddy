@@ -132,7 +132,11 @@ Deno.serve(async (req) => {
     const gasSubtotal = Math.round(gasPricePerKg * Number(cylType.size_kg) * quantity);
     const cylinderSubtotal =
       safeOrderType === "new_setup" ? cylType.cylinder_price * quantity : 0;
-    const deliveryFee = safeOrderType === "refill" ? 3000 : 0;
+    // Delivery fee: 3000 for Easy Gas & Parami (direct delivery), 6000 for Other Partners (round-trip refill)
+    const OTHER_PARTNERS_BRAND_ID = "62a6da96-d2e7-463b-9513-370e25cdf271";
+    const deliveryFee = safeOrderType === "refill"
+      ? (brandId === OTHER_PARTNERS_BRAND_ID ? 6000 : 3000)
+      : 0;
     const totalAmount = gasSubtotal + cylinderSubtotal + deliveryFee;
 
     // Tolerance check — reject if client total is off by more than 1%
