@@ -187,7 +187,6 @@ const PhoneEntry = () => {
           variant="action"
           size="full"
           onClick={() => kbz.retry()}
-          disabled={kbz.status === "authenticating"}
           className="text-[16px]"
         >
           Try Again
