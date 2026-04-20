@@ -76,8 +76,16 @@ Deno.serve(async (req) => {
     if (quantity < 1 || quantity > 10) {
       return json({ error: "Quantity must be 1-10" }, 400);
     }
-    const validOrderTypes = ["refill", "new"];
-    const safeOrderType = validOrderTypes.includes(orderType) ? orderType : "refill";
+    // DB enum: refill | new_setup | exchange | service_call
+    // Client may send "new" (meaning new_setup) — map it
+    const orderTypeMap: Record<string, string> = {
+      "refill": "refill",
+      "new": "new_setup",
+      "new_setup": "new_setup",
+      "exchange": "exchange",
+      "service_call": "service_call",
+    };
+    const safeOrderType = orderTypeMap[orderType] || "refill";
 
     // ── Look up customer ─────────────────────────────────
     const { data: customer, error: custErr } = await supabase
