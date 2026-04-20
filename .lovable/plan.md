@@ -1,63 +1,79 @@
 
 
-# Frontend Hardening: Silent Fallback When `getAuthCode` Fails
+# Single Smart Welcome Page (`/welcome`)
 
-## Context (alignment with Ken's analysis)
-Tester's console shows native bridge is reachable (`getStatusBarHeight` works) but `getAppInfo` returns `{}` and `getAuthCode` fails. DB confirms zero auto-login attempts ever reached the backend → failure is 100% client-side, before the edge function call.
+This is the same plan you approved before, refined to match the latest prompt (no `landmark` field — only `full_name`, `township`, `address`).
 
-Two parallel tracks:
-1. **Portal side (Ken's job, outside this repo):** verify ClientID/Secret, tester whitelist, KBZ Pay app version ≥ 5.8.0.
-2. **Frontend side (this plan):** stop surfacing `getAuthCode` failures as blocking errors. Auto-login is an *enhancement*; when it fails, fall through silently to phone/OTP entry.
+## Goal
+Add one adaptive page that runs after every successful login (KBZ auto-login OR phone/OTP). It inspects the customer profile and renders one of three states. Replace direct post-login `navigate("/home")` with `navigate("/welcome")`.
 
-This plan covers track 2 only.
+## States
+- **State 1 — Returning + complete** (`full_name`, `address`, `township` all filled): confirmation card → `Yes, this is correct` (→ `/home`) or `Update my details` (→ inline form).
+- **State 2 — Returning + incomplete**: pre-filled editable form.
+- **State 3 — New customer** (all profile fields empty): empty welcome form, friendlier copy.
 
-## Current behavior (read from `useKbzAutoLogin.ts` + `kbzpay-bridge.ts`)
-- `useKbzAutoLogin` calls `getAuthCode()` → on throw, sets `status = "error"` and surfaces `error` string.
-- Consumer page (`PhoneEntry.tsx`) likely renders `<KbzError />` blocking the phone form.
-- Result: tester sees a hard error screen instead of being able to log in via phone/OTP.
-
-I need to confirm the consumer rendering before finalizing the patch.
-
-## Files to read before editing
-- `src/lib/kbzpay-bridge.ts` — confirm `getAuthCode` rejection shape & timeout behavior
-- `src/pages/PhoneEntry.tsx` — confirm how `status === "error"` is rendered today
-- `src/components/KbzError.tsx` — confirm if it blocks the phone form
-
-## Proposed changes (2 small edits, no backend, no SQL)
-
-### Edit 1 — `src/hooks/useKbzAutoLogin.ts`
-Add a new terminal status `"auto_login_unavailable"` distinct from `"error"`:
-- When `getAuthCode()` itself throws (before any backend call), set `status = "auto_login_unavailable"` and log a `console.warn` (not error).
-- Keep `"error"` reserved for backend failures (edge function returned non-2xx, session mint failed, etc.) — those are real bugs worth surfacing.
-- Add a 5s timeout wrapper around `getAuthCode()` so a hung native bridge doesn't freeze the UI forever.
-
-### Edit 2 — `src/pages/PhoneEntry.tsx`
-- Treat `"not-in-kbz"` AND `"auto_login_unavailable"` identically: render the normal phone/OTP form, no error banner.
-- Keep `<KbzError />` only for the genuine `"error"` status (backend-side failure).
-- Optionally add a small dev-only console hint: `[KBZ] Auto-login unavailable, falling back to phone entry`.
-
-### What stays untouched
-- `kbzpay-bridge.ts` `isInKbzPay()` detection logic
-- `kbzpay-auto-login` edge function (already correct, just never reached today)
-- `kbzpay-link-customer` edge function
-- All non-KBZ auth paths
-- Memory rule: `kbzpay` (no underscore) naming
-- `verify_jwt` settings
-- Order/payment/webhook functions
+All states share: same Supabase update, hardcoded 36-township dropdown, secondary-phones manager, `Call 8484` footer.
 
 ## Files
-| Action | File |
-|--------|------|
-| Edit | `src/hooks/useKbzAutoLogin.ts` (add timeout + new status) |
-| Edit | `src/pages/PhoneEntry.tsx` (treat unavailable as not-in-kbz) |
-| Read-only | `src/lib/kbzpay-bridge.ts`, `src/components/KbzError.tsx` (verify before edit) |
 
-## Post-deploy verification
-- Open Mini App in KBZ Pay where `getAuthCode` fails → tester sees the **phone entry form** (not an error screen) within ~5s.
-- Open in normal browser → `not-in-kbz` path unchanged, phone form renders immediately.
-- Open in KBZ Pay where `getAuthCode` succeeds → auto-login path unchanged, lands on candidate selector / home as before.
-- Backend logs: `kbzpay-auto-login` invocation count stays at 0 for the failing tester (proves we didn't accidentally call it with a bad code) and increments normally for working sessions.
+| Action | File | Purpose |
+|---|---|---|
+| Create | `src/pages/WelcomePage.tsx` | The 3-state adaptive page |
+| Create | `src/lib/yangonTownships.ts` | Hardcoded 36-township constant |
+| Edit | `src/App.tsx` | Add `/welcome` route under `AuthOnlyRoute` |
+| Edit | `src/pages/PhoneEntry.tsx` | Post-login redirects → `/welcome` (returning user, `kbz.status === "linked"`, and `kbz.status === "new_account"`) |
+| Edit | `src/pages/LinkNewCustomer.tsx` | Post-register redirect → `/welcome` |
+| Edit | `src/pages/KbzProfileComplete.tsx` | Post-submit redirect → `/welcome` (kept for backward routing safety) |
 
-## Governance
-- Frontend-only patch. No SQL, no DB writes, no edge function changes, no enum touches. Within Executor scope per TRIO v1.1.
+No DB changes. No edge function changes. No `verify_jwt` changes. RLS policies (`customers_update_own_profile`, `customer_phones` insert/delete) already deployed per prompt.
+
+## WelcomePage logic
+
+```text
+useAuth() → user
+useQuery(['customer_profile', user.id]) → customer (id, full_name, address, township)
+useQuery(['customer_phones', customer.id]) → phones (id, phone, label, is_primary, verified)
+
+state derivation:
+  loading → spinner + "Loading your profile..."
+  fetch error → "Something went wrong. Please try again." + Retry + Call 8484
+  full_name && address && township && !editing → STATE_1
+  else → STATE_2 / STATE_3 (same form, different copy based on whether any fields exist)
+
+mutations (rely on already-deployed RLS):
+  updateProfile: supabase.from('customers').update({ full_name, township, address }).eq('id', customer.id)
+  addPhone:    supabase.from('customer_phones').insert({ customer_id, phone, label: 'secondary' })
+  deletePhone: supabase.from('customer_phones').delete().eq('id', phoneId)
+
+post-save / Yes-confirm → navigate("/home")
+```
+
+## Routing
+
+```tsx
+<Route path="/welcome" element={<AuthOnlyRoute><WelcomePage /></AuthOnlyRoute>} />
+```
+Must use `AuthOnlyRoute` (not `ProtectedRoute`) — `ProtectedRoute` redirects to `/onboarding/link-new` when no customer profile exists, but Welcome must run *before* that gate for partially-set-up new customers.
+
+## UX details
+- Township: searchable select (reuse existing `Command`/`cmdk` primitive in `components/ui/command.tsx`).
+- Phone validation: starts with `09`, 9–11 digits total. Max 3 secondary phones (4 total).
+- Insert error `23505` → toast "This phone number is already registered". Other insert errors → "Failed to add phone number". Delete errors → "Cannot remove this phone number".
+- Primary phone: ✅ badge, no delete button. Unverified secondary phones: "unverified" pill.
+- `Call 8484` rendered as muted, centered footer link (`<a href="tel:8484">`) on every state.
+- Never surface raw Supabase error messages.
+
+## Out of scope (do NOT touch)
+Edge functions (`kbzpay-*`, `link-customer-account`, `create-customer-order`), DB schema/RLS/enums/triggers, `types.ts`, login UI flow (only post-success redirect changes), payment/order/tracking flows, `verify_jwt` settings, `customers.phone`, `customers.status`, brand/cylinder/pricing data.
+
+## Post-deploy checklist
+1. KBZ Mini App auto-login → `/welcome` shows correct state.
+2. Phone/OTP login → `/welcome` shows correct state.
+3. State 1 → `Yes` → `/home`. `Update` → form pre-filled, save → `/home`.
+4. State 2 (e.g. missing township) → form pre-filled, save → `/home`.
+5. State 3 (new auto-login customer) → empty form, save → `/home`.
+6. Add secondary phone → appears with "unverified" pill. Delete it → gone. Primary cannot be deleted.
+7. `tel:8484` opens dialer on device.
+8. **Manual:** re-toggle `verify_jwt = false` on `kbzpay-create-payment` in Supabase Dashboard (Lovable deploys reset it).
+9. Full order flow end-to-end still works.
 
