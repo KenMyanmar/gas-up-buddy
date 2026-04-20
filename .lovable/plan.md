@@ -1,57 +1,36 @@
 
 
-# Fix: order_type enum mismatch in create-customer-order
+# Fix: Brand-Dependent Delivery Fee
 
-## Bug
-Postgres enum `order_type` accepts `refill | new_setup | exchange | service_call`. Function forwards client's `"new"` verbatim → DB rejects with `22P02 invalid input value for enum order_type: "new"`. Every new-cylinder order returns 400.
+## Problem
+`create-customer-order` hardcodes delivery fee at 3,000 MMK for all refills. Should be:
+- **3,000 MMK**: Easy Gas, Parami Gas (pre-filled delivery)
+- **6,000 MMK**: Other Partners (pick up → refill → return trip)
 
-## Two edits in `supabase/functions/create-customer-order/index.ts`
+## Change in `supabase/functions/create-customer-order/index.ts`
 
-### Edit 1 — line ~72: map client → DB enum
-Replace:
-```ts
-const validOrderTypes = ["refill", "new"];
-const safeOrderType = validOrderTypes.includes(orderType) ? orderType : "refill";
+**Line ~135**: Replace:
+```typescript
+const deliveryFee = safeOrderType === "refill" ? 3000 : 0;
 ```
+
 With:
-```ts
-// DB enum: refill | new_setup | exchange | service_call
-const orderTypeMap: Record<string, string> = {
-  "refill": "refill",
-  "new": "new_setup",
-  "new_setup": "new_setup",
-  "exchange": "exchange",
-  "service_call": "service_call",
-};
-const safeOrderType = orderTypeMap[orderType] || "refill";
+```typescript
+// Delivery fee: 3000 for Easy Gas & Parami (direct delivery), 6000 for Other Partners (round-trip refill)
+const OTHER_PARTNERS_BRAND_ID = "62a6da96-d2e7-463b-9513-370e25cdf271";
+const deliveryFee = safeOrderType === "refill"
+  ? (brandId === OTHER_PARTNERS_BRAND_ID ? 6000 : 3000)
+  : 0;
 ```
 
-### Edit 2 — line ~103: update cylinder price condition
-Replace `safeOrderType === "new"` with `safeOrderType === "new_setup"` in the `cylinderSubtotal` calculation.
-
-## Out of scope (do NOT touch)
-- `status: "new"` in the order insert (different column, `order_status` enum — leave it)
-- Any kbzpay-* function
-- `verify_jwt` settings / `supabase/config.toml`
-- DB enum itself (values are correct)
-- Existing debug `console.log`s (separate cleanup)
-
-## Files
-| Action | File |
-|--------|------|
-| Edit | `supabase/functions/create-customer-order/index.ts` (lines ~72 and ~103) |
+## Out of scope
+- `order_type` enum mapping (already fixed)
+- `status: "new"` (order_status column, different enum)
+- Any kbzpay-* functions
+- `verify_jwt` settings
+- Debug console.logs
 
 ## Post-deploy verification
-- Auto-deploys via Lovable.
-- Test from Customer App: place a 78,000 MMK 15kg new-cylinder order → expect 200, order row created with `order_type = 'new_setup'`.
-- Test refill flow → expect 200, `order_type = 'refill'`, no cylinder_price added.
-- Re-confirm `verify_jwt` OFF on `kbzpay-create-payment` if Lovable deploy reset it (manual dashboard step, outside this fix).
-
-## Test matrix
-| orderType sent | safeOrderType | cylinderSubtotal |
-|---|---|---|
-| `"new"` | `"new_setup"` | `cylinder_price × qty` |
-| `"refill"` | `"refill"` | `0` |
-| `"exchange"` | `"exchange"` | `0` |
-| `undefined` / `"garbage"` | `"refill"` (default) | `0` |
+- Other Partners 12kg refill → expect 66,000 total (60,000 + 6,000)
+- Easy Gas 5kg refill → expect 26,000 total (23,000 + 3,000)
 
