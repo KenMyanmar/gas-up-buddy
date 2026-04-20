@@ -10,6 +10,7 @@ export type KbzAutoLoginStatus =
   | "link_pending"
   | "new_account"
   | "error"
+  | "auto_login_unavailable"
   | "not-in-kbz";
 
 export interface KbzCandidate {
@@ -53,7 +54,17 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     (async () => {
       setStatus("authenticating");
       try {
-        const authCode = await getAuthCode();
+        // 5s timeout wrapper — if native bridge hangs, fall back silently
+        const authCode = await Promise.race<string>([
+          getAuthCode(),
+          new Promise<string>((_, rej) =>
+            setTimeout(() => rej(new Error("getAuthCode timeout (5s)")), 5000)
+          ),
+        ]).catch((e) => {
+          throw Object.assign(new Error(e?.message || "getAuthCode failed"), {
+            __bridgeFailure: true,
+          });
+        });
 
         const { data, error: fnErr } = await supabase.functions.invoke("kbzpay-auto-login", {
           body: { authCode },
@@ -75,9 +86,14 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
 
         setStatus(res.status || "error");
       } catch (err: any) {
-        console.error("KBZ auto-login error:", err);
-        setError(err?.message || "Auto-login failed");
-        setStatus("error");
+        if (err?.__bridgeFailure) {
+          console.warn("[KBZ] Auto-login unavailable, falling back to phone entry:", err?.message);
+          setStatus("auto_login_unavailable");
+        } else {
+          console.error("KBZ auto-login error:", err);
+          setError(err?.message || "Auto-login failed");
+          setStatus("error");
+        }
       }
     })();
   }, []);
