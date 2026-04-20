@@ -43,9 +43,9 @@ export function getAuthCode(): Promise<string> {
       return reject(new Error("KBZ Pay JSSDK not available"));
     }
     const timer = setTimeout(() => {
-      console.log("[KBZ-DIAG] getAuthCode TIMEOUT after 5s");
+      console.log("[KBZ-DIAG] getAuthCode TIMEOUT after 60s");
       reject(new Error("getAuthCode timed out"));
-    }, 5_000);
+    }, 60_000);
     ma.getAuthCode({
       scopes: "auth_user",
       success: (res: { authCode?: string }) => {

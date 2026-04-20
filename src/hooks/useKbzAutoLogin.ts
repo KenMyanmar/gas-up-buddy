@@ -53,13 +53,8 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     console.log("[KBZ-DIAG] isKbzPayRuntime result:", isKbzPayRuntime());
     try {
       console.log("[KBZ-DIAG] Calling getAuthCode...");
-      // 5s timeout wrapper — bridge hang/failure should map to retry_needed, not error
-      const authCode = await Promise.race<string>([
-        getAuthCode(),
-        new Promise<string>((_, rej) =>
-          setTimeout(() => rej(new Error("getAuthCode timeout (5s)")), 5000)
-        ),
-      ]).catch((e) => {
+      // Bridge owns the timeout (60s, matches startPay). No outer race.
+      const authCode = await getAuthCode().catch((e) => {
         throw Object.assign(new Error(e?.message || "getAuthCode failed"), {
           __bridgeFailure: true,
         });
