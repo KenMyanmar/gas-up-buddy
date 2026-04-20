@@ -1,11 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check, MapPin, CheckCircle } from "lucide-react";
-import KbzError from "@/components/KbzError";
+import { Loader2, Check, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
-import { isKBZPayMiniApp } from "@/utils/kbzpay";
 import { useKbzAutoLogin, type KbzCandidate } from "@/hooks/useKbzAutoLogin";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,7 +13,6 @@ const PhoneEntry = () => {
   const { data: customer } = useCustomerProfile(user?.id);
   const { toast } = useToast();
 
-  const isMiniApp = isKBZPayMiniApp();
   const kbz = useKbzAutoLogin();
 
   // A3: Returning user redirect — skip auto-login if session is valid
@@ -49,7 +46,7 @@ const PhoneEntry = () => {
   };
 
   // KBZ Pay authenticating state
-  if (isMiniApp && (kbz.status === "idle" || kbz.status === "authenticating")) {
+  if (kbz.status === "idle" || kbz.status === "authenticating") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
         <Loader2 className="h-10 w-10 animate-spin text-action mb-4" />
@@ -59,13 +56,8 @@ const PhoneEntry = () => {
     );
   }
 
-  // KBZ error state with phone_already_linked — show toast and stay on selection
-  if (isMiniApp && kbz.error?.includes("phone_already_linked")) {
-    // Fall through to candidate selection UI below
-  }
-
   // A2: Welcome-back hero for single candidate (link_pending with exactly 1 match)
-  if (isMiniApp && kbz.status === "link_pending" && kbz.candidates.length === 1) {
+  if (kbz.status === "link_pending" && kbz.candidates.length === 1) {
     const candidate = kbz.candidates[0];
     const formatDate = (dateStr: string | null) => {
       if (!dateStr) return null;
@@ -134,7 +126,7 @@ const PhoneEntry = () => {
   }
 
   // KBZ Pay candidate selection (2+ candidates)
-  if (isMiniApp && (kbz.status === "linked_select" || kbz.status === "link_pending") && kbz.candidates.length > 0) {
+  if ((kbz.status === "linked_select" || kbz.status === "link_pending") && kbz.candidates.length > 0) {
     const hasLinkedCandidate = kbz.candidates.some(c => c.has_auth_account);
 
     return (
@@ -178,14 +170,40 @@ const PhoneEntry = () => {
     );
   }
 
-  // KBZ error state
-  if (isMiniApp && kbz.status === "error") {
-    return <KbzError reason="authcode-fail" detail={kbz.error ?? undefined} />;
-  }
-
-  // Fallback: Not inside KBZ Pay, or auto-login unavailable (bridge failed silently)
-  // Both paths render the same non-KBZ entry experience — auto-login is an enhancement, not a requirement.
-  return <KbzError reason="outside-kbz" />;
+  // Retry card — bridge failure, timeout, or backend error
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-10">
+      <div className="w-full max-w-sm rounded-[20px] border-2 border-border bg-card p-6 text-center">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <AlertCircle className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h1 className="font-display text-[20px] font-extrabold text-foreground mb-2">
+          We couldn't sign you in
+        </h1>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+          Please close this Mini App and open it again from KBZ Pay.
+        </p>
+        <Button
+          variant="action"
+          size="full"
+          onClick={() => kbz.retry()}
+          disabled={kbz.status === "authenticating"}
+          className="text-[16px]"
+        >
+          Try Again
+        </Button>
+        <p className="mt-5 text-xs text-muted-foreground">
+          Need help?{" "}
+          <a
+            href="tel:8484"
+            className="font-semibold text-foreground underline-offset-2 hover:underline"
+          >
+            Call 8484
+          </a>
+        </p>
+      </div>
+    </div>
+  );
 };
 
 // ── Candidate Card Component ─────────────────────────────────────
