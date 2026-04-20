@@ -1,54 +1,57 @@
 
 
-# Update kbzpay-auto-login: Two-Call VPS Proxy Exchange
+# Fix: order_type enum mismatch in create-customer-order
 
-## Host mapping (corrected)
-- **UAT**: `https://uat-miniapp.kbzpay.com`
-- **PROD**: `https://appcube.easy-run.kbzpay.com` ← corrected per docs
-- Driven by `KBZPAY_ENV` env var (same pattern as `kbzpay-create-payment`).
+## Bug
+Postgres enum `order_type` accepts `refill | new_setup | exchange | service_call`. Function forwards client's `"new"` verbatim → DB rejects with `22P02 invalid input value for enum order_type: "new"`. Every new-cylinder order returns 400.
 
-## Replace single proxy call (lines ~158–192) with two sequential calls
+## Two edits in `supabase/functions/create-customer-order/index.ts`
 
-### Call 1 — getAccessToken
+### Edit 1 — line ~72: map client → DB enum
+Replace:
+```ts
+const validOrderTypes = ["refill", "new"];
+const safeOrderType = validOrderTypes.includes(orderType) ? orderType : "refill";
 ```
-POST {KBZPAY_VPS_PROXY_URL}
-Headers:
-  Content-Type: application/json
-  X-Proxy-Secret: {KBZPAY_VPS_PROXY_SECRET}
-  X-Target-Url: {host}/miniprogram/open/getAccessToken
-Body: { authCode }
+With:
+```ts
+// DB enum: refill | new_setup | exchange | service_call
+const orderTypeMap: Record<string, string> = {
+  "refill": "refill",
+  "new": "new_setup",
+  "new_setup": "new_setup",
+  "exchange": "exchange",
+  "service_call": "service_call",
+};
+const safeOrderType = orderTypeMap[orderType] || "refill";
 ```
-→ Extract `accessToken` (check both top-level and nested `Response.accessToken`).
 
-### Call 2 — getUserInfo
-```
-POST {KBZPAY_VPS_PROXY_URL}
-Headers: same, with
-  X-Target-Url: {host}/miniprogram/open/getUserInfo
-Body: { authCode, accessToken }
-```
-→ Extract `phone` (fallback `msisdn`).
+### Edit 2 — line ~103: update cylinder price condition
+Replace `safeOrderType === "new"` with `safeOrderType === "new_setup"` in the `cylinderSubtotal` calculation.
 
-## Env var unification
-- Drop env-suffixed `KBZPAY_${env}_VPS_PROXY_URL` / `KBZPAY_${env}_PROXY_SECRET`.
-- Use `KBZPAY_VPS_PROXY_URL` / `KBZPAY_VPS_PROXY_SECRET` (matches `kbzpay-create-payment`).
-- Keep `KBZPAY_ENV` for host selection only.
-
-## Error handling
-- 15s `AbortController` timeout per call.
-- Non-OK or missing field → return `502 "Failed to verify KBZ Pay account"`, log status + truncated body with distinct tag (`getAccessToken` vs `getUserInfo`).
-- Never log: `accessToken`, `authCode`, `X-Proxy-Secret`, full bodies.
-
-## Downstream unchanged
-Phone normalization, customer lookup, candidate building, session minting (lines 194+) untouched.
+## Out of scope (do NOT touch)
+- `status: "new"` in the order insert (different column, `order_status` enum — leave it)
+- Any kbzpay-* function
+- `verify_jwt` settings / `supabase/config.toml`
+- DB enum itself (values are correct)
+- Existing debug `console.log`s (separate cleanup)
 
 ## Files
 | Action | File |
 |--------|------|
-| Edit | `supabase/functions/kbzpay-auto-login/index.ts` (lines ~158–192) |
+| Edit | `supabase/functions/create-customer-order/index.ts` (lines ~72 and ~103) |
 
 ## Post-deploy verification
-- Confirm `KBZPAY_VPS_PROXY_URL` + `KBZPAY_VPS_PROXY_SECRET` set (already used by create-payment).
-- `verify_jwt` on `kbzpay-auto-login` stays OFF (pre-auth function).
-- Trigger auto-login in KBZ Pay preview → check logs for clean two-call sequence.
+- Auto-deploys via Lovable.
+- Test from Customer App: place a 78,000 MMK 15kg new-cylinder order → expect 200, order row created with `order_type = 'new_setup'`.
+- Test refill flow → expect 200, `order_type = 'refill'`, no cylinder_price added.
+- Re-confirm `verify_jwt` OFF on `kbzpay-create-payment` if Lovable deploy reset it (manual dashboard step, outside this fix).
+
+## Test matrix
+| orderType sent | safeOrderType | cylinderSubtotal |
+|---|---|---|
+| `"new"` | `"new_setup"` | `cylinder_price × qty` |
+| `"refill"` | `"refill"` | `0` |
+| `"exchange"` | `"exchange"` | `0` |
+| `undefined` / `"garbage"` | `"refill"` (default) | `0` |
 
