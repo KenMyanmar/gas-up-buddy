@@ -1,86 +1,80 @@
 
 
-# Replace "KBZ Pay Required" Blocker with Retry Card
+# KBZ Auto-Login Diagnostic Logging + Detection Hardening
 
-KBZ-only Mini App. When `getAuthCode` fails, show a friendly retry card instead of a dead-end blocker. No phone/OTP, no environment-gate fallbacks.
+Add `[KBZ-DIAG]`-prefixed `console.log` traces at every step of the auto-login flow, harden the bridge detection to check for the actual `ma.getAuthCode` function (not generic `window.ma` presence), and add a `getOpenUserInfo` diagnostic fallback. Frontend-only, two files.
 
 ## Files to edit
 
 | Action | File | Change |
 |---|---|---|
-| Edit | `src/hooks/useKbzAutoLogin.ts` | Add `"retry_needed"` status. Map bridge/timeout failures to `"retry_needed"` (replacing `"auto_login_unavailable"`). Reserve `"error"` for true backend failures. Expose a `retry()` function that re-runs the full auto-login attempt without page reload. |
-| Edit | `src/pages/PhoneEntry.tsx` | Remove all phone/OTP UI and any `KbzError` blocker rendering. Render only the KBZ states (spinner / candidate selector / retry card). |
-| Edit | `src/components/KbzError.tsx` | Delete the `"outside-kbz"` entry from config map AND from `KbzErrorReason` union so the "KBZ Pay Required" screen cannot reappear. |
+| Edit | `src/lib/kbzpay-bridge.ts` | Add `isKbzPayRuntime()` that checks `typeof window.ma.getAuthCode === "function"` directly. Keep existing `isInKbzPay()` for non-auth callers (sticky `miniapp=1` flag still useful for payment startPay path). Add `[KBZ-DIAG]` logs inside `getAuthCode()` at entry, success, and fail callbacks. |
+| Edit | `src/hooks/useKbzAutoLogin.ts` | Add `[KBZ-DIAG]` logs at hook mount, before/after detection, before `getAuthCode`, before edge function invoke, on response, on session set, and at every error branch. Use `isKbzPayRuntime()` (not `isInKbzPay()`) for the catch-branch decision. Add a `getOpenUserInfo` diagnostic call when `getAuthCode` fails (logs only — no behavior change). |
 
-No edge function changes. No `/welcome` changes. No payment, schema, RLS, or `verify_jwt` changes.
+No edge function changes. No `/welcome`, payment, schema, RLS, or `verify_jwt` changes. Retry card UI stays exactly as shipped.
 
-## `useKbzAutoLogin` changes
+## `kbzpay-bridge.ts` additions
 
-Status union becomes:
 ```ts
-"idle" | "authenticating" | "linked" | "new_account"
-| "link_pending" | "linked_select" | "retry_needed" | "error"
+export function isKbzPayRuntime(): boolean {
+  if (typeof window === "undefined") return false;
+  const ma = (window as any).ma;
+  if (!ma || typeof ma !== "object") return false;
+  return typeof ma.getAuthCode === "function";
+}
 ```
 
-- Keep existing 5s timeout around `getAuthCode`.
-- Any bridge throw or timeout → `status = "retry_needed"` (console.warn, not error).
-- `"error"` reserved for backend non-2xx after a valid authCode was obtained.
-- New `retry()` function: resets to `"authenticating"` and re-invokes the same internal flow used on mount.
-- Remove the now-unused `"auto_login_unavailable"` status and its handling.
+Inside existing `getAuthCode()`:
+- `console.log("[KBZ-DIAG] getAuthCode() invoked, ma type:", typeof ma)`
+- on success: `console.log("[KBZ-DIAG] getAuthCode SUCCESS:", JSON.stringify(res))`
+- on fail: `console.log("[KBZ-DIAG] getAuthCode FAIL:", JSON.stringify(err))`
+- on timeout: `console.log("[KBZ-DIAG] getAuthCode TIMEOUT after 5s")` (also align internal timeout to 5s for consistency with hook)
 
-## `PhoneEntry.tsx` rendering
+## `useKbzAutoLogin.ts` log points
 
 ```text
-authenticating         → spinner + "Connecting to KBZ Pay..."
-linked / new_account   → navigate("/welcome", { replace: true })
-link_pending           → existing link UI
-linked_select          → existing candidate selector
-retry_needed | error   → Retry Card
+[KBZ-DIAG] useKbzAutoLogin mounted
+[KBZ-DIAG] window.ma type: <typeof>
+[KBZ-DIAG] ma.getAuthCode type: <typeof>
+[KBZ-DIAG] isKbzPayRuntime result: true|false
+[KBZ-DIAG] Calling getAuthCode...
+[KBZ-DIAG] authCode received, length: N
+[KBZ-DIAG] Invoking kbzpay-auto-login edge function
+[KBZ-DIAG] Edge function response status: <status>
+[KBZ-DIAG] Setting Supabase session
+[KBZ-DIAG] Final status: <status>
 ```
 
-Retry Card:
-```
-We couldn't sign you in
+Error branches:
+- `[KBZ-DIAG] Bridge failure → retry_needed: <message>`
+- `[KBZ-DIAG] Backend error → error: <message>`
+- `[KBZ-DIAG] Attempting getOpenUserInfo fallback (diagnostic only)` then log its success/fail JSON
 
-Please close this Mini App and open it again from KBZ Pay.
+Behavior unchanged: success → existing status routing; bridge failure / `!isKbzPayRuntime()` → `retry_needed`; backend non-2xx after valid authCode → `error`. Both terminal states render the same retry card already in `PhoneEntry.tsx`.
 
-[ Try Again ]
+## Detection swap
 
-Need help? Call 8484
-```
-- `Try Again` → `kbz.retry()`
-- `Call 8484` → `<a href="tel:8484">` muted footer link
-- No error codes, no raw Supabase messages
-
-Remove all phone-input / OTP UI and any leftover `auto_login_unavailable` handling from this file.
-
-## `KbzError.tsx` cleanup
-
-- Remove `"outside-kbz"` from the config map.
-- Remove `"outside-kbz"` from the `KbzErrorReason` union so TypeScript prevents accidental reintroduction.
-- Other reasons (`payment-failed`, `session-lost`, `jssdk-missing`, etc.) remain for non-onboarding contexts.
+Replace the `!isInKbzPay()` check in the catch block with `!isKbzPayRuntime()`. Reason: `isInKbzPay()` returns true whenever `window.ma` exists at all (even partially-injected bridges with no `getAuthCode`), which hides exactly the failure mode we're trying to diagnose. Other callers of `isInKbzPay()` (payment, miniapp sticky flag) keep using it unchanged.
 
 ## Out of scope (do NOT touch)
 - Edge functions: `kbzpay-auto-login`, `kbzpay-link-customer`, `kbzpay-create-payment`, `kbzpay-webhook`, `create-customer-order`
 - `/welcome` page
-- Payment / order / tracking flows
-- `verify_jwt` settings
+- Retry card UI in `PhoneEntry.tsx` (no rendering changes)
+- Payment flow, `startPay`, miniapp sticky-flag behavior in `isInKbzPay()`
 - DB schema, RLS, enums, triggers
-- The two flagged pending fixes (`order_type` enum mapping; Phase 2 auto-login `customer_phones` filter) — separate approved prompts, not bundled here
+- `verify_jwt` settings
 
 ## Acceptance criteria
-1. `/#/onboarding/phone` never renders "KBZ Pay Required".
-2. Working auto-login → `/welcome` (State 1 existing, State 3 new) → unchanged downstream flow.
-3. `getAuthCode` timeout/failure → friendly Retry Card with `Try Again` and `Call 8484`.
-4. `Try Again` re-invokes `getAuthCode` without page reload.
-5. No phone input, no OTP input, no environment-detection gate anywhere.
+1. On every page load of `/#/onboarding/phone`, `[KBZ-DIAG] useKbzAutoLogin mounted` appears in console first.
+2. Inside real KBZ Pay with working bridge: full success log sequence appears, ending at `Final status: linked` (or `new_account`) and navigation to `/welcome`.
+3. Inside KBZ Pay with bridge timeout/failure: logs end at `[KBZ-DIAG] getAuthCode FAIL` or `TIMEOUT` followed by `Bridge failure → retry_needed`, then `getOpenUserInfo` diagnostic line. Retry card renders.
+4. Outside KBZ Pay (desktop browser): logs end at `isKbzPayRuntime result: false` → `retry_needed`. No crash, retry card renders.
+5. No edge function or backend changes; `kbzpay-auto-login` still receives invocations only when a valid authCode is obtained.
 
-## Post-deploy checklist
-1. Existing KBZ number → auto-login → `/welcome` State 1 → home.
-2. New KBZ number → auto-login → `/welcome` State 3 → fill name/address → home.
-3. Force timeout (airplane mode briefly) → Retry Card appears → `Try Again` re-runs.
-4. `tel:8484` opens dialer.
-5. Re-toggle `verify_jwt = false` on `kbzpay-create-payment` (Lovable deploys reset it).
-6. Edge function logs: confirm at least one `kbzpay-auto-login` 200 after a successful test (proves backend was reached).
-7. Full order flow end-to-end still works.
+## Post-deploy test protocol
+1. Tester closes KBZ Pay fully, reopens, opens AnyGas Mini App fresh.
+2. Opens debug console "Log" tab, screenshots full `[KBZ-DIAG]` sequence.
+3. Diagnose from last log line per the spec table.
+4. Re-toggle `verify_jwt = false` on `kbzpay-create-payment` (Lovable deploys reset it).
+5. Confirm Edge Function logs show a `kbzpay-auto-login` 200 if and only if a successful auto-login was attempted.
 
