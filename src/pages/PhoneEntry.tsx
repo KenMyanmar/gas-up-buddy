@@ -183,7 +183,8 @@ const PhoneEntry = () => {
     return <KbzError reason="authcode-fail" detail={kbz.error ?? undefined} />;
   }
 
-  // Fallback: Not inside KBZ Pay
+  // Fallback: Not inside KBZ Pay, or auto-login unavailable (bridge failed silently)
+  // Both paths render the same non-KBZ entry experience — auto-login is an enhancement, not a requirement.
   return <KbzError reason="outside-kbz" />;
 };
 
