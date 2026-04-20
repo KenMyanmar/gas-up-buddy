@@ -23,6 +23,7 @@ import ProfilePrivacy from "./pages/ProfilePrivacy";
 import AlertsPage from "./pages/AlertsPage";
 import NotFound from "./pages/NotFound";
 import KbzProfileComplete from "./pages/KbzProfileComplete";
+import WelcomePage from "./pages/WelcomePage";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const AppRoutes = () => (
       {/* Post-KBZ linking (needs auth but part of onboarding) */}
       <Route path="/onboarding/link-new" element={<AuthOnlyRoute><LinkNewCustomer /></AuthOnlyRoute>} />
       <Route path="/onboarding/kbz-profile" element={<AuthOnlyRoute><KbzProfileComplete /></AuthOnlyRoute>} />
+      <Route path="/welcome" element={<AuthOnlyRoute><WelcomePage /></AuthOnlyRoute>} />
 
       {/* Protected app screens */}
       <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
