@@ -1,8 +1,7 @@
-import { AlertTriangle, WifiOff, ShieldX, CreditCard, Radio, MapPinOff, Smartphone } from "lucide-react";
+import { WifiOff, ShieldX, CreditCard, Radio, MapPinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type KbzErrorReason =
-  | "outside-kbz"
   | "jssdk-missing"
   | "authcode-fail"
   | "session-lost"
@@ -22,11 +21,6 @@ const config: Record<KbzErrorReason, {
   cta?: string;
   icon: React.ReactNode;
 }> = {
-  "outside-kbz": {
-    title: "KBZ Pay Required",
-    message: "Please open this app inside the KBZ Pay app to continue.",
-    icon: <Smartphone className="h-8 w-8 text-muted-foreground" />,
-  },
   "jssdk-missing": {
     title: "Connection Error",
     message: "Could not connect to KBZ Pay services. Please close and reopen this app.",
