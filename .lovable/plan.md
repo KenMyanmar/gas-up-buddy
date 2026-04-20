@@ -1,79 +1,86 @@
 
 
-# Single Smart Welcome Page (`/welcome`)
+# Replace "KBZ Pay Required" Blocker with Retry Card
 
-This is the same plan you approved before, refined to match the latest prompt (no `landmark` field — only `full_name`, `township`, `address`).
+KBZ-only Mini App. When `getAuthCode` fails, show a friendly retry card instead of a dead-end blocker. No phone/OTP, no environment-gate fallbacks.
 
-## Goal
-Add one adaptive page that runs after every successful login (KBZ auto-login OR phone/OTP). It inspects the customer profile and renders one of three states. Replace direct post-login `navigate("/home")` with `navigate("/welcome")`.
+## Files to edit
 
-## States
-- **State 1 — Returning + complete** (`full_name`, `address`, `township` all filled): confirmation card → `Yes, this is correct` (→ `/home`) or `Update my details` (→ inline form).
-- **State 2 — Returning + incomplete**: pre-filled editable form.
-- **State 3 — New customer** (all profile fields empty): empty welcome form, friendlier copy.
-
-All states share: same Supabase update, hardcoded 36-township dropdown, secondary-phones manager, `Call 8484` footer.
-
-## Files
-
-| Action | File | Purpose |
+| Action | File | Change |
 |---|---|---|
-| Create | `src/pages/WelcomePage.tsx` | The 3-state adaptive page |
-| Create | `src/lib/yangonTownships.ts` | Hardcoded 36-township constant |
-| Edit | `src/App.tsx` | Add `/welcome` route under `AuthOnlyRoute` |
-| Edit | `src/pages/PhoneEntry.tsx` | Post-login redirects → `/welcome` (returning user, `kbz.status === "linked"`, and `kbz.status === "new_account"`) |
-| Edit | `src/pages/LinkNewCustomer.tsx` | Post-register redirect → `/welcome` |
-| Edit | `src/pages/KbzProfileComplete.tsx` | Post-submit redirect → `/welcome` (kept for backward routing safety) |
+| Edit | `src/hooks/useKbzAutoLogin.ts` | Add `"retry_needed"` status. Map bridge/timeout failures to `"retry_needed"` (replacing `"auto_login_unavailable"`). Reserve `"error"` for true backend failures. Expose a `retry()` function that re-runs the full auto-login attempt without page reload. |
+| Edit | `src/pages/PhoneEntry.tsx` | Remove all phone/OTP UI and any `KbzError` blocker rendering. Render only the KBZ states (spinner / candidate selector / retry card). |
+| Edit | `src/components/KbzError.tsx` | Delete the `"outside-kbz"` entry from config map AND from `KbzErrorReason` union so the "KBZ Pay Required" screen cannot reappear. |
 
-No DB changes. No edge function changes. No `verify_jwt` changes. RLS policies (`customers_update_own_profile`, `customer_phones` insert/delete) already deployed per prompt.
+No edge function changes. No `/welcome` changes. No payment, schema, RLS, or `verify_jwt` changes.
 
-## WelcomePage logic
+## `useKbzAutoLogin` changes
+
+Status union becomes:
+```ts
+"idle" | "authenticating" | "linked" | "new_account"
+| "link_pending" | "linked_select" | "retry_needed" | "error"
+```
+
+- Keep existing 5s timeout around `getAuthCode`.
+- Any bridge throw or timeout → `status = "retry_needed"` (console.warn, not error).
+- `"error"` reserved for backend non-2xx after a valid authCode was obtained.
+- New `retry()` function: resets to `"authenticating"` and re-invokes the same internal flow used on mount.
+- Remove the now-unused `"auto_login_unavailable"` status and its handling.
+
+## `PhoneEntry.tsx` rendering
 
 ```text
-useAuth() → user
-useQuery(['customer_profile', user.id]) → customer (id, full_name, address, township)
-useQuery(['customer_phones', customer.id]) → phones (id, phone, label, is_primary, verified)
-
-state derivation:
-  loading → spinner + "Loading your profile..."
-  fetch error → "Something went wrong. Please try again." + Retry + Call 8484
-  full_name && address && township && !editing → STATE_1
-  else → STATE_2 / STATE_3 (same form, different copy based on whether any fields exist)
-
-mutations (rely on already-deployed RLS):
-  updateProfile: supabase.from('customers').update({ full_name, township, address }).eq('id', customer.id)
-  addPhone:    supabase.from('customer_phones').insert({ customer_id, phone, label: 'secondary' })
-  deletePhone: supabase.from('customer_phones').delete().eq('id', phoneId)
-
-post-save / Yes-confirm → navigate("/home")
+authenticating         → spinner + "Connecting to KBZ Pay..."
+linked / new_account   → navigate("/welcome", { replace: true })
+link_pending           → existing link UI
+linked_select          → existing candidate selector
+retry_needed | error   → Retry Card
 ```
 
-## Routing
-
-```tsx
-<Route path="/welcome" element={<AuthOnlyRoute><WelcomePage /></AuthOnlyRoute>} />
+Retry Card:
 ```
-Must use `AuthOnlyRoute` (not `ProtectedRoute`) — `ProtectedRoute` redirects to `/onboarding/link-new` when no customer profile exists, but Welcome must run *before* that gate for partially-set-up new customers.
+We couldn't sign you in
 
-## UX details
-- Township: searchable select (reuse existing `Command`/`cmdk` primitive in `components/ui/command.tsx`).
-- Phone validation: starts with `09`, 9–11 digits total. Max 3 secondary phones (4 total).
-- Insert error `23505` → toast "This phone number is already registered". Other insert errors → "Failed to add phone number". Delete errors → "Cannot remove this phone number".
-- Primary phone: ✅ badge, no delete button. Unverified secondary phones: "unverified" pill.
-- `Call 8484` rendered as muted, centered footer link (`<a href="tel:8484">`) on every state.
-- Never surface raw Supabase error messages.
+Please close this Mini App and open it again from KBZ Pay.
+
+[ Try Again ]
+
+Need help? Call 8484
+```
+- `Try Again` → `kbz.retry()`
+- `Call 8484` → `<a href="tel:8484">` muted footer link
+- No error codes, no raw Supabase messages
+
+Remove all phone-input / OTP UI and any leftover `auto_login_unavailable` handling from this file.
+
+## `KbzError.tsx` cleanup
+
+- Remove `"outside-kbz"` from the config map.
+- Remove `"outside-kbz"` from the `KbzErrorReason` union so TypeScript prevents accidental reintroduction.
+- Other reasons (`payment-failed`, `session-lost`, `jssdk-missing`, etc.) remain for non-onboarding contexts.
 
 ## Out of scope (do NOT touch)
-Edge functions (`kbzpay-*`, `link-customer-account`, `create-customer-order`), DB schema/RLS/enums/triggers, `types.ts`, login UI flow (only post-success redirect changes), payment/order/tracking flows, `verify_jwt` settings, `customers.phone`, `customers.status`, brand/cylinder/pricing data.
+- Edge functions: `kbzpay-auto-login`, `kbzpay-link-customer`, `kbzpay-create-payment`, `kbzpay-webhook`, `create-customer-order`
+- `/welcome` page
+- Payment / order / tracking flows
+- `verify_jwt` settings
+- DB schema, RLS, enums, triggers
+- The two flagged pending fixes (`order_type` enum mapping; Phase 2 auto-login `customer_phones` filter) — separate approved prompts, not bundled here
+
+## Acceptance criteria
+1. `/#/onboarding/phone` never renders "KBZ Pay Required".
+2. Working auto-login → `/welcome` (State 1 existing, State 3 new) → unchanged downstream flow.
+3. `getAuthCode` timeout/failure → friendly Retry Card with `Try Again` and `Call 8484`.
+4. `Try Again` re-invokes `getAuthCode` without page reload.
+5. No phone input, no OTP input, no environment-detection gate anywhere.
 
 ## Post-deploy checklist
-1. KBZ Mini App auto-login → `/welcome` shows correct state.
-2. Phone/OTP login → `/welcome` shows correct state.
-3. State 1 → `Yes` → `/home`. `Update` → form pre-filled, save → `/home`.
-4. State 2 (e.g. missing township) → form pre-filled, save → `/home`.
-5. State 3 (new auto-login customer) → empty form, save → `/home`.
-6. Add secondary phone → appears with "unverified" pill. Delete it → gone. Primary cannot be deleted.
-7. `tel:8484` opens dialer on device.
-8. **Manual:** re-toggle `verify_jwt = false` on `kbzpay-create-payment` in Supabase Dashboard (Lovable deploys reset it).
-9. Full order flow end-to-end still works.
+1. Existing KBZ number → auto-login → `/welcome` State 1 → home.
+2. New KBZ number → auto-login → `/welcome` State 3 → fill name/address → home.
+3. Force timeout (airplane mode briefly) → Retry Card appears → `Try Again` re-runs.
+4. `tel:8484` opens dialer.
+5. Re-toggle `verify_jwt = false` on `kbzpay-create-payment` (Lovable deploys reset it).
+6. Edge function logs: confirm at least one `kbzpay-auto-login` 200 after a successful test (proves backend was reached).
+7. Full order flow end-to-end still works.
 
