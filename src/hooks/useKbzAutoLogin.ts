@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { isInKbzPay, getAuthCode } from "@/lib/kbzpay-bridge";
+import { isKbzPayRuntime, getAuthCode } from "@/lib/kbzpay-bridge";
 
 export type KbzAutoLoginStatus =
   | "idle"
@@ -47,7 +47,12 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     running.current = true;
     setStatus("authenticating");
     setError(null);
+    const ma = (typeof window !== "undefined" ? (window as any).ma : undefined);
+    console.log("[KBZ-DIAG] window.ma type:", typeof ma);
+    console.log("[KBZ-DIAG] ma.getAuthCode type:", typeof ma?.getAuthCode);
+    console.log("[KBZ-DIAG] isKbzPayRuntime result:", isKbzPayRuntime());
     try {
+      console.log("[KBZ-DIAG] Calling getAuthCode...");
       // 5s timeout wrapper — bridge hang/failure should map to retry_needed, not error
       const authCode = await Promise.race<string>([
         getAuthCode(),
@@ -60,14 +65,18 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         });
       });
 
+      console.log("[KBZ-DIAG] authCode received, length:", authCode?.length ?? 0);
+      console.log("[KBZ-DIAG] Invoking kbzpay-auto-login edge function");
       const { data, error: fnErr } = await supabase.functions.invoke("kbzpay-auto-login", {
         body: { authCode },
       });
 
+      console.log("[KBZ-DIAG] Edge function response status:", (data as any)?.status, "fnErr:", fnErr?.message);
       if (fnErr) throw fnErr;
       const res = data as any;
 
       if (res.access_token && res.refresh_token) {
+        console.log("[KBZ-DIAG] Setting Supabase session");
         await supabase.auth.setSession({
           access_token: res.access_token,
           refresh_token: res.refresh_token,
@@ -78,13 +87,31 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       if (res.candidates) setCandidates(res.candidates);
       if (res.customer_id) setCustomerId(res.customer_id);
 
-      setStatus(res.status || "error");
+      const finalStatus = res.status || "error";
+      console.log("[KBZ-DIAG] Final status:", finalStatus);
+      setStatus(finalStatus);
     } catch (err: any) {
-      if (err?.__bridgeFailure || !isInKbzPay()) {
-        console.warn("[KBZ] Auto-login bridge unavailable, showing retry card:", err?.message);
+      if (err?.__bridgeFailure || !isKbzPayRuntime()) {
+        console.log("[KBZ-DIAG] Bridge failure → retry_needed:", err?.message);
+        // Diagnostic-only fallback: try getOpenUserInfo to learn more about the bridge
+        try {
+          const maNow = (window as any).ma;
+          if (maNow && typeof maNow.getOpenUserInfo === "function") {
+            console.log("[KBZ-DIAG] Attempting getOpenUserInfo fallback (diagnostic only)");
+            maNow.getOpenUserInfo({
+              scopes: "auth_base",
+              success: (r: any) => console.log("[KBZ-DIAG] getOpenUserInfo SUCCESS:", JSON.stringify(r)),
+              fail: (r: any) => console.log("[KBZ-DIAG] getOpenUserInfo FAIL:", JSON.stringify(r)),
+            });
+          } else {
+            console.log("[KBZ-DIAG] getOpenUserInfo not available on bridge");
+          }
+        } catch (diagErr: any) {
+          console.log("[KBZ-DIAG] getOpenUserInfo threw:", diagErr?.message);
+        }
         setStatus("retry_needed");
       } else {
-        console.error("[KBZ] Auto-login backend error:", err);
+        console.log("[KBZ-DIAG] Backend error → error:", err?.message);
         setError(err?.message || "Auto-login failed");
         setStatus("error");
       }
@@ -97,6 +124,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
   useEffect(() => {
     if (ranOnce.current) return;
     ranOnce.current = true;
+    console.log("[KBZ-DIAG] useKbzAutoLogin mounted");
     runAutoLogin();
   }, [runAutoLogin]);
 

@@ -25,23 +25,38 @@ export function isInKbzPay(): boolean {
   return false;
 }
 
+// Strict runtime check: bridge is actually usable (has getAuthCode function)
+export function isKbzPayRuntime(): boolean {
+  if (typeof window === "undefined") return false;
+  const ma = (window as any).ma;
+  if (!ma || typeof ma !== "object") return false;
+  return typeof ma.getAuthCode === "function";
+}
+
 // ── JSSDK: getAuthCode ───────────────────────────────────────────
 export function getAuthCode(): Promise<string> {
   return new Promise((resolve, reject) => {
     const ma = (window as any).ma;
+    console.log("[KBZ-DIAG] getAuthCode() invoked, ma type:", typeof ma, "getAuthCode type:", typeof ma?.getAuthCode);
     if (!ma?.getAuthCode) {
+      console.log("[KBZ-DIAG] getAuthCode FAIL: bridge not available");
       return reject(new Error("KBZ Pay JSSDK not available"));
     }
-    const timer = setTimeout(() => reject(new Error("getAuthCode timed out")), 10_000);
+    const timer = setTimeout(() => {
+      console.log("[KBZ-DIAG] getAuthCode TIMEOUT after 5s");
+      reject(new Error("getAuthCode timed out"));
+    }, 5_000);
     ma.getAuthCode({
       scopes: "auth_user",
       success: (res: { authCode?: string }) => {
         clearTimeout(timer);
+        console.log("[KBZ-DIAG] getAuthCode SUCCESS:", JSON.stringify(res));
         if (res?.authCode) resolve(res.authCode);
         else reject(new Error("No authCode in response"));
       },
       fail: (err: any) => {
         clearTimeout(timer);
+        console.log("[KBZ-DIAG] getAuthCode FAIL:", JSON.stringify(err));
         reject(new Error(err?.errorMessage || "getAuthCode failed"));
       },
     });
