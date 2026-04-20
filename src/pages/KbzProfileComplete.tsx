@@ -44,7 +44,7 @@ const KbzProfileComplete = () => {
         body: { full_name: name, address, township: townshipName },
       });
       if (error) throw error;
-      navigate("/home", { replace: true });
+      navigate("/welcome", { replace: true });
     } catch (err: any) {
       toast({ title: "Registration failed", description: err?.message || "Please try again.", variant: "destructive" });
     } finally {

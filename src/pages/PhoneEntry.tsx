@@ -21,16 +21,16 @@ const PhoneEntry = () => {
   // A3: Returning user redirect — skip auto-login if session is valid
   useEffect(() => {
     if (user && customer) {
-      navigate("/home", { replace: true });
+      navigate("/welcome", { replace: true });
     }
   }, [user, customer, navigate]);
 
   // Handle KBZ auto-login state transitions
   useEffect(() => {
     if (kbz.status === "linked") {
-      navigate("/home", { replace: true });
+      navigate("/welcome", { replace: true });
     } else if (kbz.status === "new_account") {
-      navigate("/onboarding/kbz-profile", { replace: true });
+      navigate("/welcome", { replace: true });
     }
   }, [kbz.status, navigate]);
 
