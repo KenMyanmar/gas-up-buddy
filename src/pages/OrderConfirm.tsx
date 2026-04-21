@@ -59,6 +59,7 @@ const OrderConfirm = () => {
           deliveryInstructions: instructions || undefined,
           paymentMethod: "kbzpay",
           orderSource: "kbzpay_miniapp",
+          customerId: urlCustomerId ?? undefined,
         },
       });
       if (error) throw error;
@@ -69,7 +70,7 @@ const OrderConfirm = () => {
 
       // 2. Create KBZ Pay payment
       const { data: payData, error: payErr } = await supabase.functions.invoke("kbzpay-create-payment", {
-        body: { orderId },
+        body: { orderId, customerId: urlCustomerId ?? undefined },
       });
       if (payErr) throw payErr;
       const payResult = payData as any;
