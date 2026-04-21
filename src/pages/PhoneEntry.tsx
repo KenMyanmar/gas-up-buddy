@@ -1,11 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Loader2, Check, MapPin, CheckCircle, AlertCircle, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import { useKbzAutoLogin, type KbzCandidate } from "@/hooks/useKbzAutoLogin";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const PhoneEntry = () => {
   const navigate = useNavigate();
@@ -241,6 +244,7 @@ const PhoneEntry = () => {
           </a>
         </p>
       </div>
+      {import.meta.env.DEV && <DevSignInPanel />}
     </div>
   );
 };
@@ -294,6 +298,71 @@ function CandidateCard({
         </p>
       )}
     </button>
+  );
+}
+
+// ── Dev-only desktop sign-in (Lovable preview / local dev) ──────
+function DevSignInPanel() {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("[email protected]");
+  const [password, setPassword] = useState("123456");
+  const [loading, setLoading] = useState(false);
+
+  const handleDevSignIn = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // AuthContext + PhoneEntry's existing useEffect will navigate to /welcome.
+    } catch (err: any) {
+      toast({
+        title: "Dev sign-in failed",
+        description: err?.message ?? "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 w-full max-w-sm rounded-[16px] border-2 border-dashed border-border bg-card/50 p-4">
+      <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        Dev Only — Desktop Preview
+      </p>
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="dev-email" className="text-xs">Email</Label>
+          <Input
+            id="dev-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="dev-password" className="text-xs">Password</Label>
+          <Input
+            id="dev-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+        <Button
+          variant="action"
+          size="full"
+          onClick={handleDevSignIn}
+          disabled={loading || !email || !password}
+          className="gap-2 text-[15px]"
+        >
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {loading ? "Signing in..." : "Dev sign in"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
