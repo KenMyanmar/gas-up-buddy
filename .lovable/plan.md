@@ -1,32 +1,25 @@
 
 
-## SOT Alignment: Thread `cid` Through Order Flow
+## Pass `customerId` to Edge Functions in OrderConfirm
 
-Propagate the `cid` URL param from Home → Configure → Confirm → Success so the customer identity persists without relying on a Supabase auth session (KBZ WebView).
+Add `customerId: urlCustomerId ?? undefined` to both edge function payloads in `handlePlaceOrder` so the backend can identify the customer without relying on a JWT session (KBZ WebView).
 
-### Changes
+### Change
 
-**1. `src/hooks/useOrders.ts`** — extend `useCustomerProfile` to accept an optional `customerId`. When provided, query `customers.id` directly (works without auth session); otherwise fall back to `auth_user_id` lookup. Query key includes whichever ID is used.
+**`src/pages/OrderConfirm.tsx`** — `handlePlaceOrder`:
 
-**2. `src/pages/OrderConfigure.tsx`**
-- Import `useSearchParams`; read `cid` from URL.
-- Pass `cid` into `useCustomerProfile(user?.id, urlCustomerId)`.
-- Back button: `navigate(\`/home${location.search}\`)`.
-- CONFIRM ORDER: `navigate(\`/order/confirm${location.search}\`, { state: {...} })` — preserves all existing state.
+1. `create-customer-order` invoke body: append `customerId: urlCustomerId ?? undefined`.
+2. `kbzpay-create-payment` invoke body: change from `{ orderId }` to `{ orderId, customerId: urlCustomerId ?? undefined }`.
 
-**3. `src/pages/OrderConfirm.tsx`**
-- Import `useSearchParams`; read `cid` from URL.
-- Pass `cid` into `useCustomerProfile(user?.id, urlCustomerId)`.
-- Back button: `navigate(\`/order/configure${location.search}\`)`.
-- All 3 success navigations: prepend `${location.search}` to `/order/success` path; keep state args unchanged.
+`urlCustomerId` is already read from `searchParams` earlier in the component — no new imports or hooks required.
 
 ### Out of Scope
-- No edge function changes.
-- No auth/route guard changes.
-- No DB / RLS changes.
+- No other files.
+- No auth/routing/edge function changes.
+- No validation or analytics additions.
 
 ### Acceptance
-- `/order/configure?cid=<uuid>` shows "Delivering to" bar.
-- CONFIRM preserves `cid` → `/order/confirm?cid=<uuid>` renders with customer address.
-- Pay button triggers `create-customer-order` + `kbzpay-create-payment` and opens KBZ cashier.
+- `create-customer-order` returns 200 with `customerId` in payload.
+- `kbzpay-create-payment` returns 200 with `prepay_id`.
+- KBZ Pay cashier opens.
 
