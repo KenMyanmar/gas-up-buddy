@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders, useCustomerProfile } from "@/hooks/useOrders";
@@ -30,8 +30,11 @@ const activeStatuses = ["new", "pending", "confirmed", "assigned", "in_transit",
 const OrdersPage = () => {
   const [activeTab, setActiveTab] = useState("All");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
+  const cidQs = urlCustomerId ? `?cid=${urlCustomerId}` : "";
   const { user } = useAuth();
-  const { data: customer } = useCustomerProfile(user?.id);
+  const { data: customer } = useCustomerProfile(user?.id, urlCustomerId ?? undefined);
   const { data: orders, isLoading } = useOrders(customer?.id);
 
   const filtered = (orders ?? []).filter((o) => {
@@ -75,7 +78,7 @@ const OrdersPage = () => {
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
             <p className="text-lg font-semibold text-muted-foreground">No orders yet</p>
-            <button onClick={() => navigate("/home")} className="mt-2 font-bold text-action">
+            <button onClick={() => navigate(`/home${cidQs}`)} className="mt-2 font-bold text-action">
               Place your first order!
             </button>
           </div>
@@ -86,7 +89,7 @@ const OrdersPage = () => {
               className="rounded-[20px] border border-border bg-card p-4 shadow-sm cursor-pointer transition-all hover:shadow-md"
               onClick={() => {
                 if (activeStatuses.includes(order.status)) {
-                  navigate(`/order/tracking/${order.id}`);
+                  navigate(`/order/tracking/${order.id}${cidQs}`);
                 }
               }}
             >
@@ -123,7 +126,7 @@ const OrdersPage = () => {
                 </div>
               ) : (
                 <button
-                  onClick={(e) => { e.stopPropagation(); navigate("/order/configure"); }}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/order/configure${cidQs}`); }}
                   className="mt-3 w-full rounded-xl bg-action-light py-2.5 text-center text-sm font-extrabold text-action transition-colors active:bg-action/20"
                 >
                   Reorder
