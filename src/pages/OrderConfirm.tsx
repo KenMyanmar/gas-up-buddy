@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin, ChevronDown, Loader2, Check, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,8 +28,10 @@ interface OrderState {
 const OrderConfirm = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
   const { user } = useAuth();
-  const { data: customer } = useCustomerProfile(user?.id);
+  const { data: customer } = useCustomerProfile(user?.id, urlCustomerId ?? undefined);
   const { toast } = useToast();
 
   const orderState = location.state as OrderState | null;
@@ -87,12 +89,12 @@ const OrderConfirm = () => {
         if (resultCode === "0" || resultCode === "success") {
           // Payment process completed — poll for webhook confirmation
           const pollResult = await pollOrderUntilPaid(supabase, orderId, 120_000);
-          navigate(`/order/success`, {
+          navigate(`/order/success${location.search}`, {
             replace: true,
             state: { orderId, totalAmount: result.total_amount, paymentStatus: pollResult },
           });
         } else {
-          navigate(`/order/success`, {
+          navigate(`/order/success${location.search}`, {
             replace: true,
             state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled" },
           });
@@ -100,7 +102,7 @@ const OrderConfirm = () => {
       } catch (payError: any) {
         console.error("startPay failed:", payError);
         // Order created but payment failed — go to success with pending status
-        navigate(`/order/success`, {
+        navigate(`/order/success${location.search}`, {
           replace: true,
           state: { orderId, totalAmount: result.total_amount, paymentStatus: "pending" },
         });
@@ -119,7 +121,7 @@ const OrderConfirm = () => {
     <div className="flex min-h-screen flex-col bg-background pb-32">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4">
-        <button onClick={() => navigate("/order/configure")} className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card shadow-sm">
+        <button onClick={() => navigate(`/order/configure${location.search}`)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card shadow-sm">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
         <h1 className="font-display text-[22px] font-extrabold text-foreground flex-1">Confirm Order</h1>

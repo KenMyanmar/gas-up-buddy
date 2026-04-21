@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Minus, Plus, MapPin, Check, Package, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,10 +15,12 @@ const brandColors = ["#E65100", "#1565C0", "#2E7D32", "#6A1B9A", "#C62828", "#00
 const OrderConfigure = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
   const routeState = location.state as { brandId?: string; orderType?: "refill" | "new" } | null;
 
   const { user } = useAuth();
-  const { data: customer } = useCustomerProfile(user?.id);
+  const { data: customer } = useCustomerProfile(user?.id, urlCustomerId ?? undefined);
   const { data: brands } = useBrands();
 
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(routeState?.brandId ?? null);
@@ -75,7 +77,7 @@ const OrderConfigure = () => {
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4">
         <button
-          onClick={() => navigate("/home")}
+          onClick={() => navigate(`/home${location.search}`)}
           className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card shadow-sm"
         >
           <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -292,7 +294,7 @@ const OrderConfigure = () => {
             size="full"
             onClick={() => {
               if (!selectedProduct || !selectedBrand) return;
-              navigate("/order/confirm", {
+              navigate(`/order/confirm${location.search}`, {
                 state: {
                   cylinderType: selectedProduct.display_name,
                   sizeKg: selectedProduct.size_kg,
