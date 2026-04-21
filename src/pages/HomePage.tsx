@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,15 @@ import HomeBannerCarousel from "@/components/HomeBannerCarousel";
 const HomePage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: customer } = useCustomerProfile(user?.id);
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
+  const location = useLocation();
+  const stateCustomer = (location.state as any)?.customer;
+  const { data: fetchedCustomer } = useCustomerProfile(user?.id);
+  const customer =
+    stateCustomer ??
+    fetchedCustomer ??
+    (urlCustomerId ? ({ id: urlCustomerId } as any) : undefined);
   const { data: orders } = useOrders(customer?.id);
   const { data: brands } = useBrands();
   const [orderTab, setOrderTab] = useState<"refill" | "new">("refill");
@@ -61,7 +69,12 @@ const HomePage = () => {
         {/* Active Order Banner */}
         {activeOrder && (
           <button
-            onClick={() => navigate(`/order/tracking/${activeOrder.id}`)}
+            onClick={() =>
+              navigate(
+                `/order/tracking/${activeOrder.id}${urlCustomerId ? `?cid=${urlCustomerId}` : ""}`,
+                { state: { customer } }
+              )
+            }
             className="flex w-full items-center gap-3 rounded-2xl border-2 border-action/30 bg-action-light p-4 text-left animate-pulse-border"
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-action text-white text-xl flex-shrink-0">
@@ -79,7 +92,12 @@ const HomePage = () => {
 
         {/* Big ORDER GAS NOW Hero Button */}
         <button
-          onClick={() => navigate("/order/configure")}
+          onClick={() =>
+            navigate(
+              `/order/configure${urlCustomerId ? `?cid=${urlCustomerId}` : ""}`,
+              { state: { customer } }
+            )
+          }
           className="relative w-full overflow-hidden rounded-3xl gradient-hero p-8 text-left shadow-hero transition-transform active:scale-[0.98]"
         >
           <div className="pointer-events-none absolute inset-0" style={{
@@ -127,9 +145,10 @@ const HomePage = () => {
                 <button
                   key={brand.id}
                   onClick={() =>
-                    navigate("/order/configure", {
-                      state: { brandId: brand.id, orderType: orderTab },
-                    })
+                    navigate(
+                      `/order/configure${urlCustomerId ? `?cid=${urlCustomerId}` : ""}`,
+                      { state: { brandId: brand.id, orderType: orderTab, customer } }
+                    )
                   }
                   className="flex flex-col items-center rounded-2xl border border-border bg-card p-4 shadow-sm transition-all active:scale-95 hover:border-action hover:shadow-md"
                 >
@@ -159,7 +178,11 @@ const HomePage = () => {
         {/* Quick Actions — only My Orders */}
         <div className="grid grid-cols-1 gap-3">
           <button
-            onClick={() => navigate("/orders")}
+            onClick={() =>
+              navigate(`/orders${urlCustomerId ? `?cid=${urlCustomerId}` : ""}`, {
+                state: { customer },
+              })
+            }
             className="flex items-center gap-3 rounded-[20px] border border-border bg-card p-4 shadow-sm text-left transition-all hover:border-action hover:shadow-md"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-bg-warm text-[22px]">
