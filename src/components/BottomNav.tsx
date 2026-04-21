@@ -1,5 +1,5 @@
 import { Home, ClipboardList, Bell, User } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -12,10 +12,17 @@ const tabs = [
 const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
 
   if (location.pathname === "/" || location.pathname.startsWith("/onboarding") || location.pathname.startsWith("/order/")) {
     return null;
   }
+
+  const navigateWithCid = (path: string) => {
+    const search = urlCustomerId ? `?cid=${urlCustomerId}` : "";
+    navigate(`${path}${search}`);
+  };
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-divider bg-card pb-safe">
@@ -25,7 +32,7 @@ const BottomNav = () => {
           return (
             <button
               key={tab.path}
-              onClick={() => navigate(tab.path)}
+              onClick={() => navigateWithCid(tab.path)}
               className={cn(
                 "relative flex flex-col items-center gap-1 px-6 py-1.5 transition-colors",
                 isActive ? "text-action" : "text-muted-foreground"
