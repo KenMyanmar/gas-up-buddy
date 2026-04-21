@@ -1,54 +1,32 @@
 
 
-# Option B — Dev-Only Desktop Sign-In On The Retry Card
+## SOT Alignment: Thread `cid` Through Order Flow
 
-## Goal
+Propagate the `cid` URL param from Home → Configure → Confirm → Success so the customer identity persists without relying on a Supabase auth session (KBZ WebView).
 
-Make the Lovable desktop preview usable for UI development without a phone, by adding a small "Dev sign-in" panel under the retry card. Production builds are unaffected.
+### Changes
 
-## Where it shows
+**1. `src/hooks/useOrders.ts`** — extend `useCustomerProfile` to accept an optional `customerId`. When provided, query `customers.id` directly (works without auth session); otherwise fall back to `auth_user_id` lookup. Query key includes whichever ID is used.
 
-`src/pages/PhoneEntry.tsx`, only when ALL of these are true:
-- `import.meta.env.DEV === true` (Lovable preview / local dev only — never in Published build)
-- `kbz.status === "retry_needed"` (KBZ bridge failed, retry card is rendering)
+**2. `src/pages/OrderConfigure.tsx`**
+- Import `useSearchParams`; read `cid` from URL.
+- Pass `cid` into `useCustomerProfile(user?.id, urlCustomerId)`.
+- Back button: `navigate(\`/home${location.search}\`)`.
+- CONFIRM ORDER: `navigate(\`/order/confirm${location.search}\`, { state: {...} })` — preserves all existing state.
 
-In production (`gas-up-buddy.lovable.app`, `miniapp.anygas.org`) the panel is tree-shaken / runtime-skipped.
+**3. `src/pages/OrderConfirm.tsx`**
+- Import `useSearchParams`; read `cid` from URL.
+- Pass `cid` into `useCustomerProfile(user?.id, urlCustomerId)`.
+- Back button: `navigate(\`/order/configure${location.search}\`)`.
+- All 3 success navigations: prepend `${location.search}` to `/order/success` path; keep state args unchanged.
 
-## What it does
+### Out of Scope
+- No edge function changes.
+- No auth/route guard changes.
+- No DB / RLS changes.
 
-A small card under the existing "We couldn't sign you in" retry card:
-- Phone input (prefilled `+959123456789`)
-- Password input (prefilled `123456`)
-- "Dev sign in" button
-
-On click:
-1. Convert phone via existing `toInternational` from `src/lib/phoneUtils.ts`
-2. Derive the dev email the same way the existing test account uses (per `mem://constraints/auth-phone-blocker`)
-3. Call `supabase.auth.signInWithPassword({ email, password })`
-4. On success → existing `useEffect` in `PhoneEntry.tsx` (lines 19-30) sees `user` populate, fetches customer, navigates to `/welcome`
-5. On error → toast with the error message; no nav
-
-No new routes, no new guards, no changes to KBZ flow.
-
-## Files touched
-
-- `src/pages/PhoneEntry.tsx` — add the dev panel below the retry card, plus the sign-in handler
-
-## Out of scope
-
-- `src/lib/kbzpay-bridge.ts`, `src/hooks/useKbzAutoLogin.ts`, `index.html` — untouched
-- Supabase client, edge functions, DB, RLS, migrations — untouched
-- No change to `AuthContext`, `ProtectedRoute`, `AuthOnlyRoute`
-- No new routes
-- No production-visible UI
-
-## Acceptance criteria
-
-1. In Lovable preview: KBZ auto-login fails as today → retry card appears → a "Dev sign-in" panel appears below it, prefilled. Clicking signs in and navigates to `/welcome`.
-2. In Published build at `gas-up-buddy.lovable.app` and `miniapp.anygas.org`: panel does NOT render. Retry card looks identical to today.
-3. Real-phone KBZ flow unchanged: spinner → `/welcome`, no retry card flash (per the fix already shipped).
-
-## Pre-flight check before coding
-
-Confirm the dev test account exists and the email-derivation pattern in use (per `mem://constraints/auth-phone-blocker`). If the documented creds (`+959123456789` / `123456`) don't sign in, fall back to plain inputs (no prefill) so you can type any seeded account.
+### Acceptance
+- `/order/configure?cid=<uuid>` shows "Delivering to" bar.
+- CONFIRM preserves `cid` → `/order/confirm?cid=<uuid>` renders with customer address.
+- Pay button triggers `create-customer-order` + `kbzpay-create-payment` and opens KBZ cashier.
 
