@@ -1,4 +1,4 @@
-import { useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 interface OrderSuccessState {
@@ -10,10 +10,12 @@ interface OrderSuccessState {
 const OrderSuccess = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
   const state = location.state as OrderSuccessState | null;
 
   if (!state?.orderId) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to={`/home${location.search}`} replace />;
   }
 
   const shortId = state.orderId.slice(0, 8).toUpperCase();
@@ -60,10 +62,10 @@ const OrderSuccess = () => {
         </div>
 
         <div className="flex w-full flex-col gap-3 max-w-xs">
-          <Button variant="action" size="full" onClick={() => navigate(`/order/tracking/${state.orderId}`)}>
+          <Button variant="action" size="full" onClick={() => navigate(`/order/tracking/${state.orderId}${location.search}`)}>
             Track Order
           </Button>
-          <Button variant="outline" size="full" onClick={() => navigate("/home")} className="border-border-strong">
+          <Button variant="outline" size="full" onClick={() => navigate(`/home${location.search}`)} className="border-border-strong">
             Back to Home
           </Button>
         </div>
