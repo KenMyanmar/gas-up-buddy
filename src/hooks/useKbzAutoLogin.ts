@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { isKbzPayRuntime, getAuthCode, openSettings } from "@/lib/kbzpay-bridge";
 
@@ -45,6 +46,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
+  const navigate = useNavigate();
   const running = useRef(false);
   const mounted = useRef(true);
   const acRef = useRef<AbortController | null>(null);
@@ -69,6 +71,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     if (existing) {
       console.log("[KBZ-DIAG] Session already exists — skipping auto-login");
       safeSet(setStatus, "linked" as KbzAutoLoginStatus);
+      navigate("/welcome", { replace: true });
       return;
     }
 
@@ -115,6 +118,15 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
             return;
           }
           console.log("[KBZ-DIAG] setSession SUCCESS, user id:", setData.session?.user?.id);
+
+          // TRIO FORCE: Backend succeeded. Don't wait for state chain.
+          if (res.status === "linked" || res.status === "new_account") {
+            console.log("[KBZ-DIAG] 🚀 FORCE NAVIGATE /welcome — status:", res.status);
+            safeSet(setStatus, res.status);
+            if (res.customer_id) setCustomerId(res.customer_id);
+            navigate("/welcome", { replace: true });
+            return;
+          }
         } catch (e: any) {
           console.error("[KBZ-DIAG] setSession THREW:", e?.message);
           safeSet(setStatus, "retry_needed" as KbzAutoLoginStatus);
@@ -176,7 +188,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     } finally {
       running.current = false;
     }
-  }, []);
+  }, [navigate, safeSet]);
 
   useEffect(() => {
     if (globalRanOnce) {
@@ -185,6 +197,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         if (session && mounted.current) {
           console.log("[KBZ-DIAG] existing session found on remount → linked");
           safeSet(setStatus, "linked" as KbzAutoLoginStatus);
+          navigate("/welcome", { replace: true });
         }
       });
       return;
@@ -234,8 +247,10 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
 
       if (res.status === "new_account" || res.is_new_link) {
         setStatus("new_account");
+        navigate("/welcome", { replace: true });
       } else {
         setStatus("linked");
+        navigate("/welcome", { replace: true });
       }
     } catch (err: any) {
       console.error("KBZ link error:", err);
