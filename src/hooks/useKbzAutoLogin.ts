@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isKbzPayRuntime, getAuthCode, openSettings } from "@/lib/kbzpay-bridge";
 
+// Module-level guard — survives component remounts so auto-login fires only once per session.
+let globalRanOnce = false;
+
 export type KbzAutoLoginStatus =
   | "idle"
   | "authenticating"
@@ -60,6 +63,15 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
 
   const runAutoLogin = useCallback(async () => {
     if (running.current) return;
+
+    // GUARD: if a Supabase session already exists, do NOT re-run KBZ flow.
+    const { data: { session: existing } } = await supabase.auth.getSession();
+    if (existing) {
+      console.log("[KBZ-DIAG] Session already exists — skipping auto-login");
+      safeSet(setStatus, "linked" as KbzAutoLoginStatus);
+      return;
+    }
+
     running.current = true;
     acRef.current?.abort();
     acRef.current = new AbortController();
@@ -153,15 +165,19 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     }
   }, []);
 
-  const ranOnce = useRef(false);
   useEffect(() => {
-    if (ranOnce.current) return;
-    ranOnce.current = true;
-    console.log("[KBZ-DIAG] useKbzAutoLogin mounted");
+    if (globalRanOnce) {
+      console.log("[KBZ-DIAG] globalRanOnce already true — skipping mount run");
+      return;
+    }
+    globalRanOnce = true;
+    console.log("[KBZ-DIAG] useKbzAutoLogin mounted (first run)");
     runAutoLogin();
   }, [runAutoLogin]);
 
   const retry = useCallback(() => {
+    globalRanOnce = false;
+    running.current = false;
     runAutoLogin();
   }, [runAutoLogin]);
 

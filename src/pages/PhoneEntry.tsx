@@ -15,16 +15,12 @@ const PhoneEntry = () => {
 
   const kbz = useKbzAutoLogin();
 
-  // Single navigation effect — handles both returning users and post-link transitions
+  // Navigate only once both auth user and customer profile are loaded — prevents bounce-back loop.
   useEffect(() => {
-    const shouldGo =
-      (user && customer) ||
-      kbz.status === "linked" ||
-      kbz.status === "new_account";
-    if (shouldGo) {
+    if (user && customer) {
       navigate("/welcome", { replace: true });
     }
-  }, [user, customer, kbz.status, navigate]);
+  }, [user, customer, navigate]);
 
   const handleCandidateSelect = async (customerId: string | null) => {
     try {
@@ -40,8 +36,12 @@ const PhoneEntry = () => {
     }
   };
 
-  // KBZ Pay authenticating state
-  if (kbz.status === "idle" || kbz.status === "authenticating") {
+  // KBZ Pay authenticating state — keep spinner visible while customer profile is still loading.
+  if (
+    kbz.status === "idle" ||
+    kbz.status === "authenticating" ||
+    (user && !customer)
+  ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
         <Loader2 className="h-10 w-10 animate-spin text-action mb-4" />
