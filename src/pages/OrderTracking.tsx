@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -71,6 +71,9 @@ const statusSteps = [
 const OrderTracking = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
+  const cidQs = urlCustomerId ? `?cid=${urlCustomerId}` : "";
   const { user } = useAuth();
 
   const [order, setOrder] = useState<OrderData | null>(null);
@@ -133,28 +136,30 @@ const OrderTracking = () => {
 
   // Customer position
   useEffect(() => {
-    if (!user) return;
+    if (!user && !urlCustomerId) return;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setCustomerPos([pos.coords.latitude, pos.coords.longitude]),
         () => {
-          supabase.from("customers").select("gps_lat, gps_lng").eq("auth_user_id", user.id).maybeSingle()
-            .then(({ data }) => {
-              if (data?.gps_lat && data?.gps_lng) setCustomerPos([Number(data.gps_lat), Number(data.gps_lng)]);
-              else setCustomerPos([16.8661, 96.1951]);
-            });
+          let q = supabase.from("customers").select("gps_lat, gps_lng");
+          if (urlCustomerId) q = q.eq("id", urlCustomerId);
+          else if (user?.id) q = q.eq("auth_user_id", user.id);
+          q.maybeSingle().then(({ data }) => {
+            if (data?.gps_lat && data?.gps_lng) setCustomerPos([Number(data.gps_lat), Number(data.gps_lng)]);
+            else setCustomerPos([16.8661, 96.1951]);
+          });
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     }
-  }, [user]);
+  }, [user, urlCustomerId]);
 
   const handleConfirmCancel = useCallback(async () => {
     if (!orderId || !order) return;
     await supabase.from("orders").update({ status: "cancelled" as any }).eq("id", orderId);
     setShowCancelDialog(false);
-    navigate("/orders");
-  }, [orderId, order, navigate]);
+    navigate(`/orders${cidQs}`);
+  }, [orderId, order, navigate, cidQs]);
 
   if (loading) {
     return (
@@ -191,7 +196,7 @@ const OrderTracking = () => {
           <h1 className="font-display text-lg font-extrabold">
             {order.status === "delivered" ? "Order Delivered ✅" : "Order Tracking"}
           </h1>
-          <button onClick={() => navigate("/orders")} className="text-white/80 hover:text-white">
+          <button onClick={() => navigate(`/orders${cidQs}`)} className="text-white/80 hover:text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -336,7 +341,7 @@ const OrderTracking = () => {
       {/* Delivered */}
       {order.status === "delivered" && (
         <div className="mx-5 mt-4">
-          <button onClick={() => navigate("/orders")} className="w-full rounded-[14px] gradient-action py-3.5 text-sm font-extrabold text-white shadow-action">
+          <button onClick={() => navigate(`/orders${cidQs}`)} className="w-full rounded-[14px] gradient-action py-3.5 text-sm font-extrabold text-white shadow-action">
             Back to Orders
           </button>
         </div>
