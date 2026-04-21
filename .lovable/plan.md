@@ -1,25 +1,28 @@
 
 
-## Pass `customerId` to Edge Functions in OrderConfirm
+## Preserve `cid` in BottomNav + OrderSuccess Navigation
 
-Add `customerId: urlCustomerId ?? undefined` to both edge function payloads in `handlePlaceOrder` so the backend can identify the customer without relying on a JWT session (KBZ WebView).
+After payment, navigation from `/order/success?cid=<uuid>` drops the `cid`, causing ProtectedRoute to redirect to PhoneEntry and re-trigger KBZ auto-login. Fix by reading `cid` from URL and re-appending it on every navigation.
 
-### Change
+### Changes
 
-**`src/pages/OrderConfirm.tsx`** — `handlePlaceOrder`:
+**1. `src/components/BottomNav.tsx`**
+- Add `useSearchParams`; read `cid`.
+- Add helper `navigateWithCid(path)` that appends `?cid=<uuid>` when present.
+- Use it for all 4 tab buttons (Home, Orders, Alerts, Profile).
+- Keep existing hide rules and styling unchanged.
 
-1. `create-customer-order` invoke body: append `customerId: urlCustomerId ?? undefined`.
-2. `kbzpay-create-payment` invoke body: change from `{ orderId }` to `{ orderId, customerId: urlCustomerId ?? undefined }`.
-
-`urlCustomerId` is already read from `searchParams` earlier in the component — no new imports or hooks required.
+**2. `src/pages/OrderSuccess.tsx`**
+- Add `useSearchParams`; read `urlCustomerId`.
+- Fallback `<Navigate>` (when no `orderId`): preserve `location.search` on the redirect target.
+- "Track Order" button: `navigate(\`/order/tracking/${state.orderId}${location.search}\`)`.
+- "Back to Home" button: `navigate(\`/home${location.search}\`)`.
 
 ### Out of Scope
-- No other files.
-- No auth/routing/edge function changes.
-- No validation or analytics additions.
+- No edge function, auth, route guard, DB, PhoneEntry, auto-login, or OrderTracking changes.
 
 ### Acceptance
-- `create-customer-order` returns 200 with `customerId` in payload.
-- `kbzpay-create-payment` returns 200 with `prepay_id`.
-- KBZ Pay cashier opens.
+- "Back to Home" → `/home?cid=<uuid>` (no PhoneEntry redirect).
+- BottomNav Home/Orders/Alerts/Profile preserve `cid`.
+- No KBZ auto-login re-trigger after payment.
 
