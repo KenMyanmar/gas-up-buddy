@@ -102,11 +102,24 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       const res = data as any;
 
       if (res.access_token && res.refresh_token) {
-        console.log("[KBZ-DIAG] Setting Supabase session");
-        await supabase.auth.setSession({
-          access_token: res.access_token,
-          refresh_token: res.refresh_token,
-        });
+        console.log("[KBZ-DIAG] setSession START, has access_token:", !!res.access_token);
+        try {
+          const { data: setData, error: setErr } = await supabase.auth.setSession({
+            access_token: res.access_token,
+            refresh_token: res.refresh_token,
+          });
+          if (setErr) {
+            console.error("[KBZ-DIAG] setSession ERROR:", setErr.message);
+            safeSet(setStatus, "retry_needed" as KbzAutoLoginStatus);
+            safeSet(setError, `Session error: ${setErr.message}` as string | null);
+            return;
+          }
+          console.log("[KBZ-DIAG] setSession SUCCESS, user id:", setData.session?.user?.id);
+        } catch (e: any) {
+          console.error("[KBZ-DIAG] setSession THREW:", e?.message);
+          safeSet(setStatus, "retry_needed" as KbzAutoLoginStatus);
+          return;
+        }
       }
 
       if (!mounted.current) {
@@ -167,13 +180,19 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
 
   useEffect(() => {
     if (globalRanOnce) {
-      console.log("[KBZ-DIAG] globalRanOnce already true — skipping mount run");
+      console.log("[KBZ-DIAG] globalRanOnce true — checking existing session");
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session && mounted.current) {
+          console.log("[KBZ-DIAG] existing session found on remount → linked");
+          safeSet(setStatus, "linked" as KbzAutoLoginStatus);
+        }
+      });
       return;
     }
     globalRanOnce = true;
     console.log("[KBZ-DIAG] useKbzAutoLogin mounted (first run)");
     runAutoLogin();
-  }, [runAutoLogin]);
+  }, [runAutoLogin, safeSet]);
 
   const retry = useCallback(() => {
     globalRanOnce = false;
