@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, CheckCircle, MapPin, Trash2, Plus, Phone, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -99,18 +99,28 @@ const TownshipSelect = ({
 const WelcomePage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const urlCustomerId = searchParams.get("cid");
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const customerQ = useQuery({
-    queryKey: ["welcome_customer", user?.id],
-    enabled: !!user?.id,
+    queryKey: ["welcome_customer", urlCustomerId || user?.id],
+    enabled: !!(urlCustomerId || user?.id),
     queryFn: async (): Promise<CustomerRow | null> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("customers")
-        .select("id, full_name, address, township")
-        .eq("auth_user_id", user!.id)
-        .maybeSingle();
+        .select("id, full_name, address, township");
+
+      if (urlCustomerId) {
+        query = query.eq("id", urlCustomerId);
+      } else if (user?.id) {
+        query = query.eq("auth_user_id", user.id);
+      } else {
+        return null;
+      }
+
+      const { data, error } = await query.maybeSingle();
       if (error) throw error;
       return data as CustomerRow | null;
     },
