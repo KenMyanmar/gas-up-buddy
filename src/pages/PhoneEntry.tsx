@@ -15,21 +15,16 @@ const PhoneEntry = () => {
 
   const kbz = useKbzAutoLogin();
 
-  // A3: Returning user redirect — skip auto-login if session is valid
+  // Single navigation effect — handles both returning users and post-link transitions
   useEffect(() => {
-    if (user && customer) {
+    const shouldGo =
+      (user && customer) ||
+      kbz.status === "linked" ||
+      kbz.status === "new_account";
+    if (shouldGo) {
       navigate("/welcome", { replace: true });
     }
-  }, [user, customer, navigate]);
-
-  // Handle KBZ auto-login state transitions
-  useEffect(() => {
-    if (kbz.status === "linked") {
-      navigate("/welcome", { replace: true });
-    } else if (kbz.status === "new_account") {
-      navigate("/welcome", { replace: true });
-    }
-  }, [kbz.status, navigate]);
+  }, [user, customer, kbz.status, navigate]);
 
   const handleCandidateSelect = async (customerId: string | null) => {
     try {
