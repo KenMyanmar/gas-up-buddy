@@ -13,5 +13,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: false,
+    // No-op lock: bypass Navigator LockManager which hangs in KBZ Pay's WebView.
+    // Safe here — the Mini App is single-tab and auth ops are already serialized
+    // by our own guards (running.current + globalRanOnce in useKbzAutoLogin).
+    lock: (_name, _acquireTimeout, fn) => fn(),
   }
 });
