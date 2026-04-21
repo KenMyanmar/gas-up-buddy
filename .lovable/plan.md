@@ -1,28 +1,28 @@
 
 
-## Preserve `cid` in BottomNav + OrderSuccess Navigation
+## Enable Orders + Tracking in KBZ Mini App (cid pattern)
 
-After payment, navigation from `/order/success?cid=<uuid>` drops the `cid`, causing ProtectedRoute to redirect to PhoneEntry and re-trigger KBZ auto-login. Fix by reading `cid` from URL and re-appending it on every navigation.
+`OrdersPage` and `OrderTracking` rely on `user?.id`, which is null in the KBZ WebView (no Supabase session). Thread the `cid` URL param through both pages so customer lookup works without auth.
 
 ### Changes
 
-**1. `src/components/BottomNav.tsx`**
-- Add `useSearchParams`; read `cid`.
-- Add helper `navigateWithCid(path)` that appends `?cid=<uuid>` when present.
-- Use it for all 4 tab buttons (Home, Orders, Alerts, Profile).
-- Keep existing hide rules and styling unchanged.
+**1. `src/pages/OrdersPage.tsx`**
+- Import `useSearchParams`; read `urlCustomerId = searchParams.get("cid")`.
+- `useCustomerProfile(user?.id, urlCustomerId ?? undefined)` — direct customer lookup by id.
+- Order card click → `navigate(\`/order/tracking/${order.id}${cidQs}\`)`.
+- "Place your first order!" button → `/home?cid=<uuid>`.
+- "Reorder" button → `/order/configure?cid=<uuid>`.
 
-**2. `src/pages/OrderSuccess.tsx`**
-- Add `useSearchParams`; read `urlCustomerId`.
-- Fallback `<Navigate>` (when no `orderId`): preserve `location.search` on the redirect target.
-- "Track Order" button: `navigate(\`/order/tracking/${state.orderId}${location.search}\`)`.
-- "Back to Home" button: `navigate(\`/home${location.search}\`)`.
+**2. `src/pages/OrderTracking.tsx`**
+- Import `useSearchParams`; read `urlCustomerId`.
+- Customer GPS fallback `useEffect`: gate on `user || urlCustomerId`; query `customers` by `id` when `urlCustomerId` is present, else `auth_user_id`. Add `urlCustomerId` to deps.
+- Both back/header `navigate("/orders")` calls and `handleConfirmCancel` → `/orders?cid=<uuid>` when present.
 
 ### Out of Scope
-- No edge function, auth, route guard, DB, PhoneEntry, auto-login, or OrderTracking changes.
+- No edge function, DB/RLS, `useOrders` hook, auth/routing, or realtime subscription changes.
 
 ### Acceptance
-- "Back to Home" → `/home?cid=<uuid>` (no PhoneEntry redirect).
-- BottomNav Home/Orders/Alerts/Profile preserve `cid`.
-- No KBZ auto-login re-trigger after payment.
+- `/orders?cid=<uuid>` shows past orders.
+- Tapping active order → `/order/tracking/<id>?cid=<uuid>` loads details.
+- All navigation within these pages preserves `cid`.
 
