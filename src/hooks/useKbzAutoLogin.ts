@@ -70,18 +70,24 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     const { data: { session: existing } } = await supabase.auth.getSession();
     if (existing) {
       console.log("[KBZ-DIAG] Session already exists — skipping auto-login");
-      // Look up customer_id from existing session
-      const { data: existingCustomer } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("auth_user_id", existing.user.id)
-        .maybeSingle();
-      if (existingCustomer?.id) {
-        navigate(`/welcome?cid=${existingCustomer.id}`, { replace: true });
-      } else {
+      safeSet(setStatus, "linked" as KbzAutoLoginStatus);
+      try {
+        const { data: cust } = await supabase
+          .from("customers")
+          .select("id, full_name, address, township, phone")
+          .eq("auth_user_id", existing.user.id)
+          .maybeSingle();
+        if (cust?.id) {
+          navigate(`/welcome?cid=${cust.id}`, {
+            replace: true,
+            state: { customer: cust },
+          });
+        } else {
+          navigate("/welcome", { replace: true });
+        }
+      } catch {
         navigate("/welcome", { replace: true });
       }
-      safeSet(setStatus, "linked" as KbzAutoLoginStatus);
       return;
     }
 
@@ -129,7 +135,10 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         setCustomerId(res.customer_id);
 
         console.log("[KBZ-DIAG] 🚀 FORCE NAVIGATE /welcome?cid=", res.customer_id);
-        navigate(`/welcome?cid=${res.customer_id}`, { replace: true });
+        navigate(`/welcome?cid=${res.customer_id}`, {
+          replace: true,
+          state: { customer: res.customer },
+        });
         return;
       }
 

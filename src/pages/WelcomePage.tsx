@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, CheckCircle, MapPin, Trash2, Plus, Phone, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -101,12 +101,14 @@ const WelcomePage = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const urlCustomerId = searchParams.get("cid");
+  const location = useLocation();
+  const stateCustomer = (location.state as any)?.customer as CustomerRow | undefined;
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const customerQ = useQuery({
     queryKey: ["welcome_customer", urlCustomerId || user?.id],
-    enabled: !!(urlCustomerId || user?.id),
+    enabled: !!(urlCustomerId || user?.id) && !stateCustomer,
     queryFn: async (): Promise<CustomerRow | null> => {
       let query = supabase
         .from("customers")
@@ -126,7 +128,7 @@ const WelcomePage = () => {
     },
   });
 
-  const customer = customerQ.data;
+  const customer = stateCustomer ?? customerQ.data;
 
   const phonesQ = useQuery({
     queryKey: ["welcome_phones", customer?.id],
@@ -196,7 +198,7 @@ const WelcomePage = () => {
   };
 
   // ── Loading & error states ──────────────────────────
-  if (customerQ.isLoading) {
+  if (!stateCustomer && customerQ.isLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
         <Loader2 className="mb-4 h-10 w-10 animate-spin text-action" />
@@ -205,7 +207,7 @@ const WelcomePage = () => {
     );
   }
 
-  if (customerQ.isError || !customer) {
+  if (!stateCustomer && (customerQ.isError || !customer)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
         <p className="mb-4 text-base font-semibold text-foreground">
