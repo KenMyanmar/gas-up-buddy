@@ -70,8 +70,18 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     const { data: { session: existing } } = await supabase.auth.getSession();
     if (existing) {
       console.log("[KBZ-DIAG] Session already exists — skipping auto-login");
+      // Look up customer_id from existing session
+      const { data: existingCustomer } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("auth_user_id", existing.user.id)
+        .maybeSingle();
+      if (existingCustomer?.id) {
+        navigate(`/welcome?cid=${existingCustomer.id}`, { replace: true });
+      } else {
+        navigate("/welcome", { replace: true });
+      }
       safeSet(setStatus, "linked" as KbzAutoLoginStatus);
-      navigate("/welcome", { replace: true });
       return;
     }
 
@@ -104,34 +114,23 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       if (fnErr) throw fnErr;
       const res = data as any;
 
-      if (res.access_token && res.refresh_token) {
-        console.log("[KBZ-DIAG] setSession START, has access_token:", !!res.access_token);
-        try {
-          const { data: setData, error: setErr } = await supabase.auth.setSession({
+      if ((res.status === "linked" || res.status === "new_account") && res.customer_id) {
+        console.log("[KBZ-DIAG] 🚀 Backend identified customer:", res.customer_id);
+
+        // Fire setSession async — don't block on it
+        if (res.access_token && res.refresh_token) {
+          supabase.auth.setSession({
             access_token: res.access_token,
             refresh_token: res.refresh_token,
-          });
-          if (setErr) {
-            console.error("[KBZ-DIAG] setSession ERROR:", setErr.message);
-            safeSet(setStatus, "retry_needed" as KbzAutoLoginStatus);
-            safeSet(setError, `Session error: ${setErr.message}` as string | null);
-            return;
-          }
-          console.log("[KBZ-DIAG] setSession SUCCESS, user id:", setData.session?.user?.id);
-
-          // TRIO FORCE: Backend succeeded. Don't wait for state chain.
-          if (res.status === "linked" || res.status === "new_account") {
-            console.log("[KBZ-DIAG] 🚀 FORCE NAVIGATE /welcome — status:", res.status);
-            safeSet(setStatus, res.status);
-            if (res.customer_id) setCustomerId(res.customer_id);
-            navigate("/welcome", { replace: true });
-            return;
-          }
-        } catch (e: any) {
-          console.error("[KBZ-DIAG] setSession THREW:", e?.message);
-          safeSet(setStatus, "retry_needed" as KbzAutoLoginStatus);
-          return;
+          }).catch((e) => console.warn("[KBZ-DIAG] setSession async err:", e?.message));
         }
+
+        safeSet(setStatus, res.status);
+        setCustomerId(res.customer_id);
+
+        console.log("[KBZ-DIAG] 🚀 FORCE NAVIGATE /welcome?cid=", res.customer_id);
+        navigate(`/welcome?cid=${res.customer_id}`, { replace: true });
+        return;
       }
 
       if (!mounted.current) {
