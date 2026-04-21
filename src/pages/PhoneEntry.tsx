@@ -10,17 +10,24 @@ import { useToast } from "@/hooks/use-toast";
 const PhoneEntry = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: customer } = useCustomerProfile(user?.id);
+  const { data: customer, isFetched: customerFetched } = useCustomerProfile(user?.id);
   const { toast } = useToast();
 
   const kbz = useKbzAutoLogin();
 
-  // Navigate only once both auth user and customer profile are loaded — prevents bounce-back loop.
+  // Navigate as soon as auth user is present and customer query has settled (loaded or empty).
   useEffect(() => {
-    if (user && customer) {
+    if (!user) return;
+    if (customer) {
+      console.log("[KBZ-DIAG] navigate /welcome (user + customer)");
+      navigate("/welcome", { replace: true });
+      return;
+    }
+    if (customerFetched && !customer) {
+      console.log("[KBZ-DIAG] navigate /welcome (user, no customer row)");
       navigate("/welcome", { replace: true });
     }
-  }, [user, customer, navigate]);
+  }, [user, customer, customerFetched, navigate]);
 
   const handleCandidateSelect = async (customerId: string | null) => {
     try {
@@ -40,7 +47,7 @@ const PhoneEntry = () => {
   if (
     kbz.status === "idle" ||
     kbz.status === "authenticating" ||
-    (user && !customer)
+    (user && !customerFetched)
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
