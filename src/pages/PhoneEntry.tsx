@@ -244,6 +244,7 @@ const PhoneEntry = () => {
           </a>
         </p>
       </div>
+      {import.meta.env.DEV && <DevSignInPanel />}
     </div>
   );
 };
