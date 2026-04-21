@@ -47,7 +47,7 @@ export function getAuthCode(): Promise<string> {
       reject(new Error("getAuthCode timed out"));
     }, 60_000);
     ma.getAuthCode({
-      scopes: ["auth_base"],
+      scopes: ["AUTH_BASE"],
       success: (res: { authCode?: string }) => {
         clearTimeout(timer);
         console.log("[KBZ-DIAG] getAuthCode SUCCESS:", JSON.stringify(res));
