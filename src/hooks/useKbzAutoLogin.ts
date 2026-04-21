@@ -123,12 +123,17 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       if ((res.status === "linked" || res.status === "new_account") && res.customer_id) {
         console.log("[KBZ-DIAG] 🚀 Backend identified customer:", res.customer_id);
 
-        // Fire setSession async — don't block on it
+        // Await setSession before navigating so RLS-dependent queries on the next page don't race
         if (res.access_token && res.refresh_token) {
-          supabase.auth.setSession({
-            access_token: res.access_token,
-            refresh_token: res.refresh_token,
-          }).catch((e) => console.warn("[KBZ-DIAG] setSession async err:", e?.message));
+          try {
+            await supabase.auth.setSession({
+              access_token: res.access_token,
+              refresh_token: res.refresh_token,
+            });
+            console.log("[AUTO-LOGIN] Session set successfully");
+          } catch (err: any) {
+            console.warn("[AUTO-LOGIN] Session set failed, falling back to cid:", err?.message);
+          }
         }
 
         safeSet(setStatus, res.status);
