@@ -17,50 +17,27 @@ export const useBrandProducts = (brandId: string | null) => {
     queryKey: ['brand_products', brandId],
     queryFn: async () => {
       if (!brandId) return [];
-      const { data, error } = await supabase
-        .from('brand_products')
-        .select(`
-          id,
-          cylinder_type_id,
-          display_name,
-          sort_order,
-          cylinder_types!inner (
-            size_kg,
-            image_url,
-            cylinder_price
-          ),
-          brands!inner (
-            id
-          )
-        `)
-        .eq('brand_id', brandId)
-        .eq('product_kind', 'cylinder')
-        .eq('is_active', true)
-        .eq('is_orderable', true)
-        .order('sort_order');
-      if (error) throw error;
 
-      // Fetch current gas price for this brand
-      const { data: priceData } = await supabase
-        .from('gas_prices')
-        .select('price_per_kg')
-        .eq('brand_id', brandId)
-        .is('effective_to', null)
-        .limit(1)
-        .maybeSingle();
+      // SOT: Use edge function which reads directly from Supabase.
+      // Works even when frontend session is lost in WebView.
+      const { data, error } = await supabase.functions.invoke(
+        'catalog-list',
+        {
+          body: { brand_id: brandId },
+        }
+      );
 
-      const pricePerKg = priceData?.price_per_kg ?? null;
+      if (error) {
+        console.error('catalog-list error:', error);
+        throw error;
+      }
 
-      return (data ?? []).map((row: any) => ({
-        brand_product_id: row.id,
-        cylinder_type_id: row.cylinder_type_id,
-        size_kg: row.cylinder_types.size_kg,
-        display_name: row.display_name,
-        image_url: row.cylinder_types.image_url,
-        sort_order: row.sort_order,
-        price_per_kg: pricePerKg,
-        cylinder_price: row.cylinder_types.cylinder_price,
-      }));
+      if (!data?.success || !data?.catalog?.length) {
+        return [];
+      }
+
+      // Edge function returns catalog[0].products already shaped
+      return data.catalog[0].products as BrandProduct[];
     },
     enabled: !!brandId,
   });
