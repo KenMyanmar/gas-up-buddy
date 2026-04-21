@@ -5,18 +5,62 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://rtbkhrenswgzhuzltpgd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0YmtocmVuc3dnemh1emx0cGdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2MDQ5MzUsImV4cCI6MjA4MzE4MDkzNX0.LCiLmrWtv-i1Ko8I4QXjbOYTRXrF8aqK_EATqfcXQmk";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// Custom Storage Adapter for KBZ Pay WebView
+// KBZ WebView restricts localStorage, causing setSession to silently fail.
+// This adapter provides fallback chain: localStorage → sessionStorage → memory.
+const memoryStorage = new Map<string, string>();
+
+const hybridStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const v = window.localStorage.getItem(key);
+        if (v !== null) return v;
+      }
+    } catch { /* localStorage blocked */ }
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        const v = window.sessionStorage.getItem(key);
+        if (v !== null) return v;
+      }
+    } catch { /* sessionStorage blocked */ }
+    return memoryStorage.get(key) ?? null;
+  },
+  setItem: (key: string, value: string): void => {
+    // Memory always works — write first
+    memoryStorage.set(key, value);
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+    } catch { /* localStorage blocked, memory fallback holds */ }
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        window.sessionStorage.setItem(key, value);
+      }
+    } catch { /* sessionStorage blocked */ }
+  },
+  removeItem: (key: string): void => {
+    memoryStorage.delete(key);
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    } catch {}
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        window.sessionStorage.removeItem(key);
+      }
+    } catch {}
+  },
+};
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: hybridStorage,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
-    // No-op lock: bypass Navigator LockManager which hangs in KBZ Pay's WebView.
-    // Safe here — the Mini App is single-tab and auth ops are already serialized
-    // by our own guards (running.current + globalRanOnce in useKbzAutoLogin).
     lock: (_name, _acquireTimeout, fn) => fn(),
   }
 });
