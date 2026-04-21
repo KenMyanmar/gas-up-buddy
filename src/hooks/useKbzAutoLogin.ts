@@ -97,6 +97,10 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         });
       }
 
+      if (!mounted.current) {
+        console.log("[KBZ-DIAG] Unmounted before applying response — skipping state updates");
+        return;
+      }
       if (res.temporary_token) setTemporaryToken(res.temporary_token);
       if (res.candidates) setCandidates(res.candidates);
       if (res.customer_id) setCustomerId(res.customer_id);
@@ -105,6 +109,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       console.log("[KBZ-DIAG] Final status:", finalStatus);
       setStatus(finalStatus);
     } catch (err: any) {
+      if (!mounted.current) return;
       // Detect user rejection of consent popup
       const raw = err?.__raw ?? err;
       const msg = (raw?.errorMessage || raw?.message || err?.message || "").toString().toLowerCase();
