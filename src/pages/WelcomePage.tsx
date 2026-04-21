@@ -174,22 +174,35 @@ const WelcomePage = () => {
     if (!customer || !formValid) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("customers")
-        .update({
+      const { data, error } = await supabase.functions.invoke("customer-update", {
+        body: {
+          customer_id: customer.id,
           full_name: name.trim(),
           address: address.trim(),
           township: township.trim(),
-        })
-        .eq("id", customer.id);
+        },
+      });
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Update failed");
+
       qc.invalidateQueries({ queryKey: ["welcome_customer"] });
       qc.invalidateQueries({ queryKey: ["customer_profile"] });
-      navigate("/home", { replace: true });
-    } catch {
+
+      navigate(`/home?cid=${customer.id}`, {
+        replace: true,
+        state: {
+          customer: {
+            ...customer,
+            full_name: name.trim(),
+            address: address.trim(),
+            township: township.trim(),
+          },
+        },
+      });
+    } catch (err: any) {
       toast({
         title: "Could not save your details",
-        description: "Please try again.",
+        description: err?.message || "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -259,7 +272,12 @@ const WelcomePage = () => {
             variant="action"
             size="full"
             className="gap-2"
-            onClick={() => navigate("/home", { replace: true })}
+            onClick={() =>
+              navigate(`/home?cid=${customer.id}`, {
+                replace: true,
+                state: { customer },
+              })
+            }
           >
             <CheckCircle className="h-5 w-5" />
             Yes, this is correct
