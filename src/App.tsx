@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
@@ -30,19 +30,23 @@ const queryClient = new QueryClient();
 // Route guard: checks auth + linked customer profile
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const cid = searchParams.get("cid");
   const { data: customer, isLoading: customerLoading } = useCustomerProfile(user?.id);
 
   if (loading || customerLoading) return null;
-  if (!user) return <Navigate to="/" replace />;
-  if (!customer) return <Navigate to="/onboarding/link-new" replace />;
+  if (!user && !cid) return <Navigate to="/" replace />;
+  if (user && !customer) return <Navigate to="/onboarding/link-new" replace />;
   return <>{children}</>;
 };
 
 // Route guard: auth only (no customer-linked check) — for onboarding linking pages
 const AuthOnlyRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const cid = searchParams.get("cid");
   if (loading) return null;
-  if (!user) return <Navigate to="/" replace />;
+  if (!user && !cid) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
