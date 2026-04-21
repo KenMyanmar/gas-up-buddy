@@ -197,6 +197,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         if (session && mounted.current) {
           console.log("[KBZ-DIAG] existing session found on remount → linked");
           safeSet(setStatus, "linked" as KbzAutoLoginStatus);
+          navigate("/welcome", { replace: true });
         }
       });
       return;
@@ -246,8 +247,10 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
 
       if (res.status === "new_account" || res.is_new_link) {
         setStatus("new_account");
+        navigate("/welcome", { replace: true });
       } else {
         setStatus("linked");
+        navigate("/welcome", { replace: true });
       }
     } catch (err: any) {
       console.error("KBZ link error:", err);
