@@ -35,19 +35,28 @@ export const useOrders = (customerId: string | undefined) => {
   });
 };
 
-export const useCustomerProfile = (authUserId: string | undefined) => {
+export const useCustomerProfile = (
+  authUserId: string | undefined,
+  customerId?: string | undefined
+) => {
   return useQuery({
-    queryKey: ['customer_profile', authUserId],
+    queryKey: ['customer_profile', customerId ?? authUserId],
     queryFn: async () => {
-      if (!authUserId) return null;
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('auth_user_id', authUserId)
-        .maybeSingle();
+      if (!authUserId && !customerId) return null;
+
+      let query = supabase.from('customers').select('*');
+
+      // Prefer customer_id (direct lookup, works without auth session)
+      if (customerId) {
+        query = query.eq('id', customerId);
+      } else if (authUserId) {
+        query = query.eq('auth_user_id', authUserId);
+      }
+
+      const { data, error } = await query.maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!authUserId,
+    enabled: !!(authUserId || customerId),
   });
 };
