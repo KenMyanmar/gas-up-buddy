@@ -1,65 +1,58 @@
 
 
-# Disable Navigator LockManager in Supabase Client (KBZ WebView Fix)
+# Fix Spinner Gap During `linked`/`new_account` → Auth State Hand-off
 
-## Root cause
+## Root cause (matches advisor's diagnosis)
 
-KBZ Pay's WebView doesn't fully support the Navigator LockManager API that `@supabase/gotrue-js` uses by default to serialize auth operations. When `setSession` is called inside the WebView, the lock acquisition hangs/throws → session never persists → frontend never receives the `SIGNED_IN` event → `user` stays null → spinner forever.
+Backend logs prove `kbzpay-auto-login` returns 200 with a session token. `setSession` succeeds. But there is a ~100ms window where:
 
-Backend is perfect (v25). Frontend loop is fixed. The session token from the edge function reaches `supabase.auth.setSession()` and dies inside the lock.
+- `kbz.status === "linked"` (or `"new_account"`) — set synchronously after `setSession` resolves
+- `user === null` — `onAuthStateChange` hasn't fired yet
+- `customerFetched === false`
 
-## File to edit
+Current spinner condition in `src/pages/PhoneEntry.tsx` (lines 47-51) only covers `idle`, `authenticating`, and `(user && !customerFetched)`. None match this window → component falls through all branches to the **Retry Card** ("We couldn't sign you in"). User sees failure even though auth succeeded.
 
-`src/integrations/supabase/client.ts`
+## Change — single file, single condition
 
-## Change
+**File:** `src/pages/PhoneEntry.tsx`, lines 47-51.
 
-Add a no-op `lock` to the `auth` config. Keep existing `storage`, `persistSession`, `autoRefreshToken`. Add `detectSessionInUrl: false` (Mini App never uses URL-based auth callbacks; HashRouter would confuse the detector).
-
+Replace:
 ```ts
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from './types';
-
-const SUPABASE_URL = "https://rtbkhrenswgzhuzltpgd.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGci...QmsK"; // unchanged
-
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: false,
-    // No-op lock: bypass Navigator LockManager which hangs in KBZ WebView.
-    // Safe here because the Mini App is single-tab and we never run parallel auth ops.
-    lock: (_name, _acquireTimeout, fn) => fn(),
-  },
-});
+if (
+  kbz.status === "idle" ||
+  kbz.status === "authenticating" ||
+  (user && !customerFetched)
+) {
 ```
 
-## Why this is safe
+With:
+```ts
+if (
+  kbz.status === "idle" ||
+  kbz.status === "authenticating" ||
+  kbz.status === "linked" ||
+  kbz.status === "new_account" ||
+  (user && !customerFetched)
+) {
+```
 
-- Navigator locks exist to prevent two tabs from racing on token refresh. The Mini App is a single WebView — no concurrent tabs.
-- `setSession`, `getSession`, and `refreshSession` are already serialized by our own `running.current` ref + `globalRanOnce` guard.
-- Desktop browsers will still work — the no-op lock is just synchronous.
+Spinner stays visible during the auth-state hand-off. The existing `useEffect` (lines 19-30) navigates to `/welcome` as soon as `user` populates and the customer query settles.
 
 ## Out of scope
-- Edge functions (perfect at v25)
-- `useKbzAutoLogin` (already correct — diagnostics will now actually log SUCCESS)
-- `PhoneEntry.tsx` (navigation gate already correct)
-- `WelcomePage` route guard
+- `index.html`, `kbzpay-bridge.ts`, `useKbzAutoLogin.ts` — already correct
+- Supabase client (lock override already applied)
+- Edge functions (v26 working)
 - DB / RLS / migrations
+- No `waitForMa` — `window.ma` is working (5 successful POSTs today prove it)
 
 ## Acceptance criteria
-1. `[KBZ-DIAG] setSession SUCCESS, user id: …` appears in console (previously hung silently).
-2. `onAuthStateChange` fires `SIGNED_IN` within ~200ms of `setSession`.
-3. `useAuth()` returns `user` populated → `PhoneEntry` navigates to `/welcome`.
-4. No `Acquiring an exclusive Navigator LockManager lock` error in DevTools.
-5. Existing customer (`79e0bf1e…`) lands on `/welcome` and stays.
+1. Inside real KBZ Pay app: spinner shows continuously from auto-login start until `/welcome` navigation. No Retry Card flash.
+2. Console still shows `[KBZ-DIAG] setSession SUCCESS` followed by `[KBZ-DIAG] navigate /welcome (user + customer)` (or `(user, no customer row)`).
+3. Existing `link_pending`, `linked_select`, `authorization_rejected`, and true-failure retry paths unchanged.
 
 ## Post-deploy checklist
-1. **Publish → Update** in Lovable. Wait 60s.
-2. Hard-refresh `miniapp.anygas.org` on desktop with DevTools Console open. Confirm no LockManager error and full `[KBZ-DIAG]` chain completes.
-3. Open in real KBZ Mini App → 1 POST → land on `/welcome`.
-4. Re-toggle `verify_jwt = false` on `kbzpay-create-payment` (Lovable resets this).
-5. Full order flow end-to-end.
+1. Publish → Update. Wait 60s.
+2. Open AnyGas via KBZ Pay → Mini Apps on phone.
+3. Confirm `/welcome` lands without seeing the Retry Card.
+4. Re-toggle `verify_jwt = false` on `kbzpay-create-payment` (Lovable resets on deploy).
 
