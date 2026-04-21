@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { isKbzPayRuntime, getAuthCode } from "@/lib/kbzpay-bridge";
+import { isKbzPayRuntime, getAuthCode, openSettings } from "@/lib/kbzpay-bridge";
 
 export type KbzAutoLoginStatus =
   | "idle"
@@ -10,6 +10,7 @@ export type KbzAutoLoginStatus =
   | "link_pending"
   | "new_account"
   | "retry_needed"
+  | "authorization_rejected"
   | "error";
 
 export interface KbzCandidate {
@@ -31,6 +32,7 @@ interface KbzAutoLoginResult {
   selectCandidate: (customerId: string | null) => Promise<void>;
   selecting: boolean;
   retry: () => void;
+  handleOpenSettings: () => Promise<void>;
 }
 
 export function useKbzAutoLogin(): KbzAutoLoginResult {
@@ -57,6 +59,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       const authCode = await getAuthCode().catch((e) => {
         throw Object.assign(new Error(e?.message || "getAuthCode failed"), {
           __bridgeFailure: true,
+          __raw: e,
         });
       });
 
@@ -86,7 +89,21 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       console.log("[KBZ-DIAG] Final status:", finalStatus);
       setStatus(finalStatus);
     } catch (err: any) {
-      if (err?.__bridgeFailure || !isKbzPayRuntime()) {
+      // Detect user rejection of consent popup
+      const raw = err?.__raw ?? err;
+      const msg = (raw?.errorMessage || raw?.message || err?.message || "").toString().toLowerCase();
+      const isRejection =
+        msg.includes("reject") ||
+        msg.includes("deny") ||
+        msg.includes("denied") ||
+        msg.includes("cancel") ||
+        raw?.error === 11 ||
+        raw?.error === "USER_DENIED" ||
+        raw?.resultCode === 2;
+      if (isRejection) {
+        console.warn("[KBZ-DIAG] User rejected authorization:", JSON.stringify(raw));
+        setStatus("authorization_rejected");
+      } else if (err?.__bridgeFailure || !isKbzPayRuntime()) {
         console.log("[KBZ-DIAG] Bridge failure → retry_needed:", err?.message);
         // Diagnostic-only fallback: try getOpenUserInfo to learn more about the bridge
         try {
@@ -127,6 +144,15 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     runAutoLogin();
   }, [runAutoLogin]);
 
+  const handleOpenSettings = useCallback(async () => {
+    try {
+      await openSettings();
+    } catch (e: any) {
+      console.warn("[KBZ-DIAG] openSettings error:", e?.message);
+    }
+    runAutoLogin();
+  }, [runAutoLogin]);
+
   const selectCandidate = async (selectedCustomerId: string | null) => {
     if (!temporaryToken) return;
     setSelecting(true);
@@ -164,5 +190,5 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     }
   };
 
-  return { status, candidates, temporaryToken, customerId, error, selectCandidate, selecting, retry };
+  return { status, candidates, temporaryToken, customerId, error, selectCandidate, selecting, retry, handleOpenSettings };
 }

@@ -47,7 +47,7 @@ export function getAuthCode(): Promise<string> {
       reject(new Error("getAuthCode timed out"));
     }, 60_000);
     ma.getAuthCode({
-      scopes: ["USER_NICKNAME", "PLAINTEXT_MOBILE_PHONE"],
+      scopes: ["AUTH_BASE", "PLAINTEXT_MOBILE_PHONE", "USER_NICKNAME"],
       success: (res: { authCode?: string }) => {
         clearTimeout(timer);
         console.log("[KBZ-DIAG] getAuthCode SUCCESS:", JSON.stringify(res));
@@ -60,6 +60,30 @@ export function getAuthCode(): Promise<string> {
         reject(new Error(err?.errorMessage || "getAuthCode failed"));
       },
     });
+  });
+}
+
+// ── JSSDK: openSetting ───────────────────────────────────────────
+// Opens KBZ Mini App settings so user can toggle scope authorizations.
+export function openSettings(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const ma = (window as any).ma;
+    if (!ma?.callNativeAPI) {
+      reject(new Error("KBZ bridge not available"));
+      return;
+    }
+    try {
+      ma.callNativeAPI("openSetting", {}, (res: any) => {
+        console.log("[KBZ-DIAG] openSetting result:", JSON.stringify(res));
+        resolve();
+      }, (err: any) => {
+        console.log("[KBZ-DIAG] openSetting fail:", JSON.stringify(err));
+        resolve();
+      });
+    } catch (e: any) {
+      console.log("[KBZ-DIAG] openSetting threw:", e?.message);
+      resolve();
+    }
   });
 }
 

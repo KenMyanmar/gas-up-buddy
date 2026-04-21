@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check, MapPin, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, Check, MapPin, CheckCircle, AlertCircle, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import { useKbzAutoLogin, type KbzCandidate } from "@/hooks/useKbzAutoLogin";
@@ -165,6 +165,42 @@ const PhoneEntry = () => {
               Your phone is already linked to one of the accounts above
             </p>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Authorization rejected — user tapped Reject on KBZ consent popup
+  if (kbz.status === "authorization_rejected") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-10">
+        <div className="w-full max-w-sm rounded-[20px] border-2 border-border bg-card p-6 text-center">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-action/10">
+            <ShieldCheck className="h-8 w-8 text-action" />
+          </div>
+          <h1 className="font-display text-[20px] font-extrabold text-foreground mb-2">
+            We need your phone number to sign you in
+          </h1>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+            Please allow AnyGas to access your phone number when KBZ Pay asks for permission.
+          </p>
+          <Button
+            variant="action"
+            size="full"
+            onClick={() => kbz.handleOpenSettings()}
+            className="text-[16px]"
+          >
+            Allow Access
+          </Button>
+          <p className="mt-5 text-xs text-muted-foreground">
+            Need help?{" "}
+            <a
+              href="tel:8484"
+              className="font-semibold text-foreground underline-offset-2 hover:underline"
+            >
+              Call 8484
+            </a>
+          </p>
         </div>
       </div>
     );
