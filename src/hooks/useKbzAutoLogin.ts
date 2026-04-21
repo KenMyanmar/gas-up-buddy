@@ -43,12 +43,28 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
   const [error, setError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const running = useRef(false);
+  const mounted = useRef(true);
+  const acRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      acRef.current?.abort();
+    };
+  }, []);
+
+  const safeSet = useCallback(<T,>(setter: (v: T) => void, v: T) => {
+    if (mounted.current) setter(v);
+  }, []);
 
   const runAutoLogin = useCallback(async () => {
     if (running.current) return;
     running.current = true;
-    setStatus("authenticating");
-    setError(null);
+    acRef.current?.abort();
+    acRef.current = new AbortController();
+    safeSet(setStatus, "authenticating" as KbzAutoLoginStatus);
+    safeSet(setError, null as string | null);
     const ma = (typeof window !== "undefined" ? (window as any).ma : undefined);
     console.log("[KBZ-DIAG] window.ma type:", typeof ma);
     console.log("[KBZ-DIAG] ma.getAuthCode type:", typeof ma?.getAuthCode);
