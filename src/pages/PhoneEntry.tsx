@@ -47,6 +47,8 @@ const PhoneEntry = () => {
   if (
     kbz.status === "idle" ||
     kbz.status === "authenticating" ||
+    kbz.status === "linked" ||
+    kbz.status === "new_account" ||
     (user && !customerFetched)
   ) {
     return (
