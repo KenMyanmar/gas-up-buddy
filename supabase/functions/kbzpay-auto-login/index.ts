@@ -97,9 +97,13 @@ async function mintSession(
   });
   if (error || !data.session) throw new Error(`Session minting failed: ${error?.message || "no session"}`);
 
-  // 3. Rotate password to prevent reuse
-  await supabaseAdmin.auth.admin.updateUserById(authUserId, { password: crypto.randomUUID() });
-
+  // NOTE: Post-signIn password rotation removed (Option A).
+  // Rotating here invalidated the just-minted refresh token on the real
+  // KBZ Pay iPhone WebView, causing supabase.auth.setSession to emit
+  // SIGNED_OUT with "Auth session missing!". The temp password set above
+  // remains as opaque server-only material; it is never returned to the
+  // client and is overwritten by the next mintSession call. No user-facing
+  // password exists. Long-term: replaced by KBZ-native identity (Option B).
   return {
     access_token: data.session.access_token,
     refresh_token: data.session.refresh_token,
