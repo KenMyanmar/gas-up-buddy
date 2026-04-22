@@ -14,3 +14,6 @@ verify_jwt = true
 
 [functions.kbzpay-webhook]
 verify_jwt = false
+
+[functions.client-diag]
+verify_jwt = false

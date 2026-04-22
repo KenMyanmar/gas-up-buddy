@@ -9,6 +9,59 @@
     <link rel="icon" href="/app-icon.jpg" type="image/jpeg" />
     <!-- KBZ Pay Mini App JSSDK -->
     <script src="./js-sdk.min.js"></script>
+    <!-- PERF-DIAG: boot timeline instrumentation (removable in one shot) -->
+    <script>
+      (function () {
+        window.__perfT0 = performance.now();
+        window.__perfSession = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random();
+        window.__perfBuffer = [];
+        var TERMINAL = { "kbz-edgefn-invoke-end": 1, "kbz-navigate-welcome": 1, "welcome-customer-fetch-end": 1, "kbz-flow-error": 1, "ma-ready-timeout": 1 };
+        var DIAG_URL = "https://rtbkhrenswgzhuzltpgd.supabase.co/functions/v1/client-diag";
+        function flush() {
+          if (!window.__perfBuffer.length) return;
+          var payload = {
+            sessionId: window.__perfSession,
+            userAgent: navigator.userAgent,
+            url: location.href,
+            events: window.__perfBuffer.slice(),
+          };
+          try {
+            fetch(DIAG_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+              keepalive: true,
+            }).catch(function () {});
+          } catch (e) {}
+          window.__perfBuffer = [];
+        }
+        window.__perfFlush = flush;
+        window.__perf = function (label, extra) {
+          var t = Math.round(performance.now() - window.__perfT0);
+          try { console.log("[PERF]", label, t + "ms", extra || ""); } catch (e) {}
+          window.__perfBuffer.push({ label: label, t: t, extra: extra || null });
+          if (TERMINAL[label]) flush();
+        };
+        window.__perf("html-parsed");
+        window.__perf("jssdk-present", { ma: typeof window.ma, getAuthCode: typeof (window.ma && window.ma.getAuthCode) });
+        // ma-ready poll (every 50ms, hard stop 10s)
+        var maStart = performance.now();
+        var maTimer = setInterval(function () {
+          var ma = window.ma;
+          if (ma && typeof ma.getAuthCode === "function") {
+            window.__perf("ma-ready", { wait: Math.round(performance.now() - maStart) });
+            clearInterval(maTimer);
+          } else if (performance.now() - maStart > 10000) {
+            window.__perf("ma-ready-timeout", { ma: typeof ma });
+            clearInterval(maTimer);
+          }
+        }, 50);
+        window.addEventListener("DOMContentLoaded", function () { window.__perf("dom-content-loaded"); });
+        window.addEventListener("load", function () { window.__perf("window-load"); });
+        window.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flush(); });
+        window.addEventListener("pagehide", flush);
+      })();
+    </script>
 
     <meta property="og:title" content="AnyGas 8484 — Gas Delivery Myanmar">
     <meta property="og:description" content="Order LPG gas delivery in Myanmar — AnyGas 8484. Fast, reliable, and affordable.">
