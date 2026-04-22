@@ -18,6 +18,14 @@ const PhoneEntry = () => {
 
   const kbz = useKbzAutoLogin();
 
+  // PERF-DIAG
+  useEffect(() => {
+    (window as any).__perf?.("phone-entry-first-mount");
+  }, []);
+  useEffect(() => {
+    (window as any).__perf?.("phone-entry-status", { status: kbz.status });
+  }, [kbz.status]);
+
   // Navigate as soon as auth user is present and customer query has settled (loaded or empty).
   useEffect(() => {
     if (!user) return;

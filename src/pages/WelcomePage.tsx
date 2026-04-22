@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, CheckCircle, MapPin, Trash2, Plus, Phone, Check, ChevronsUpDown } from "lucide-react";
@@ -110,6 +110,7 @@ const WelcomePage = () => {
     queryKey: ["welcome_customer", urlCustomerId || user?.id],
     enabled: !!(urlCustomerId || user?.id) && !stateCustomer,
     queryFn: async (): Promise<CustomerRow | null> => {
+      (window as any).__perf?.("welcome-customer-fetch-start", { byCid: !!urlCustomerId });
       let query = supabase
         .from("customers")
         .select("id, full_name, address, township");
@@ -119,16 +120,30 @@ const WelcomePage = () => {
       } else if (user?.id) {
         query = query.eq("auth_user_id", user.id);
       } else {
+        (window as any).__perf?.("welcome-customer-fetch-end", { ok: false, reason: "no-id" });
         return null;
       }
 
       const { data, error } = await query.maybeSingle();
-      if (error) throw error;
+      if (error) {
+        (window as any).__perf?.("welcome-customer-fetch-end", { ok: false, error: error.message });
+        throw error;
+      }
+      (window as any).__perf?.("welcome-customer-fetch-end", { ok: true, found: !!data });
       return data as CustomerRow | null;
     },
   });
 
   const customer = stateCustomer ?? customerQ.data;
+
+  // PERF-DIAG
+  useEffect(() => {
+    (window as any).__perf?.("welcome-mount", { hasStateCustomer: !!stateCustomer });
+    if (stateCustomer) {
+      (window as any).__perf?.("welcome-customer-fetch-end", { ok: true, source: "state" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const phonesQ = useQuery({
     queryKey: ["welcome_phones", customer?.id],

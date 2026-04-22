@@ -24,6 +24,7 @@ import AlertsPage from "./pages/AlertsPage";
 import NotFound from "./pages/NotFound";
 import KbzProfileComplete from "./pages/KbzProfileComplete";
 import WelcomePage from "./pages/WelcomePage";
+import { useRef } from "react";
 
 const queryClient = new QueryClient();
 
@@ -81,7 +82,14 @@ const AppRoutes = () => (
   </div>
 );
 
-const App = () => (
+const App = () => {
+  // PERF-DIAG
+  const loggedRef = useRef(false);
+  if (!loggedRef.current) {
+    loggedRef.current = true;
+    (window as any).__perf?.("app-component-render");
+  }
+  return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -93,6 +101,7 @@ const App = () => (
       </HashRouter>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

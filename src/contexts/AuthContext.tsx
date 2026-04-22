@@ -19,13 +19,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Set up auth state listener BEFORE getSession
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      (window as any).__perf?.("auth-onAuthStateChange", { event: _event, hasSession: !!session });
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
     // Then check current session
+    (window as any).__perf?.("auth-getSession-start");
     supabase.auth.getSession().then(({ data: { session } }) => {
+      (window as any).__perf?.("auth-getSession-end", { hasSession: !!session });
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
