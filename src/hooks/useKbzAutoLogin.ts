@@ -67,7 +67,9 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     if (running.current) return;
 
     // GUARD: if a Supabase session already exists, do NOT re-run KBZ flow.
+    (window as any).__perf?.("kbz-getSession-start");
     const { data: { session: existing } } = await supabase.auth.getSession();
+    (window as any).__perf?.("kbz-getSession-end", { hasSession: !!existing });
     if (existing) {
       console.log("[KBZ-DIAG] Session already exists — skipping auto-login");
       safeSet(setStatus, "linked" as KbzAutoLoginStatus);
@@ -102,6 +104,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
     console.log("[KBZ-DIAG] isKbzPayRuntime result:", isKbzPayRuntime());
     try {
       console.log("[KBZ-DIAG] Calling getAuthCode...");
+      (window as any).__perf?.("kbz-getAuthCode-start");
       // Bridge owns the timeout (60s, matches startPay). No outer race.
       const authCode = await getAuthCode().catch((e) => {
         throw Object.assign(new Error(e?.message || "getAuthCode failed"), {
@@ -110,12 +113,15 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         });
       });
 
+      (window as any).__perf?.("kbz-getAuthCode-end", { len: authCode?.length ?? 0 });
       console.log("[KBZ-DIAG] authCode received, length:", authCode?.length ?? 0);
       console.log("[KBZ-DIAG] Invoking kbzpay-auto-login edge function");
+      (window as any).__perf?.("kbz-edgefn-invoke-start");
       const { data, error: fnErr } = await supabase.functions.invoke("kbzpay-auto-login", {
         body: { authCode },
       });
 
+      (window as any).__perf?.("kbz-edgefn-invoke-end", { status: (data as any)?.status, fnErr: fnErr?.message });
       console.log("[KBZ-DIAG] Edge function response status:", (data as any)?.status, "fnErr:", fnErr?.message);
       if (fnErr) throw fnErr;
       const res = data as any;
@@ -126,12 +132,15 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         // Await setSession before navigating so RLS-dependent queries on the next page don't race
         if (res.access_token && res.refresh_token) {
           try {
+            (window as any).__perf?.("kbz-setSession-start");
             await supabase.auth.setSession({
               access_token: res.access_token,
               refresh_token: res.refresh_token,
             });
+            (window as any).__perf?.("kbz-setSession-end");
             console.log("[AUTO-LOGIN] Session set successfully");
           } catch (err: any) {
+            (window as any).__perf?.("kbz-setSession-end", { error: err?.message });
             console.warn("[AUTO-LOGIN] Session set failed, falling back to cid:", err?.message);
           }
         }
@@ -140,6 +149,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         setCustomerId(res.customer_id);
 
         console.log("[KBZ-DIAG] 🚀 FORCE NAVIGATE /welcome?cid=", res.customer_id);
+        (window as any).__perf?.("kbz-navigate-welcome", { cid: res.customer_id });
         navigate(`/welcome?cid=${res.customer_id}`, {
           replace: true,
           state: { customer: res.customer },
@@ -160,6 +170,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       setStatus(finalStatus);
     } catch (err: any) {
       if (!mounted.current) return;
+      (window as any).__perf?.("kbz-flow-error", { msg: err?.message });
       // Detect user rejection of consent popup
       const raw = err?.__raw ?? err;
       const msg = (raw?.errorMessage || raw?.message || err?.message || "").toString().toLowerCase();
@@ -216,6 +227,7 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       return;
     }
     globalRanOnce = true;
+    (window as any).__perf?.("kbz-hook-mount");
     console.log("[KBZ-DIAG] useKbzAutoLogin mounted (first run)");
     runAutoLogin();
   }, [runAutoLogin, safeSet]);
