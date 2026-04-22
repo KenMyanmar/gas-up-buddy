@@ -288,9 +288,29 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       const res = data as any;
 
       if (res.access_token && res.refresh_token) {
-        await supabase.auth.setSession({
+        (window as any).__perf?.("kbz-setSession-start");
+        const { data: sessData, error: sessErr } = await supabase.auth.setSession({
           access_token: res.access_token,
           refresh_token: res.refresh_token,
+        });
+        const hasSession = !!sessData?.session;
+        const sessionUserId = sessData?.session?.user?.id ?? null;
+        if (sessErr || !hasSession) {
+          (window as any).__perf?.("kbz-setSession-end", {
+            set_session_success: false,
+            set_session_error: sessErr?.message ?? "no_session_returned",
+            hasSession,
+            sessionUserId,
+          });
+          console.error("[KBZ-LINK] setSession failed — not navigating", sessErr?.message);
+          setError("Could not establish session. Please retry.");
+          setStatus("error");
+          return;
+        }
+        (window as any).__perf?.("kbz-setSession-end", {
+          set_session_success: true,
+          hasSession: true,
+          sessionUserId,
         });
       }
 
