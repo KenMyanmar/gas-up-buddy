@@ -218,6 +218,11 @@ Deno.serve(async (req) => {
       tokenData?.Response?.access_token;
     if (!accessToken) {
       console.error("getAccessToken: no accessToken in response (keys):", Object.keys(tokenData || {}));
+      console.error("getAccessToken KBZ error payload:", {
+        responseCode: (tokenData as any)?.responseCode,
+        responseMessage: (tokenData as any)?.responseMessage,
+        content: (tokenData as any)?.content,
+      });
       return json({ error: "Failed to verify KBZ Pay account" }, 502);
     }
 
