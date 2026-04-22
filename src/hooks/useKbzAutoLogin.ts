@@ -133,15 +133,41 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
         if (res.access_token && res.refresh_token) {
           try {
             (window as any).__perf?.("kbz-setSession-start");
-            await supabase.auth.setSession({
+            const { data: sessData, error: sessErr } = await supabase.auth.setSession({
               access_token: res.access_token,
               refresh_token: res.refresh_token,
             });
-            (window as any).__perf?.("kbz-setSession-end");
-            console.log("[AUTO-LOGIN] Session set successfully");
+            const hasSession = !!sessData?.session;
+            const sessionUserId = sessData?.session?.user?.id ?? null;
+            if (sessErr || !hasSession) {
+              (window as any).__perf?.("kbz-setSession-end", {
+                set_session_success: false,
+                set_session_error: sessErr?.message ?? "no_session_returned",
+                hasSession,
+                sessionUserId,
+              });
+              console.error("[AUTO-LOGIN] setSession failed — not navigating", sessErr?.message);
+              safeSet(setStatus, "retry_needed" as KbzAutoLoginStatus);
+              safeSet(setError, "Could not establish session. Please retry." as string | null);
+              return;
+            }
+            (window as any).__perf?.("kbz-setSession-end", {
+              set_session_success: true,
+              hasSession: true,
+              sessionUserId,
+            });
+            console.log("[AUTO-LOGIN] Session set, user:", sessionUserId);
           } catch (err: any) {
-            (window as any).__perf?.("kbz-setSession-end", { error: err?.message });
-            console.warn("[AUTO-LOGIN] Session set failed, falling back to cid:", err?.message);
+            (window as any).__perf?.("kbz-setSession-end", {
+              set_session_success: false,
+              set_session_error: err?.message ?? "threw",
+              hasSession: false,
+              sessionUserId: null,
+            });
+            console.error("[AUTO-LOGIN] setSession threw — not navigating:", err?.message);
+            safeSet(setStatus, "retry_needed" as KbzAutoLoginStatus);
+            safeSet(setError, "Could not establish session. Please retry." as string | null);
+            return;
           }
         }
 
@@ -262,9 +288,29 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
       const res = data as any;
 
       if (res.access_token && res.refresh_token) {
-        await supabase.auth.setSession({
+        (window as any).__perf?.("kbz-setSession-start");
+        const { data: sessData, error: sessErr } = await supabase.auth.setSession({
           access_token: res.access_token,
           refresh_token: res.refresh_token,
+        });
+        const hasSession = !!sessData?.session;
+        const sessionUserId = sessData?.session?.user?.id ?? null;
+        if (sessErr || !hasSession) {
+          (window as any).__perf?.("kbz-setSession-end", {
+            set_session_success: false,
+            set_session_error: sessErr?.message ?? "no_session_returned",
+            hasSession,
+            sessionUserId,
+          });
+          console.error("[KBZ-LINK] setSession failed — not navigating", sessErr?.message);
+          setError("Could not establish session. Please retry.");
+          setStatus("error");
+          return;
+        }
+        (window as any).__perf?.("kbz-setSession-end", {
+          set_session_success: true,
+          hasSession: true,
+          sessionUserId,
         });
       }
 
