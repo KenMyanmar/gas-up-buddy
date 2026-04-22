@@ -216,18 +216,19 @@ Deno.serve(async (req) => {
       return json({ error: "Failed to verify KBZ Pay account" }, 502);
     }
     const accessToken =
+      (tokenData?.responseCode === 0 ? tokenData?.content : null) ||
       tokenData.accessToken ||
       tokenData.access_token ||
       tokenData?.Response?.accessToken ||
       tokenData?.Response?.access_token;
     if (!accessToken) {
-      console.error("getAccessToken: no accessToken in response (keys):", Object.keys(tokenData || {}));
-      console.error("getAccessToken KBZ error payload:", {
-        responseCode: (tokenData as any)?.responseCode,
-        responseMessage: (tokenData as any)?.responseMessage,
-        content: (tokenData as any)?.content,
-      });
-      return json({ error: "Failed to verify KBZ Pay account" }, 502);
+      console.error(
+        "getAccessToken: no accessToken in response (keys):",
+        Object.keys(tokenData || {}),
+        "responseCode:",
+        (tokenData as any)?.responseCode,
+      );
+      return json({ error: "Failed to verify KBZ Pay account", failure_code: "KBZ_TOKEN_REJECTED" }, 502);
     }
 
     // Call 2: getUserInfo
@@ -239,14 +240,69 @@ Deno.serve(async (req) => {
     if (!userData) {
       return json({ error: "Failed to verify KBZ Pay account" }, 502);
     }
+
+    // Normalize content (may be JSON string or already an object)
+    let parsedContent: any = null;
+    if (userData?.responseCode === 0 && userData?.content != null) {
+      if (typeof userData.content === "string") {
+        try {
+          parsedContent = JSON.parse(userData.content);
+        } catch (_e) {
+          parsedContent = null;
+        }
+      } else if (typeof userData.content === "object") {
+        parsedContent = userData.content;
+      }
+    }
+
     const rawPhone =
-      userData.phone ||
-      userData.msisdn ||
+      parsedContent?.user?.Response?.msisdn ||
+      parsedContent?.user?.Response?.phone ||
+      parsedContent?.user?.Response?.mobile ||
+      parsedContent?.msisdn ||
+      parsedContent?.phone ||
+      parsedContent?.mobile ||
+      userData?.content?.user?.Response?.msisdn ||
+      userData?.content?.user?.Response?.phone ||
+      userData?.content?.user?.Response?.mobile ||
+      userData?.content?.msisdn ||
+      userData?.content?.phone ||
+      userData?.content?.mobile ||
+      userData?.phone ||
+      userData?.msisdn ||
+      userData?.mobile ||
       userData?.Response?.phone ||
-      userData?.Response?.msisdn;
+      userData?.Response?.msisdn ||
+      userData?.Response?.mobile;
+
     if (!rawPhone) {
-      console.error("getUserInfo: no phone in response (keys):", Object.keys(userData || {}));
-      return json({ error: "No phone returned from KBZ Pay" }, 502);
+      const contentKeys =
+        parsedContent && typeof parsedContent === "object"
+          ? Object.keys(parsedContent)
+          : userData?.content && typeof userData.content === "object"
+          ? Object.keys(userData.content)
+          : null;
+      const userKeys =
+        parsedContent?.user && typeof parsedContent.user === "object"
+          ? Object.keys(parsedContent.user)
+          : null;
+      const userResponseKeys =
+        parsedContent?.user?.Response && typeof parsedContent.user.Response === "object"
+          ? Object.keys(parsedContent.user.Response)
+          : null;
+      console.error(
+        "getUserInfo: no phone in response. responseCode:",
+        (userData as any)?.responseCode,
+        "top_keys:",
+        Object.keys(userData || {}),
+        "content_keys:",
+        contentKeys,
+        "user_keys:",
+        userKeys,
+        "user_Response_keys:",
+        userResponseKeys,
+      );
+      return json({ error: "No phone returned from KBZ Pay", failure_code: "KBZ_NO_PHONE" }, 502);
     }
 
     const phone = toLocal09(rawPhone);
