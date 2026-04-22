@@ -50,8 +50,11 @@ async function mintSession(
   });
   if (error || !data.session) throw new Error(`Session minting failed: ${error?.message || "no session"}`);
 
-  await supabaseAdmin.auth.admin.updateUserById(authUserId, { password: crypto.randomUUID() });
-
+  // NOTE: Post-signIn password rotation removed (Option A).
+  // See kbzpay-auto-login/index.ts for full rationale. Rotating immediately
+  // after signInWithPassword invalidated the just-issued refresh token in
+  // the KBZ Pay iPhone WebView, breaking supabase.auth.setSession on the
+  // client. Temp password remains as opaque server-only material.
   return {
     access_token: data.session.access_token,
     refresh_token: data.session.refresh_token,
