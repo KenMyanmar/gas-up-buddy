@@ -85,24 +85,47 @@ const OrderConfirm = () => {
           signType: payResult.signType,
         });
 
-        // startPay resolved — check result
-        const resultCode = paymentResult?.resultCode;
-        if (resultCode === "0" || resultCode === "success") {
-          // Payment process completed — poll for webhook confirmation
-          const pollResult = await pollOrderUntilPaid(supabase, orderId, 120_000);
-          navigate(`/order/success${location.search}`, {
-            replace: true,
-            state: { orderId, totalAmount: result.total_amount, paymentStatus: pollResult },
-          });
-        } else {
+        // KBZ H5 spec: resultCode == 1 means PIN/payment flow success.
+        // Webhook is the source of truth for "paid". A null/missing result
+        // is "unknown" — start polling, do not assume cancelled.
+        const rawCode = paymentResult?.resultCode;
+        const codeStr = rawCode == null ? null : String(rawCode);
+        const isSuccess = codeStr === "1";
+        const isExplicitCancel = codeStr === "2"; // KBZ user-cancel
+        const isExplicitFail = codeStr === "3" || codeStr === "-1";
+        const isUnknown = rawCode == null || (!isSuccess && !isExplicitCancel && !isExplicitFail);
+
+        if (isExplicitCancel) {
           navigate(`/order/success${location.search}`, {
             replace: true,
             state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled" },
           });
+          return;
         }
+        if (isExplicitFail) {
+          navigate(`/order/success${location.search}`, {
+            replace: true,
+            state: { orderId, totalAmount: result.total_amount, paymentStatus: "failed" },
+          });
+          return;
+        }
+
+        // success or unknown → poll for webhook confirmation
+        const pollResult = await pollOrderUntilPaid(supabase, orderId, 120_000);
+        // pollResult: "paid" | "failed" | "timeout"
+        const paymentStatus =
+          pollResult === "paid" ? "paid"
+            : pollResult === "failed" ? "failed"
+              : isSuccess ? "pending" // success but webhook not yet → processing
+                : isUnknown ? "pending" // unknown result, no webhook → pending
+                  : "pending";
+        navigate(`/order/success${location.search}`, {
+          replace: true,
+          state: { orderId, totalAmount: result.total_amount, paymentStatus },
+        });
       } catch (payError: any) {
         console.error("startPay failed:", payError);
-        // Order created but payment failed — go to success with pending status
+        // Bridge/timeout error — order exists, webhook may still arrive. Show pending.
         navigate(`/order/success${location.search}`, {
           replace: true,
           state: { orderId, totalAmount: result.total_amount, paymentStatus: "pending" },

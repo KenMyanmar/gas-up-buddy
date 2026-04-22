@@ -95,13 +95,19 @@ export interface StartPayParams {
   signType: string;
 }
 
-export function startPay(params: StartPayParams): Promise<{ resultCode: string }> {
+export function startPay(params: StartPayParams): Promise<any> {
   return new Promise((resolve, reject) => {
     const ma = (window as any).ma;
+    const perf = (window as any).__perf;
+    perf?.("kbz-startPay-start", { hasBridge: !!ma?.callNativeAPI });
     if (!ma?.callNativeAPI) {
+      perf?.("kbz-startPay-end", { ok: false, reason: "no-bridge" });
       return reject(new Error("KBZ Pay JSSDK not available"));
     }
-    const timer = setTimeout(() => reject(new Error("startPay timed out")), 60_000);
+    const timer = setTimeout(() => {
+      perf?.("kbz-startPay-end", { ok: false, reason: "timeout" });
+      reject(new Error("startPay timed out"));
+    }, 60_000);
     ma.callNativeAPI("startPay", {
       prepayId: params.prepayId,
       orderInfo: params.orderInfo,
@@ -110,9 +116,23 @@ export function startPay(params: StartPayParams): Promise<{ resultCode: string }
       useMiniResultFlag: true,
     }, (res: any) => {
       clearTimeout(timer);
+      const result_is_null = res === null || res === undefined;
+      const result_keys = res && typeof res === "object" ? Object.keys(res) : [];
+      perf?.("kbz-startPay-end", {
+        ok: true,
+        result_is_null,
+        resultCode: res?.resultCode,
+        result_keys,
+      });
       resolve(res);
     }, (err: any) => {
       clearTimeout(timer);
+      perf?.("kbz-startPay-end", {
+        ok: false,
+        reason: "fail-cb",
+        resultCode: err?.resultCode,
+        result_keys: err && typeof err === "object" ? Object.keys(err) : [],
+      });
       reject(new Error(err?.errorMessage || "startPay failed"));
     });
   });
