@@ -1,76 +1,57 @@
 
 
-## Verdict: YES — This Aligns With Our Evidence. Approve The Diagnostic Log.
+## Plan: Acknowledge v33 Live — Hold For Tester Log Evidence Before Any Further Action
 
-### Cross-Check Against What We Already Established
+### Status
 
-| Finding (prior turns) | Advisor's new diagnosis | Aligned? |
+v33 of `kbzpay-auto-login` is deployed by Ken with the exact parser shape you specified. All guardrails (one file, two parsers, masked logs, `verify_jwt=false`, no frontend/DB/auth changes, structured `failure_code` tags) are confirmed in his deployment summary. Nothing for me to build right now.
+
+### What Happens Next (no code action this turn)
+
+The plan is **wait for tester evidence**, then branch. Per `mem://constraints/kbz-debug-protocol`: no proposed fix without a log line proving the failure mode.
+
+### Branching Plan Once Tester Retries Inside Real KBZ Pay App
+
+**Step 1 — Pull `kbzpay-auto-login` logs at the test timestamp** using the analytics query / edge function logs tool, filtered to v33.
+
+**Step 2 — Match against this decision table:**
+
+| Log evidence | Interpretation | Next action |
 |---|---|---|
-| `kbzpay-auto-login` logs show `getAccessToken: no accessToken in response` | Failure is at KBZ UAT API, not in our edge fn | ✅ Yes |
-| No `Session minting failed` entries in logs | Failures don't reach `mintSession` — they die upstream at `getAccessToken` | ✅ Yes |
-| VPS proxy is reachable (we get a body back, just no token) | VPS proxy OK; KBZ rejecting | ✅ Yes |
-| 13 working users have `no-plus` phone format | Unrelated to current proxy issue — separate ticket (Phase 2 still pending) | ✅ Yes — orthogonal |
+| `getAccessToken success` line present + `getUserInfo success` line present + flow returns `linked` / `new_account` / `link_pending` | Full fix confirmed. KBZ Mini App login restored. | Open Phase 3 (defensive `mintSession` retry) and Phase 4 (`8a2e68a4` row normalization) as separate plans per the postmortem. |
+| `getAccessToken success` + `getUserInfo` fails with `KBZ_NO_PHONE` | Token parser works; phone is at an unknown nested path. The new `parsedContent_user_keys` + `parsedContent_user_Response_keys` log lines will name the exact shape in one read. | Open a one-line follow-up plan to add the missing path; no other code touched. |
+| `getAccessToken` still fails — `responseCode: 0`, `content` present, but parser misses it | Parser bug or content shape unexpected (object vs string at top level). | Re-inspect the masked content shape from logs; one-line fix. |
+| `getAccessToken` fails with `responseCode != 0` | KBZ actually rejecting (different failure mode than before). | Map `responseCode` to the four-cause table from earlier plan; route to correct owner (us / KBZ PMO / KBZ ops). |
+| No invocation logs at test time | Request never reached Supabase — KBZ Pay container or network issue. | Escalate to KBZ side with timestamp; not our code. |
 
-The Advisor's chain — *Mini App → edge fn → VPS proxy (OK) → KBZ UAT (rejects) → no accessToken → 502* — matches exactly what the edge function source and logs show. No contradiction.
+**Step 3 — Post raw findings back to chat.** No fix proposed in the same turn unless the evidence is unambiguous and the change is one-line.
 
-### The Proposed One-Line Diagnostic Is Correct And Safe
+### Out Of Scope (do not act this turn)
 
-**File:** `supabase/functions/kbzpay-auto-login/index.ts`
+- No code changes — v33 is the change; awaiting evidence.
+- No DB writes — `8a2e68a4` row normalization stays Phase 4 hygiene, post-verification.
+- No `mintSession` retry change — Phase 3, post-verification.
+- No `kbzpay-create-payment` or `kbzpay-webhook` parser changes — those endpoints have not produced log evidence of the same shape; do not touch without proof.
+- No `verify_jwt` toggling.
+- No frontend changes — `useKbzAutoLogin` already surfaces `failure_code`.
 
-**Change:** After the existing `console.error("getAccessToken: no accessToken in response (keys):", ...)`, add:
+### Required Information From PM / Tester
 
-```ts
-console.error("getAccessToken KBZ error payload:", {
-  responseCode: body?.responseCode,
-  responseMessage: body?.responseMessage,
-  content: body?.content,
-});
-```
+To pull the right log window:
 
-**Safety profile:**
-- Pure additive logging — zero behavior change.
-- No schema, no RLS, no auth flow touched.
-- Reversible in one commit.
-- Consistent with our standing PERF-DIAG instrumentation policy (kept through UAT).
-- Does not log any secret (responseCode/Message are KBZ's own error envelope, not credentials).
-
-### What This Unblocks
-
-Once the next failed cold-start is captured, the log line tells us which of these four root causes applies — each has a totally different fix owner:
-
-| KBZ `responseCode` | Likely cause | Fix owner |
-|---|---|---|
-| `AIMPDP.INVALID_AUTHCODE` | authcode expired/reused (timing or double-use in our code) | Us (frontend/edge fn) |
-| `AIMPDP.INVALID_MERCHANT` | App ID / merchant code mismatch | KBZ PMO (config) |
-| `AIMPDP.IP_NOT_WHITELISTED` | VPS egress IP dropped from allowlist | KBZ ops (network) |
-| `AIMPDP.SIGNATURE_INVALID` | signing key / timestamp drift | Us (signature logic) |
-
-Without this log, any fix is a guess.
-
-### Updated Recovery Sequence (Reconciled With Earlier Plan)
-
-1. **Phase 1 (Revert v31):** ✅ Done — confirmed earlier.
-2. **Phase 2 (Strip `+` from user `8a2e68a4`):** ⏸ Still pending — independent of this diagnostic, do whenever ready. Does not unblock the current `getAccessToken` failure.
-3. **Phase A (NEW — this plan):** Add the 3-line `KBZ error payload` log to `kbzpay-auto-login`. Deploy. Wait for one failing cold-start. Read log. Match `responseCode` to the table above.
-4. **Phase B (after Phase A reads):** Open the appropriate fix ticket — internal code change OR KBZ PMO/ops escalation, whichever the responseCode dictates.
-5. **Phase 3 (Defensive `mintSession` retry):** Still queued for after Phases 1+2 land and verify. Independent of the upstream `getAccessToken` issue.
-
-### Out Of Scope For This Change
-
-- No code logic change in `getAccessToken`, `mintSession`, or anywhere else.
-- No `verify_jwt` toggle (re-verify after deploy as standard SOP).
-- No DB writes (Phase 2 is its own approval).
-- No PERF-DIAG removal.
-- No signature/authcode logic changes — premature without the responseCode.
+1. **Approximate UTC timestamp** of the tester's retry (±5 min).
+2. **What screen they saw** at the end of the attempt (signed in successfully / red retry card / spinner stuck / KBZ-side error).
+3. **Phone number used** for the test (so the log query can filter to that user).
 
 ### Acceptance
 
-- `kbzpay-auto-login/index.ts` contains the new `console.error("getAccessToken KBZ error payload:", { responseCode, responseMessage, content })` block immediately after the existing keys-only log.
-- Function redeployed; `verify_jwt=false` re-verified.
-- On next failing cold-start, edge function logs contain a line with non-null `responseCode` and `responseMessage`.
-- Findings paired to one of the four scenarios in the table; follow-up plan opened against the correct owner.
+- Tester retry confirmed inside real KBZ Pay app.
+- Logs pulled against confirmed timestamp; v33 invocation present.
+- Decision-table branch selected based on actual log lines.
+- Either: success confirmed and Phase 3 / Phase 4 plans queued, OR a one-line follow-up fix is opened against the exact shape revealed in the new diagnostic log.
+- No speculative fixes, no DB writes, no scope creep — the protocol holds.
 
-### TL;DR
+### Why This Is The Correct Next Move
 
-Advisor's diagnosis is consistent with the logs we pulled, the edge function source we audited, and the Phase 1/2 work already in motion. The proposed log addition is the minimum-risk, maximum-information next step — exactly the kind of evidence-gathering move TRIO endorses. Approve and proceed.
+v33 is exactly the evidence-gathering instrument the postmortem called for. Acting on it before the tester runs it would burn the instrument's value. Discipline now → one clean read → mapped fix. This is the loop the new debug protocol exists to enforce.
 
