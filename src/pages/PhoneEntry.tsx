@@ -65,7 +65,7 @@ const PhoneEntry = () => {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
         <Loader2 className="h-10 w-10 animate-spin text-action mb-4" />
-        <p className="text-lg font-bold text-foreground">Connecting via KBZ Pay...</p>
+        <p className="text-lg font-bold text-foreground">Connecting via KBZPay...</p>
         <p className="text-sm text-muted-foreground mt-2">Please wait</p>
       </div>
     );
@@ -91,7 +91,7 @@ const PhoneEntry = () => {
           Welcome back, {candidate.name.split(" ")[0]}!
         </h1>
         <p className="text-sm text-muted-foreground text-center mb-6">
-          We found your account linked to this KBZ Pay number.
+          We found your account linked to this KBZPay number.
         </p>
 
         {/* Account card */}
@@ -151,7 +151,7 @@ const PhoneEntry = () => {
             Select Your Account
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            We found accounts matching your KBZ Pay number. Please select yours.
+            We found accounts matching your KBZPay number. Please select yours.
           </p>
         </div>
 
@@ -197,7 +197,7 @@ const PhoneEntry = () => {
             We need your phone number to sign you in
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-            Please allow AnyGas to access your phone number when KBZ Pay asks for permission.
+            Please allow AnyGas to access your phone number when KBZPay asks for permission.
           </p>
           <Button
             variant="action"
@@ -232,7 +232,7 @@ const PhoneEntry = () => {
           We couldn't sign you in
         </h1>
         <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-          Please close this Mini App and open it again from KBZ Pay.
+          Please close this Mini App and open it again from KBZPay.
         </p>
         <Button
           variant="action"
