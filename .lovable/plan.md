@@ -1,57 +1,90 @@
 
 
-## Plan: Acknowledge v33 Live — Hold For Tester Log Evidence Before Any Further Action
+## OrderTracking Fix + Customer-Facing "KBZPay" Brand Rename
 
-### Status
+### 1. `src/pages/OrderTracking.tsx` — three fixes
 
-v33 of `kbzpay-auto-login` is deployed by Ken with the exact parser shape you specified. All guardrails (one file, two parsers, masked logs, `verify_jwt=false`, no frontend/DB/auth changes, structured `failure_code` tags) are confirmed in his deployment summary. Nothing for me to build right now.
+**a) Add payment fields to `OrderData` interface (line 40-44):**
+```ts
+interface OrderData {
+  id: string; status: string; cylinder_type: string | null; total_amount: number | null;
+  quantity: number; order_type: string | null; township: string; address: string;
+  supplier_id: string | null; agent_id: string | null; created_at: string;
+  payment_status: string | null;
+  payment_method: string | null;
+}
+```
 
-### What Happens Next (no code action this turn)
+**b) Update select query (line 89):** add `payment_status, payment_method` to the `.select(...)` string.
 
-The plan is **wait for tester evidence**, then branch. Per `mem://constraints/kbz-debug-protocol`: no proposed fix without a log line proving the failure mode.
+**c) Fix `statusSteps` mapping (line 64-69)** — current `in_progress → "Accepted"` and `dispatched → "On the Way"` is wrong. Replace with the spec:
+```ts
+const statusSteps = [
+  { key: "new", label: "Placed", icon: "📝" },
+  { key: "confirmed", label: "Accepted", icon: "✓" },
+  { key: "in_progress", label: "On the Way", icon: "🚚" },
+  { key: "delivered", label: "Delivered", icon: "✅" },
+];
+```
 
-### Branching Plan Once Tester Retries Inside Real KBZ Pay App
+**Knock-on cleanup in same file** to stay consistent with the new flow:
+- Line 185 `isActive`: change `["confirmed", "dispatched", "in_progress"]` → `["confirmed", "in_progress"]`
+- Line 205 status pill ternary: replace `dispatched` reference with `in_progress` for "On the Way"; `confirmed` → "Accepted"
+- Line 273 map header: `dispatched` → `in_progress` for "🕐 On the way"
 
-**Step 1 — Pull `kbzpay-auto-login` logs at the test timestamp** using the analytics query / edge function logs tool, filtered to v33.
+**d) Replace hardcoded "Cash on Delivery" (line 309-311):**
+```tsx
+<div className="flex justify-between">
+  <span className="text-muted-foreground font-semibold">Payment</span>
+  <span className={`font-bold ${order.payment_status === 'paid' ? 'text-green-600' : 'text-foreground'}`}>
+    {order.payment_status === 'paid'
+      ? `Paid via ${order.payment_method === 'kbzpay' ? 'KBZPay' : order.payment_method === 'wave' ? 'Wave' : order.payment_method === 'cb_pay' ? 'CB Pay' : 'Cash'}`
+      : order.payment_status === 'cod' ? 'Cash on Delivery'
+      : 'Payment Pending'}
+  </span>
+</div>
+```
 
-**Step 2 — Match against this decision table:**
+### 2. Global "KBZ Pay" → "KBZPay" rename (customer-facing strings only)
 
-| Log evidence | Interpretation | Next action |
+Code identifiers, function names, comments, payment_method values (`kbzpay`, `kbz_pay`), and `client.ts` comment stay untouched. Only user-visible JSX/string-literal text is changed.
+
+| File | Line(s) | Change |
 |---|---|---|
-| `getAccessToken success` line present + `getUserInfo success` line present + flow returns `linked` / `new_account` / `link_pending` | Full fix confirmed. KBZ Mini App login restored. | Open Phase 3 (defensive `mintSession` retry) and Phase 4 (`8a2e68a4` row normalization) as separate plans per the postmortem. |
-| `getAccessToken success` + `getUserInfo` fails with `KBZ_NO_PHONE` | Token parser works; phone is at an unknown nested path. The new `parsedContent_user_keys` + `parsedContent_user_Response_keys` log lines will name the exact shape in one read. | Open a one-line follow-up plan to add the missing path; no other code touched. |
-| `getAccessToken` still fails — `responseCode: 0`, `content` present, but parser misses it | Parser bug or content shape unexpected (object vs string at top level). | Re-inspect the masked content shape from logs; one-line fix. |
-| `getAccessToken` fails with `responseCode != 0` | KBZ actually rejecting (different failure mode than before). | Map `responseCode` to the four-cause table from earlier plan; route to correct owner (us / KBZ PMO / KBZ ops). |
-| No invocation logs at test time | Request never reached Supabase — KBZ Pay container or network issue. | Escalate to KBZ side with timestamp; not our code. |
+| `src/pages/OrderConfirm.tsx` | 273 | Button label `Pay with KBZ Pay …` → `Pay with KBZPay …` |
+| `src/pages/PhoneEntry.tsx` | 68 | `Connecting via KBZ Pay...` → `Connecting via KBZPay...` |
+| `src/pages/PhoneEntry.tsx` | 94 | `linked to this KBZ Pay number.` → `linked to this KBZPay number.` |
+| `src/pages/PhoneEntry.tsx` | 154 | `matching your KBZ Pay number.` → `matching your KBZPay number.` |
+| `src/pages/PhoneEntry.tsx` | 200 | `when KBZ Pay asks for permission.` → `when KBZPay asks for permission.` |
+| `src/pages/PhoneEntry.tsx` | 235 | `open it again from KBZ Pay.` → `open it again from KBZPay.` |
+| `src/pages/KbzProfileComplete.tsx` | 59 | `Welcome via KBZ Pay!` → `Welcome via KBZPay!` |
+| `src/pages/ProfilePage.tsx` | 29 | `desc: "KBZ Pay"` → `desc: "KBZPay"` |
+| `src/pages/ProfileFAQ.tsx` | 8 | `KBZ Pay and Wave Money support is coming soon.` → `KBZPay and Wave Money support is coming soon.` |
+| `src/components/KbzError.tsx` | 26 | `Could not connect to KBZ Pay services.` → `Could not connect to KBZPay services.` |
+| `src/components/KbzError.tsx` | 32 | `Unable to verify your KBZ Pay account.` → `Unable to verify your KBZPay account.` |
 
-**Step 3 — Post raw findings back to chat.** No fix proposed in the same turn unless the evidence is unambiguous and the change is one-line.
+**Not changed (intentional):**
+- Code comments (e.g. `// Custom Storage Adapter for KBZ Pay WebView`, `// 2. Create KBZ Pay payment`)
+- Payment-method enum values (`kbzpay`, `kbz_pay`) — DB-bound
+- Comments inside `PhoneEntry.tsx` that begin with `//`
+- `OrderSuccess.tsx` line 44 (a code comment, not user-visible)
 
-### Out Of Scope (do not act this turn)
+### Files touched
+1. `src/pages/OrderTracking.tsx` — fixes 1a/1b/1c/1d + status-flow cleanup
+2. `src/pages/OrderConfirm.tsx` — brand rename (1 string)
+3. `src/pages/PhoneEntry.tsx` — brand rename (5 strings)
+4. `src/pages/KbzProfileComplete.tsx` — brand rename (1 string)
+5. `src/pages/ProfilePage.tsx` — brand rename (1 string)
+6. `src/pages/ProfileFAQ.tsx` — brand rename (1 string)
+7. `src/components/KbzError.tsx` — brand rename (2 strings)
 
-- No code changes — v33 is the change; awaiting evidence.
-- No DB writes — `8a2e68a4` row normalization stays Phase 4 hygiene, post-verification.
-- No `mintSession` retry change — Phase 3, post-verification.
-- No `kbzpay-create-payment` or `kbzpay-webhook` parser changes — those endpoints have not produced log evidence of the same shape; do not touch without proof.
-- No `verify_jwt` toggling.
-- No frontend changes — `useKbzAutoLogin` already surfaces `failure_code`.
-
-### Required Information From PM / Tester
-
-To pull the right log window:
-
-1. **Approximate UTC timestamp** of the tester's retry (±5 min).
-2. **What screen they saw** at the end of the attempt (signed in successfully / red retry card / spinner stuck / KBZ-side error).
-3. **Phone number used** for the test (so the log query can filter to that user).
+### Out of scope
+No DB schema, no edge functions, no payment_method value changes, no agent-facing screens, no comments. No new dependencies.
 
 ### Acceptance
-
-- Tester retry confirmed inside real KBZ Pay app.
-- Logs pulled against confirmed timestamp; v33 invocation present.
-- Decision-table branch selected based on actual log lines.
-- Either: success confirmed and Phase 3 / Phase 4 plans queued, OR a one-line follow-up fix is opened against the exact shape revealed in the new diagnostic log.
-- No speculative fixes, no DB writes, no scope creep — the protocol holds.
-
-### Why This Is The Correct Next Move
-
-v33 is exactly the evidence-gathering instrument the postmortem called for. Acting on it before the tester runs it would burn the instrument's value. Discipline now → one clean read → mapped fix. This is the loop the new debug protocol exists to enforce.
+- Status timeline reflects `new → confirmed → in_progress → delivered` with correct labels.
+- Order with `payment_status='paid'`, `payment_method='kbzpay'` shows green "Paid via KBZPay".
+- Order with `payment_status='cod'` shows "Cash on Delivery".
+- Order with neither shows "Payment Pending".
+- All customer-facing UI displays "KBZPay" (no space). Code/identifiers/DB values unchanged.
 
