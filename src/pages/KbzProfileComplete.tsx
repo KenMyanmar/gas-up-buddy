@@ -56,7 +56,7 @@ const KbzProfileComplete = () => {
     <div className="flex min-h-screen flex-col bg-background px-6 py-6">
       <h1 className="mb-2 font-display text-[22px] font-extrabold text-foreground">Complete Your Profile</h1>
       <p className="mb-8 text-sm text-muted-foreground leading-relaxed">
-        Welcome via KBZ Pay! Let's set up your delivery details.
+        Welcome via KBZPay! Let's set up your delivery details.
       </p>
 
       <div className="flex-1 space-y-5">

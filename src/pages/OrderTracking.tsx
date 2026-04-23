@@ -41,6 +41,8 @@ interface OrderData {
   id: string; status: string; cylinder_type: string | null; total_amount: number | null;
   quantity: number; order_type: string | null; township: string; address: string;
   supplier_id: string | null; agent_id: string | null; created_at: string;
+  payment_status: string | null;
+  payment_method: string | null;
 }
 
 interface AgentProfile {
@@ -63,8 +65,8 @@ function MapBounds({ agentPos, customerPos }: { agentPos: [number, number] | nul
 
 const statusSteps = [
   { key: "new", label: "Placed", icon: "📝" },
-  { key: "in_progress", label: "Accepted", icon: "✓" },
-  { key: "dispatched", label: "On the Way", icon: "🚚" },
+  { key: "confirmed", label: "Accepted", icon: "✓" },
+  { key: "in_progress", label: "On the Way", icon: "🚚" },
   { key: "delivered", label: "Delivered", icon: "✅" },
 ];
 
@@ -86,7 +88,7 @@ const OrderTracking = () => {
   // Fetch order
   useEffect(() => {
     if (!orderId) return;
-    supabase.from("orders").select("id, status, cylinder_type, total_amount, quantity, order_type, township, address, supplier_id, agent_id, created_at")
+    supabase.from("orders").select("id, status, cylinder_type, total_amount, quantity, order_type, township, address, supplier_id, agent_id, created_at, payment_status, payment_method")
       .eq("id", orderId).single().then(({ data }) => { if (data) setOrder(data as OrderData); setLoading(false); });
   }, [orderId]);
 
@@ -182,7 +184,7 @@ const OrderTracking = () => {
   const agentPos: [number, number] | null = agentLocation ? [agentLocation.lat, agentLocation.lng] : null;
   const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status);
   const canCancel = ["new", "confirmed"].includes(order.status);
-  const isActive = ["confirmed", "dispatched", "in_progress"].includes(order.status);
+  const isActive = ["confirmed", "in_progress"].includes(order.status);
   const agentInitials = agent?.owner_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
 
   return (
@@ -202,7 +204,7 @@ const OrderTracking = () => {
         </div>
         <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/20 px-3.5 py-1.5 text-xs font-bold backdrop-blur-sm">
           {isActive && <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />}
-          {order.status === "dispatched" ? "On the Way" : order.status === "delivered" ? "Delivered" : order.status === "in_progress" ? "Accepted" : "Placed"}
+          {order.status === "in_progress" ? "On the Way" : order.status === "delivered" ? "Delivered" : order.status === "confirmed" ? "Accepted" : "Placed"}
         </div>
       </div>
 
@@ -270,7 +272,7 @@ const OrderTracking = () => {
           <div className="relative h-[250px]">
             <div className="absolute left-3 top-3 z-[1000] rounded-full bg-card/90 px-3 py-1.5 shadow-sm backdrop-blur-sm">
               <span className="text-xs font-semibold text-foreground">
-                {order.status === "dispatched" ? "🕐 On the way" : order.status === "confirmed" ? "🔧 Preparing" : "📍 Agent location"}
+                {order.status === "in_progress" ? "🕐 On the way" : order.status === "confirmed" ? "🔧 Preparing" : "📍 Agent location"}
               </span>
             </div>
             <MapContainer center={agentPos} zoom={14} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }} attributionControl={false}>
@@ -307,7 +309,12 @@ const OrderTracking = () => {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground font-semibold">Payment</span>
-            <span className="font-bold text-foreground">Cash on Delivery</span>
+            <span className={`font-bold ${order.payment_status === 'paid' ? 'text-green-600' : 'text-foreground'}`}>
+              {order.payment_status === 'paid'
+                ? `Paid via ${order.payment_method === 'kbzpay' ? 'KBZPay' : order.payment_method === 'wave' ? 'Wave' : order.payment_method === 'cb_pay' ? 'CB Pay' : 'Cash'}`
+                : order.payment_status === 'cod' ? 'Cash on Delivery'
+                : 'Payment Pending'}
+            </span>
           </div>
         </div>
       </div>
