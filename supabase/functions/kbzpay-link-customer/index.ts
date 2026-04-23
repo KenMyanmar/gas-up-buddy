@@ -43,6 +43,7 @@ async function mintSession(
   const authSecret = Deno.env.get("KBZPAY_AUTH_SECRET");
   if (!authSecret) throw new Error("KBZPAY_AUTH_SECRET not configured");
 
+  // Deterministic password: HMAC_SHA256(secret, auth_user_id).
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(authSecret),
@@ -55,6 +56,7 @@ async function mintSession(
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
+  // Self-heal: ensure email + phone + password are canonical for this user.
   const { data: getRes } = await supabaseAdmin.auth.admin.getUserById(authUserId);
   const currentUser = getRes?.user;
   const patch: Record<string, unknown> = { password };
@@ -69,6 +71,7 @@ async function mintSession(
 
   const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, patch);
   if (pwErr) {
+    // Phone update may collide (e.g., another row already holds e164). Retry without phone.
     if (patch.phone) {
       console.warn("phone_update_rejected_continuing_email_only", { auth_user_id: authUserId });
       const retryPatch = { ...patch };
@@ -85,11 +88,13 @@ async function mintSession(
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
+  // Email sign-in only — never phone.
   let { data, error } = await anonClient.auth.signInWithPassword({
     email: bridgeEmail,
     password,
   });
 
+  // One retry on invalid_credentials (covers the rare update→signIn replication gap).
   if (error && /invalid_credentials/i.test(error.message || "")) {
     await new Promise((r) => setTimeout(r, 400));
     const retry = await anonClient.auth.signInWithPassword({ email: bridgeEmail, password });
