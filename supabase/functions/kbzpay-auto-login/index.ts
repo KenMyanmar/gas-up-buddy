@@ -81,29 +81,42 @@ async function mintSession(
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-  // 1. Set a random one-time password
-  const otp = crypto.randomUUID();
-  const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, { password: otp });
-  if (pwErr) throw new Error(`Failed to set temp password: ${pwErr.message}`);
+  // Deterministic server-only password = HMAC_SHA256(KBZPAY_AUTH_SECRET, auth_user_id).
+  // Same input → same output → no race between concurrent mintSession calls,
+  // no drift between updateUserById and signInWithPassword. Never returned to
+  // client. Rotated only when KBZPAY_AUTH_SECRET is rotated.
+  const authSecret = Deno.env.get("KBZPAY_AUTH_SECRET");
+  if (!authSecret) throw new Error("KBZPAY_AUTH_SECRET not configured");
 
-  // 2. Sign in with anon client to get real tokens (no session persistence in edge)
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(authSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(authUserId));
+  const password = Array.from(new Uint8Array(sigBuf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Idempotent write: same value every call. Safe under concurrency.
+  const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, { password });
+  if (pwErr) throw new Error(`Failed to set deterministic password: ${pwErr.message}`);
+
   const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
   const { data, error } = await anonClient.auth.signInWithPassword({
     phone: e164,
-    password: otp,
+    password,
   });
   if (error || !data.session) throw new Error(`Session minting failed: ${error?.message || "no session"}`);
 
-  // NOTE: Post-signIn password rotation removed (Option A).
-  // Rotating here invalidated the just-minted refresh token on the real
-  // KBZ Pay iPhone WebView, causing supabase.auth.setSession to emit
-  // SIGNED_OUT with "Auth session missing!". The temp password set above
-  // remains as opaque server-only material; it is never returned to the
-  // client and is overwritten by the next mintSession call. No user-facing
-  // password exists. Long-term: replaced by KBZ-native identity (Option B).
+  // Post-signIn rotation NOT performed (Option A retained): rotating here
+  // invalidated the just-issued refresh token in KBZ Pay iPhone WebView.
+  // Long-term: replaced by KBZ-native identity (Option B).
   return {
     access_token: data.session.access_token,
     refresh_token: data.session.refresh_token,

@@ -36,9 +36,25 @@ async function mintSession(
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-  const otp = crypto.randomUUID();
-  const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, { password: otp });
-  if (pwErr) throw new Error(`Failed to set temp password: ${pwErr.message}`);
+  // Deterministic server-only password = HMAC_SHA256(KBZPAY_AUTH_SECRET, auth_user_id).
+  // Identical implementation to kbzpay-auto-login/mintSession. Keep in sync.
+  const authSecret = Deno.env.get("KBZPAY_AUTH_SECRET");
+  if (!authSecret) throw new Error("KBZPAY_AUTH_SECRET not configured");
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(authSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(authUserId));
+  const password = Array.from(new Uint8Array(sigBuf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, { password });
+  if (pwErr) throw new Error(`Failed to set deterministic password: ${pwErr.message}`);
 
   const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -46,15 +62,10 @@ async function mintSession(
 
   const { data, error } = await anonClient.auth.signInWithPassword({
     phone: e164,
-    password: otp,
+    password,
   });
   if (error || !data.session) throw new Error(`Session minting failed: ${error?.message || "no session"}`);
 
-  // NOTE: Post-signIn password rotation removed (Option A).
-  // See kbzpay-auto-login/index.ts for full rationale. Rotating immediately
-  // after signInWithPassword invalidated the just-issued refresh token in
-  // the KBZ Pay iPhone WebView, breaking supabase.auth.setSession on the
-  // client. Temp password remains as opaque server-only material.
   return {
     access_token: data.session.access_token,
     refresh_token: data.session.refresh_token,
