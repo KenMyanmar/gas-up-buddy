@@ -23,13 +23,13 @@ const config: Record<KbzErrorReason, {
 }> = {
   "jssdk-missing": {
     title: "Connection Error",
-    message: "Could not connect to KBZ Pay services. Please close and reopen this app.",
+    message: "Could not connect to KBZPay services. Please close and reopen this app.",
     cta: "Try again",
     icon: <WifiOff className="h-8 w-8 text-destructive" />,
   },
   "authcode-fail": {
     title: "Sign-in Failed",
-    message: "Unable to verify your KBZ Pay account. Please try again.",
+    message: "Unable to verify your KBZPay account. Please try again.",
     cta: "Try again",
     icon: <ShieldX className="h-8 w-8 text-destructive" />,
   },
