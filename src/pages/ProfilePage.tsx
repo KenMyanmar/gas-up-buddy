@@ -26,7 +26,7 @@ const ProfilePage = () => {
 
   const accountItems = [
     { emoji: "📍", title: "Delivery Addresses", desc: customer?.township ?? "Manage addresses", action: () => navigate("/profile/addresses") },
-    { emoji: "💳", title: "Payment Methods", desc: "KBZ Pay", action: handleComingSoon },
+    { emoji: "💳", title: "Payment Methods", desc: "KBZPay", action: handleComingSoon },
     { emoji: "⚙️", title: "Preferences", desc: "Notifications, language", action: handleComingSoon },
   ];
 
