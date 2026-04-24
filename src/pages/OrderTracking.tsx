@@ -1,22 +1,12 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Phone, X } from "lucide-react";
+import { X, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -83,7 +73,6 @@ const OrderTracking = () => {
   const [agentLocation, setAgentLocation] = useState<AgentLocation | null>(null);
   const [customerPos, setCustomerPos] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   // Fetch order
   useEffect(() => {
@@ -156,13 +145,6 @@ const OrderTracking = () => {
     }
   }, [user, urlCustomerId]);
 
-  const handleConfirmCancel = useCallback(async () => {
-    if (!orderId || !order) return;
-    await supabase.from("orders").update({ status: "cancelled" as any }).eq("id", orderId);
-    setShowCancelDialog(false);
-    navigate(`/orders${cidQs}`);
-  }, [orderId, order, navigate, cidQs]);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6">
@@ -183,7 +165,7 @@ const OrderTracking = () => {
 
   const agentPos: [number, number] | null = agentLocation ? [agentLocation.lat, agentLocation.lng] : null;
   const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status);
-  const canCancel = ["new", "confirmed"].includes(order.status);
+  const showHelpFooter = ["new", "confirmed"].includes(order.status);
   const isActive = ["confirmed", "in_progress"].includes(order.status);
   const agentInitials = agent?.owner_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
 
@@ -248,21 +230,39 @@ const OrderTracking = () => {
                 {agent.safety_score ? `⭐ ${agent.safety_score}/100 · ` : ""}{agent.shop_name}
               </p>
             </div>
-            <div className="flex gap-2">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-warm">
-                <Phone className="h-4 w-4 text-foreground" />
-              </span>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Waiting for agent */}
+      {/* Order confirmed banner (no spinner — payment received, agent assignment pending) */}
       {order.status === "new" && (
-        <div className="mx-5 mt-4 flex flex-col items-center rounded-[20px] border border-border bg-card py-8 shadow-sm">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-action border-t-transparent" />
-          <p className="mt-3 font-bold text-foreground">Finding your delivery agent...</p>
-          <p className="mt-1 text-sm text-muted-foreground">Usually assigned within 2–3 minutes</p>
+        <div className="mx-5 mt-4 overflow-hidden rounded-[20px] border border-border bg-card shadow-sm">
+          <div className="relative px-5 py-6">
+            {/* Soft brand wash background */}
+            <div
+              className="absolute inset-0 opacity-60"
+              style={{
+                background:
+                  "radial-gradient(120% 80% at 100% 0%, hsl(var(--action) / 0.08), transparent 60%), radial-gradient(120% 80% at 0% 100%, hsl(142 70% 45% / 0.08), transparent 60%)",
+              }}
+            />
+            <div className="relative flex items-start gap-3.5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-500/10 ring-2 ring-green-500/20">
+                <CheckCircle2 className="h-7 w-7 text-green-600" strokeWidth={2.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-display text-[17px] font-extrabold text-foreground">
+                  Order confirmed!
+                </p>
+                <p className="mt-1 text-[13px] font-semibold text-green-600">
+                  ✓ Payment received via KBZPay
+                </p>
+                <p className="mt-1.5 text-[13px] text-muted-foreground leading-relaxed">
+                  Your delivery agent will be assigned shortly.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -319,31 +319,14 @@ const OrderTracking = () => {
         </div>
       </div>
 
-      {/* Cancel */}
-      {canCancel && (
-        <div className="mx-5 mt-4">
-          <button onClick={() => setShowCancelDialog(true)} className="w-full rounded-[14px] border-[1.5px] border-destructive/30 bg-destructive/5 py-3.5 text-sm font-bold text-destructive transition-colors active:bg-destructive/10">
-            Cancel Order
-          </button>
+      {/* Help footer for early-stage orders */}
+      {showHelpFooter && (
+        <div className="mx-5 mt-4 rounded-[14px] border border-border bg-surface-warm px-4 py-3 text-center">
+          <p className="text-[13px] font-semibold text-muted-foreground">
+            Need to change your order? Call <span className="select-all font-bold text-foreground">8484</span>
+          </p>
         </div>
       )}
-
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to cancel this order? This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep order</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmCancel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Yes, cancel
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Delivered */}
       {order.status === "delivered" && (

@@ -20,7 +20,6 @@ import ProfileAddresses from "./pages/ProfileAddresses";
 import ProfileFAQ from "./pages/ProfileFAQ";
 import ProfileTerms from "./pages/ProfileTerms";
 import ProfilePrivacy from "./pages/ProfilePrivacy";
-import AlertsPage from "./pages/AlertsPage";
 import NotFound from "./pages/NotFound";
 import KbzProfileComplete from "./pages/KbzProfileComplete";
 import WelcomePage from "./pages/WelcomePage";
@@ -70,7 +69,6 @@ const AppRoutes = () => (
       <Route path="/order/success" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
       <Route path="/order/tracking/:orderId" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
-      <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/profile/addresses" element={<ProtectedRoute><ProfileAddresses /></ProtectedRoute>} />
       <Route path="/profile/faq" element={<ProtectedRoute><ProfileFAQ /></ProtectedRoute>} />
