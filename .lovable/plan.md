@@ -1,90 +1,55 @@
 
 
-## OrderTracking Fix + Customer-Facing "KBZPay" Brand Rename
+## Fix `Pay with KBZPay` label + audit "leave KBZPay" prompt triggers
 
-### 1. `src/pages/OrderTracking.tsx` — three fixes
+### 1. One-line brand fix (the only code change)
 
-**a) Add payment fields to `OrderData` interface (line 40-44):**
-```ts
-interface OrderData {
-  id: string; status: string; cylinder_type: string | null; total_amount: number | null;
-  quantity: number; order_type: string | null; township: string; address: string;
-  supplier_id: string | null; agent_id: string | null; created_at: string;
-  payment_status: string | null;
-  payment_method: string | null;
-}
+**`src/pages/OrderConfirm.tsx` line 273**
+```diff
+-              `Pay with KBZ Pay — ${orderState.totalAmount.toLocaleString()} MMK`
++              `Pay with KBZPay — ${orderState.totalAmount.toLocaleString()} MMK`
 ```
 
-**b) Update select query (line 89):** add `payment_status, payment_method` to the `.select(...)` string.
+That's the last remaining customer-facing "KBZ Pay" string in the order flow. Everything else from the previous rename pass is already correct.
 
-**c) Fix `statusSteps` mapping (line 64-69)** — current `in_progress → "Accepted"` and `dispatched → "On the Way"` is wrong. Replace with the spec:
-```ts
-const statusSteps = [
-  { key: "new", label: "Placed", icon: "📝" },
-  { key: "confirmed", label: "Accepted", icon: "✓" },
-  { key: "in_progress", label: "On the Way", icon: "🚚" },
-  { key: "delivered", label: "Delivered", icon: "✅" },
-];
-```
+### 2. Investigation: where the "leave KBZPay" native dialog comes from
 
-**Knock-on cleanup in same file** to stay consistent with the new flow:
-- Line 185 `isActive`: change `["confirmed", "dispatched", "in_progress"]` → `["confirmed", "in_progress"]`
-- Line 205 status pill ternary: replace `dispatched` reference with `in_progress` for "On the Way"; `confirmed` → "Accepted"
-- Line 273 map header: `dispatched` → `in_progress` for "🕐 On the way"
+The dialog the user saw is **not** rendered by our app — there is no "leave"/"Leave" string anywhere in `src/`. It is the native KBZ Pay shell's confirmation prompt fired by the host WebView whenever the page asks the OS to handle a non-`https`/non-`http` URL scheme or a `target=_blank` navigation.
 
-**d) Replace hardcoded "Cash on Delivery" (line 309-311):**
-```tsx
-<div className="flex justify-between">
-  <span className="text-muted-foreground font-semibold">Payment</span>
-  <span className={`font-bold ${order.payment_status === 'paid' ? 'text-green-600' : 'text-foreground'}`}>
-    {order.payment_status === 'paid'
-      ? `Paid via ${order.payment_method === 'kbzpay' ? 'KBZPay' : order.payment_method === 'wave' ? 'Wave' : order.payment_method === 'cb_pay' ? 'CB Pay' : 'Cash'}`
-      : order.payment_status === 'cod' ? 'Cash on Delivery'
-      : 'Payment Pending'}
-  </span>
-</div>
-```
+**Audit results across the repo**
 
-### 2. Global "KBZ Pay" → "KBZPay" rename (customer-facing strings only)
-
-Code identifiers, function names, comments, payment_method values (`kbzpay`, `kbz_pay`), and `client.ts` comment stay untouched. Only user-visible JSX/string-literal text is changed.
-
-| File | Line(s) | Change |
+| Trigger pattern | Where it appears | Will it fire the prompt? |
 |---|---|---|
-| `src/pages/OrderConfirm.tsx` | 273 | Button label `Pay with KBZ Pay …` → `Pay with KBZPay …` |
-| `src/pages/PhoneEntry.tsx` | 68 | `Connecting via KBZ Pay...` → `Connecting via KBZPay...` |
-| `src/pages/PhoneEntry.tsx` | 94 | `linked to this KBZ Pay number.` → `linked to this KBZPay number.` |
-| `src/pages/PhoneEntry.tsx` | 154 | `matching your KBZ Pay number.` → `matching your KBZPay number.` |
-| `src/pages/PhoneEntry.tsx` | 200 | `when KBZ Pay asks for permission.` → `when KBZPay asks for permission.` |
-| `src/pages/PhoneEntry.tsx` | 235 | `open it again from KBZ Pay.` → `open it again from KBZPay.` |
-| `src/pages/KbzProfileComplete.tsx` | 59 | `Welcome via KBZ Pay!` → `Welcome via KBZPay!` |
-| `src/pages/ProfilePage.tsx` | 29 | `desc: "KBZ Pay"` → `desc: "KBZPay"` |
-| `src/pages/ProfileFAQ.tsx` | 8 | `KBZ Pay and Wave Money support is coming soon.` → `KBZPay and Wave Money support is coming soon.` |
-| `src/components/KbzError.tsx` | 26 | `Could not connect to KBZ Pay services.` → `Could not connect to KBZPay services.` |
-| `src/components/KbzError.tsx` | 32 | `Unable to verify your KBZ Pay account.` → `Unable to verify your KBZPay account.` |
+| `window.open` / `target="_blank"` / `location.href = …` | None in `src/` (only `location.href` read inside `index.html` perf beacon) | No |
+| `tel:8484` `<a href>` | `src/pages/WelcomePage.tsx:42`, `src/pages/PhoneEntry.tsx:213, 248` | **Yes — tapping any of these inside KBZ Mini App launches the native dialer, which the KBZ shell guards with the "Leave KBZPay?" prompt.** This is the only realistic in-app source. |
+| `mailto:` | None | No |
+| External `https://` (Leaflet tiles, marker icons, Supabase API) | `OrderTracking.tsx`, `client.ts` | No — XHR/img loads stay in-WebView |
+| Hash-router internal navigation (`#/...`) | All routes | No |
+| `kbzpay-bridge.ts` `ma.callNativeAPI` (startPay) | `OrderConfirm.tsx` | No — this is the official cashier bridge, runs in-shell |
 
-**Not changed (intentional):**
-- Code comments (e.g. `// Custom Storage Adapter for KBZ Pay WebView`, `// 2. Create KBZ Pay payment`)
-- Payment-method enum values (`kbzpay`, `kbz_pay`) — DB-bound
-- Comments inside `PhoneEntry.tsx` that begin with `//`
-- `OrderSuccess.tsx` line 44 (a code comment, not user-visible)
+**Conclusion**: the only customer-tappable element that can pop "Leave KBZPay?" today is the **"Call 8484" support link** on `WelcomePage` and `PhoneEntry`. The user most likely tapped it (or accidentally long-pressed it) while still in the onboarding/error screen — the session-replay shows the user did sit on `/onboarding/phone` after the failed sign-in attempt where "Call 8484" is the prominent help link.
 
-### Files touched
-1. `src/pages/OrderTracking.tsx` — fixes 1a/1b/1c/1d + status-flow cleanup
-2. `src/pages/OrderConfirm.tsx` — brand rename (1 string)
-3. `src/pages/PhoneEntry.tsx` — brand rename (5 strings)
-4. `src/pages/KbzProfileComplete.tsx` — brand rename (1 string)
-5. `src/pages/ProfilePage.tsx` — brand rename (1 string)
-6. `src/pages/ProfileFAQ.tsx` — brand rename (1 string)
-7. `src/components/KbzError.tsx` — brand rename (2 strings)
+### 3. Recommendations (NOT applied in this patch — flagged for your decision)
 
-### Out of scope
-No DB schema, no edge functions, no payment_method value changes, no agent-facing screens, no comments. No new dependencies.
+These are not part of this one-line fix. Listing them so you can decide whether to schedule a follow-up:
+
+- **Option A (safest UX inside Mini App)**: replace `<a href="tel:8484">` with a button that opens an in-app dialog showing "Call 8484" as plain copyable text and a "Copy number" action. No leave-prompt, no dialer launch. Outside the Mini App (regular browser/PWA), still keep the `tel:` behaviour.
+- **Option B (minimal)**: keep `tel:8484` but only render it when `isKBZPayMiniApp() === false`. Inside the Mini App show non-link text "Call 8484 for help". This guarantees zero leave-prompts during the KBZ pilot.
+- **Option C (do nothing)**: accept that tapping "Call 8484" will continue to trigger the native prompt — which is actually the *correct* OS behaviour for placing a call. Document it.
+
+### Files touched in this change
+
+1. `src/pages/OrderConfirm.tsx` — single string literal on line 273.
+
+No other files, no DB, no edge functions, no routing, no auth changes.
 
 ### Acceptance
-- Status timeline reflects `new → confirmed → in_progress → delivered` with correct labels.
-- Order with `payment_status='paid'`, `payment_method='kbzpay'` shows green "Paid via KBZPay".
-- Order with `payment_status='cod'` shows "Cash on Delivery".
-- Order with neither shows "Payment Pending".
-- All customer-facing UI displays "KBZPay" (no space). Code/identifiers/DB values unchanged.
+
+- Order Confirm sticky footer button reads **"Pay with KBZPay — 28,000 MMK"** (no space in KBZPay).
+- `grep -R "KBZ Pay" src/` returns only code comments and `kbzpay-bridge.ts` thrown-error strings (developer-facing, intentionally left).
+- No behaviour change to payment flow, no new strings introduced.
+
+### Out of scope
+
+Tel-link / "leave KBZPay" prompt mitigation — investigated and reported above; awaiting your direction on Option A / B / C before any change.
 
