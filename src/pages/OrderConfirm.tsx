@@ -270,7 +270,7 @@ const OrderConfirm = () => {
                 Processing...
               </>
             ) : (
-              `Pay with KBZ Pay — ${orderState.totalAmount.toLocaleString()} MMK`
+              `Pay with KBZPay — ${orderState.totalAmount.toLocaleString()} MMK`
             )}
           </Button>
         </div>
