@@ -1,8 +1,7 @@
-import { ChevronRight, LogOut } from "lucide-react";
+import { ChevronRight, LogOut, Flame } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile, useOrders } from "@/hooks/useOrders";
-import { toast } from "@/hooks/use-toast";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -20,18 +19,11 @@ const ProfilePage = () => {
     navigate("/");
   };
 
-  const handleComingSoon = () => {
-    toast({ title: "Coming soon!", description: "This feature will be available in a future update." });
-  };
-
   const accountItems = [
     { emoji: "📍", title: "Delivery Addresses", desc: customer?.township ?? "Manage addresses", action: () => navigate("/profile/addresses") },
-    { emoji: "💳", title: "Payment Methods", desc: "KBZPay", action: handleComingSoon },
-    { emoji: "⚙️", title: "Preferences", desc: "Notifications, language", action: handleComingSoon },
   ];
 
   const supportItems = [
-    { emoji: "☎️", title: "Contact 8484", desc: "24/7 support", action: handleComingSoon },
     { emoji: "❓", title: "Help & FAQ", desc: "Common questions", action: () => navigate("/profile/faq") },
     { emoji: "📄", title: "Terms & Conditions", desc: "Legal info", action: () => navigate("/profile/terms") },
     { emoji: "🔒", title: "Privacy Policy", desc: "Your data rights", action: () => navigate("/profile/privacy") },
@@ -71,6 +63,56 @@ const ProfilePage = () => {
           </div>
         </div>
 
+        {/* Branded promotional banner — decorative, not interactive */}
+        <div className="relative overflow-hidden rounded-[18px] border border-border bg-card shadow-sm">
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card)) 55%, hsl(var(--action) / 0.08) 100%)",
+            }}
+          />
+          {/* Brand wave accent */}
+          <svg
+            className="absolute -bottom-2 left-0 right-0 w-full text-action/15"
+            viewBox="0 0 400 60"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M0,40 C100,10 200,55 300,25 C350,12 380,30 400,22 L400,60 L0,60 Z"
+              fill="currentColor"
+            />
+          </svg>
+          <div className="relative flex items-center gap-3 p-4">
+            <div className="flex-1 min-w-0">
+              <p className="font-display text-[15px] font-extrabold leading-tight text-foreground">
+                Fast gas delivery, right from KBZPay
+              </p>
+              <p className="mt-1 text-[12px] font-semibold text-muted-foreground leading-snug">
+                Multi-brand LPG ordering in minutes
+              </p>
+            </div>
+            {/* Stylised cylinder */}
+            <div className="relative h-[68px] w-[44px] shrink-0">
+              <div className="absolute left-1/2 top-0 h-2 w-5 -translate-x-1/2 rounded-t-md bg-action/70" />
+              <div className="absolute left-1/2 top-1.5 h-1.5 w-7 -translate-x-1/2 rounded-sm bg-action/80" />
+              <div
+                className="absolute left-0 right-0 top-3 bottom-0 rounded-[10px] shadow-sm"
+                style={{
+                  background:
+                    "linear-gradient(180deg, hsl(var(--action)) 0%, hsl(var(--action) / 0.85) 100%)",
+                }}
+              >
+                <div className="absolute inset-x-1.5 top-1/2 -translate-y-1/2 rounded-sm bg-white/95 px-1 py-1 text-center">
+                  <Flame className="mx-auto h-3 w-3 text-action" strokeWidth={2.5} />
+                  <p className="text-[7px] font-extrabold leading-none text-action">8484</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Support Section */}
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Support</p>
@@ -88,14 +130,6 @@ const ProfilePage = () => {
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Help Callout */}
-        <div className="flex items-center gap-3 rounded-[14px] border-[1.5px] border-border bg-surface-warm p-3.5">
-          <span className="text-2xl">📞</span>
-          <p className="flex-1 text-[13px] font-semibold text-muted-foreground leading-relaxed">
-            Need help? Call <strong className="text-action">8484</strong> anytime, 24/7
-          </p>
         </div>
 
         {/* Logout */}

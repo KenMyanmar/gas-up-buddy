@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { isInKbzPay } from "@/lib/kbzpay-bridge";
 
 interface CustomerRow {
   id: string;
@@ -36,16 +37,24 @@ interface PhoneRow {
 const MAX_SECONDARY_PHONES = 3;
 const isValidMmPhone = (p: string) => /^09\d{7,9}$/.test(p.trim());
 
-const SupportFooter = () => (
-  <div className="mt-8 pt-4 text-center">
-    <a
-      href="tel:8484"
-      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-    >
-      Need help? Call <span className="font-semibold">8484</span>
-    </a>
-  </div>
-);
+const SupportFooter = () =>
+  isInKbzPay() ? (
+    <div className="mt-8 pt-4 text-center">
+      <span className="text-sm text-muted-foreground">
+        Need help? Call{" "}
+        <span className="select-all font-semibold text-foreground">8484</span>
+      </span>
+    </div>
+  ) : (
+    <div className="mt-8 pt-4 text-center">
+      <a
+        href="tel:8484"
+        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+      >
+        Need help? Call <span className="font-semibold">8484</span>
+      </a>
+    </div>
+  );
 
 const TownshipSelect = ({
   value,

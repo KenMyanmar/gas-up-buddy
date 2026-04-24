@@ -9,6 +9,25 @@ import { useCustomerProfile } from "@/hooks/useOrders";
 import { useKbzAutoLogin, type KbzCandidate } from "@/hooks/useKbzAutoLogin";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { isInKbzPay } from "@/lib/kbzpay-bridge";
+
+const HelpLine = () =>
+  isInKbzPay() ? (
+    <p className="mt-5 text-xs text-muted-foreground">
+      Need help? Call{" "}
+      <span className="select-all font-semibold text-foreground">8484</span>
+    </p>
+  ) : (
+    <p className="mt-5 text-xs text-muted-foreground">
+      Need help?{" "}
+      <a
+        href="tel:8484"
+        className="font-semibold text-foreground underline-offset-2 hover:underline"
+      >
+        Call 8484
+      </a>
+    </p>
+  );
 
 const PhoneEntry = () => {
   const navigate = useNavigate();
@@ -207,15 +226,7 @@ const PhoneEntry = () => {
           >
             Allow Access
           </Button>
-          <p className="mt-5 text-xs text-muted-foreground">
-            Need help?{" "}
-            <a
-              href="tel:8484"
-              className="font-semibold text-foreground underline-offset-2 hover:underline"
-            >
-              Call 8484
-            </a>
-          </p>
+          <HelpLine />
         </div>
       </div>
     );
@@ -242,15 +253,7 @@ const PhoneEntry = () => {
         >
           Try Again
         </Button>
-        <p className="mt-5 text-xs text-muted-foreground">
-          Need help?{" "}
-          <a
-            href="tel:8484"
-            className="font-semibold text-foreground underline-offset-2 hover:underline"
-          >
-            Call 8484
-          </a>
-        </p>
+        <HelpLine />
       </div>
       {import.meta.env.DEV && <DevSignInPanel />}
     </div>
