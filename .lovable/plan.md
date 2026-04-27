@@ -1,55 +1,76 @@
+## Revised iPhone KBZPay WebView Zoom Fix
 
+### Decision
+Use Option B: drop the global CSS guard and ship only the two load-bearing textarea fixes.
 
-## Fix `Pay with KBZPay` label + audit "leave KBZPay" prompt triggers
+Reason: a base-layer selector like `input, textarea, select { font-size: 16px; }` would not reliably override Tailwind utility classes such as `.text-sm`. Adding `!important` would work, but it creates unnecessary global styling debt. The current bug is fully addressed by Steps 1 and 2.
 
-### 1. One-line brand fix (the only code change)
+### Implementation plan
 
-**`src/pages/OrderConfirm.tsx` line 273**
-```diff
--              `Pay with KBZ Pay — ${orderState.totalAmount.toLocaleString()} MMK`
-+              `Pay with KBZPay — ${orderState.totalAmount.toLocaleString()} MMK`
+#### 1. Fix the Confirm Order Special Instructions textarea
+File: `src/pages/OrderConfirm.tsx`
+
+Patch the only raw `<textarea>` on this page, in the Special Instructions section.
+
+Change:
+```tsx
+text-sm
 ```
 
-That's the last remaining customer-facing "KBZ Pay" string in the order flow. Everything else from the previous rename pass is already correct.
+to:
+```tsx
+text-base md:text-sm
+```
 
-### 2. Investigation: where the "leave KBZPay" native dialog comes from
+Target class currently appears on the textarea className:
+```tsx
+className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-bg-warm p-4 text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-action min-h-[70px] text-sm"
+```
 
-The dialog the user saw is **not** rendered by our app — there is no "leave"/"Leave" string anywhere in `src/`. It is the native KBZ Pay shell's confirmation prompt fired by the host WebView whenever the page asks the OS to handle a non-`https`/non-`http` URL scheme or a `target=_blank` navigation.
+Result:
+```tsx
+className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-bg-warm p-4 text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-action min-h-[70px] text-base md:text-sm"
+```
 
-**Audit results across the repo**
+#### 2. Harden the shared shadcn Textarea component
+File: `src/components/ui/textarea.tsx`
 
-| Trigger pattern | Where it appears | Will it fire the prompt? |
-|---|---|---|
-| `window.open` / `target="_blank"` / `location.href = …` | None in `src/` (only `location.href` read inside `index.html` perf beacon) | No |
-| `tel:8484` `<a href>` | `src/pages/WelcomePage.tsx:42`, `src/pages/PhoneEntry.tsx:213, 248` | **Yes — tapping any of these inside KBZ Mini App launches the native dialer, which the KBZ shell guards with the "Leave KBZPay?" prompt.** This is the only realistic in-app source. |
-| `mailto:` | None | No |
-| External `https://` (Leaflet tiles, marker icons, Supabase API) | `OrderTracking.tsx`, `client.ts` | No — XHR/img loads stay in-WebView |
-| Hash-router internal navigation (`#/...`) | All routes | No |
-| `kbzpay-bridge.ts` `ma.callNativeAPI` (startPay) | `OrderConfirm.tsx` | No — this is the official cashier bridge, runs in-shell |
+Change the default textarea class from:
+```tsx
+text-sm
+```
 
-**Conclusion**: the only customer-tappable element that can pop "Leave KBZPay?" today is the **"Call 8484" support link** on `WelcomePage` and `PhoneEntry`. The user most likely tapped it (or accidentally long-pressed it) while still in the onboarding/error screen — the session-replay shows the user did sit on `/onboarding/phone` after the failed sign-in attempt where "Call 8484" is the prominent help link.
+to:
+```tsx
+text-base md:text-sm
+```
 
-### 3. Recommendations (NOT applied in this patch — flagged for your decision)
+This matches the existing safe pattern in `src/components/ui/input.tsx`:
+```tsx
+text-base ... md:text-sm
+```
 
-These are not part of this one-line fix. Listing them so you can decide whether to schedule a follow-up:
+#### 3. Do not change `index.html` viewport
+No `maximum-scale=1.0` and no `user-scalable=no` will be added.
 
-- **Option A (safest UX inside Mini App)**: replace `<a href="tel:8484">` with a button that opens an in-app dialog showing "Call 8484" as plain copyable text and a "Copy number" action. No leave-prompt, no dialer launch. Outside the Mini App (regular browser/PWA), still keep the `tel:` behaviour.
-- **Option B (minimal)**: keep `tel:8484` but only render it when `isKBZPayMiniApp() === false`. Inside the Mini App show non-link text "Call 8484 for help". This guarantees zero leave-prompts during the KBZ pilot.
-- **Option C (do nothing)**: accept that tapping "Call 8484" will continue to trigger the native prompt — which is actually the *correct* OS behaviour for placing a call. Document it.
+Reason: disabling user zoom is an accessibility regression. The root cause is the sub-16px focused textarea font size, not the viewport meta tag.
 
-### Files touched in this change
+#### 4. Do not add the global CSS guard
+No `input, textarea, select { font-size: 16px; }` rule will be added to `src/index.css`.
 
-1. `src/pages/OrderConfirm.tsx` — single string literal on line 273.
+Reason: without `!important`, it does not override Tailwind `.text-sm`; with `!important`, it is broader than necessary.
 
-No other files, no DB, no edge functions, no routing, no auth changes.
+### Verification after implementation
+- Grep `src/pages/OrderConfirm.tsx` for the Special Instructions `<textarea>` and confirm it uses `text-base md:text-sm`.
+- Confirm `src/components/ui/textarea.tsx` uses `text-base md:text-sm`.
+- Confirm `src/components/ui/input.tsx` remains unchanged.
+- Confirm there are no backend, Supabase, payment, routing, or KBZPay bridge changes.
 
-### Acceptance
+### Publish and retest path
+1. Apply the two frontend CSS class changes.
+2. Click Lovable Publish → Update.
+3. Wait about 60 seconds for `miniapp.anygas.org` CDN propagation.
+4. Force-close KBZPay on the tester’s iPhone so the WebView reloads fresh assets.
+5. Reopen AnyGas 8484 mini app → go to Confirm Order → tap Special Instructions.
 
-- Order Confirm sticky footer button reads **"Pay with KBZPay — 28,000 MMK"** (no space in KBZPay).
-- `grep -R "KBZ Pay" src/` returns only code comments and `kbzpay-bridge.ts` thrown-error strings (developer-facing, intentionally left).
-- No behaviour change to payment flow, no new strings introduced.
-
-### Out of scope
-
-Tel-link / "leave KBZPay" prompt mitigation — investigated and reported above; awaiting your direction on Option A / B / C before any change.
-
+Expected result: focusing and blurring the Special Instructions field should no longer zoom the Confirm Order screen.
