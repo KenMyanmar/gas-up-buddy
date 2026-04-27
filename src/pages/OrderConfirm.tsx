@@ -254,7 +254,7 @@ const OrderConfirm = () => {
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             placeholder="Floor number, landmark, gate code..."
-            className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-bg-warm p-4 text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-action min-h-[70px] text-sm"
+            className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-bg-warm p-4 text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-action min-h-[70px] text-base md:text-sm"
             rows={3}
           />
         )}
