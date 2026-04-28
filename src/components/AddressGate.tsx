@@ -1,4 +1,4 @@
-import { ReactNode, cloneElement, isValidElement, MouseEvent } from "react";
+import { ReactNode, cloneElement, isValidElement, MouseEvent, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MapPin, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,8 +53,9 @@ const AddressGate = ({ children, open, onOpenChange, mode = "wrap" }: AddressGat
   const urlCustomerId = searchParams.get("cid") ?? undefined;
   const { user } = useAuth();
   const { data: customer } = useCustomerProfile(user?.id, urlCustomerId);
-  const isOpen = open ?? false;
-  const setIsOpen = onOpenChange ?? (() => undefined);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+  const setIsOpen = onOpenChange ?? setInternalOpen;
 
   if (mode === "modal") {
     return <AddressGatePrompt open={isOpen} onOpenChange={setIsOpen} />;
@@ -74,7 +75,7 @@ const AddressGate = ({ children, open, onOpenChange, mode = "wrap" }: AddressGat
             setIsOpen(true);
             return;
           }
-          children.props.onClick?.(event);
+          (children as React.ReactElement<{ onClick?: (event: MouseEvent) => void }>).props.onClick?.(event);
         },
       })}
       <AddressGatePrompt open={isOpen} onOpenChange={setIsOpen} />
