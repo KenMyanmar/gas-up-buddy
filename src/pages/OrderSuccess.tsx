@@ -5,7 +5,7 @@ import { CheckCircle2 } from "lucide-react";
 interface OrderSuccessState {
   orderId: string;
   totalAmount: number;
-  paymentStatus?: "paid" | "failed" | "timeout" | "pending";
+  paymentStatus?: "paid" | "failed" | "timeout" | "pending" | "cancelled";
   brandName?: string;
   sizeKg?: number;
   cylinderType?: string;
