@@ -10,10 +10,19 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.kbzpay-create-payment]
-verify_jwt = true
+verify_jwt = false
 
 [functions.kbzpay-webhook]
 verify_jwt = false
 
 [functions.client-diag]
+verify_jwt = false
+
+[functions.kbzpay-query-order]
+verify_jwt = false
+
+[functions.create-order-intent]
+verify_jwt = false
+
+[functions.kbzpay-reconcile-cron]
 verify_jwt = false
