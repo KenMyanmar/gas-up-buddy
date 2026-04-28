@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // ── Auth (verify_jwt = true enforced at platform level) ────
+    // ── Auth (verify_jwt = false — external callers) ────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Unauthorized" }, 401);
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       return json({ error: "orderId is required" }, 400);
     }
 
-    // ── Validate order ownership ───────────────────────────────
+    // ── Validate order ownership ───────────────────────────
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
-      .select("id, total_amount, payment_method, payment_status, created_by, customer_id")
+      .select("id, total_amount, payment_method, payment_status, status, created_by, customer_id")
       .eq("id", orderId)
       .single();
 
@@ -101,6 +101,24 @@ Deno.serve(async (req) => {
       return json({ error: "Order already paid" }, 400);
     }
 
+    // ── INTENT MODEL: Promote draft → new+pending ──────────────
+    if (order.status === "draft") {
+      const { error: promoteErr } = await supabaseAdmin
+        .from("orders")
+        .update({
+          status: "new",
+          payment_status: "pending",
+        })
+        .eq("id", orderId)
+        .eq("status", "draft"); // Optimistic lock
+
+      if (promoteErr) {
+        console.error("[CREATE-PAYMENT] Draft promotion failed:", promoteErr);
+        return json({ error: "Failed to promote draft order" }, 500);
+      }
+      console.log(`[CREATE-PAYMENT] Promoted draft→new: order=${orderId}`);
+    }
+
     // ── Check existing payment for retry safety (P0-4 fix) ─────
     const { data: existingPayment } = await supabaseAdmin
       .from("payments")
@@ -112,7 +130,7 @@ Deno.serve(async (req) => {
       return json({ error: "Order already paid" }, 400);
     }
 
-    // ── KBZ config ─────────────────────────────────────────────
+    // ── KBZ config ───────────────────────────────────────────
     const env = Deno.env.get("KBZPAY_ENV") || "UAT";
     const appId = Deno.env.get(`KBZPAY_${env}_APP_ID`);
     const appKey = Deno.env.get(`KBZPAY_${env}_APP_KEY`);
@@ -167,7 +185,7 @@ Deno.serve(async (req) => {
       total_amount: totalKyats,
       trans_currency: "MMK",
       timeout_express: "15m",
-      callback_info: "KBZMINICallBack",  // Required by KBZ Pay MINIAPP precreate
+      callback_info: "KBZMINICallBack",
     };
 
     const outerParams: Record<string, string> = {
@@ -181,7 +199,7 @@ Deno.serve(async (req) => {
 
     // Signature: flatten ALL (outer + biz_content), excluding sign and sign_type
     const allForSign: Record<string, string> = { ...outerParams, ...bizContent };
-    delete allForSign.sign_type; // excluded from signature
+    delete allForSign.sign_type;
     const sign = await signParams(allForSign, appKey);
 
     // Build nested request body per KBZ spec
@@ -193,7 +211,7 @@ Deno.serve(async (req) => {
       },
     };
 
-    // ── Call KBZ precreate via VPS proxy (whitelisted IP 188.166.229.251) ──
+    // ── Call KBZ precreate via VPS proxy ────────────────────────
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { normalizePhone } from "../_shared/phone.ts";
+import { normalizePhone } from "./phone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,23 +55,24 @@ function isRateLimited(ip: string): boolean {
   return entry.count > 5;
 }
 
-// ── Find auth user by bridgeEmail → e164 → e164NoPlus ────────────
-async function findAuthUser(
+// ── SCALABILITY FIX: Replace listUsers O(N) with targeted lookup ──
+async function findAuthUserByEmail(
   supabaseAdmin: any,
-  ids: { bridgeEmail: string; e164: string; e164NoPlus: string },
+  bridgeEmail: string,
 ): Promise<{ id: string; email: string | null; phone: string | null } | null> {
-  const { data: { users }, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-  if (listErr || !users) return null;
-  const found = users.find((u: any) =>
-    u.email === ids.bridgeEmail ||
-    u.phone === ids.e164 ||
-    u.phone === ids.e164NoPlus
-  );
+  // perPage:1000 — perPage:10 missed orphan auth users beyond first page.
+  // kbz_openid fast-path makes this cold-path code.
+  const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers({
+    perPage: 1000,
+    page: 1,
+  });
+  if (error || !users) return null;
+  
+  const found = users.find((u: any) => u.email === bridgeEmail);
   return found ? { id: found.id, email: found.email ?? null, phone: found.phone ?? null } : null;
 }
 
 // ── Session minting via deterministic HMAC password + email sign-in ──
-// Identical body to kbzpay-link-customer/mintSession. Keep in sync.
 async function mintSession(
   supabaseAdmin: any,
   authUserId: string,
@@ -84,7 +85,6 @@ async function mintSession(
   const authSecret = Deno.env.get("KBZPAY_AUTH_SECRET");
   if (!authSecret) throw new Error("KBZPAY_AUTH_SECRET not configured");
 
-  // Deterministic password: HMAC_SHA256(secret, auth_user_id).
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(authSecret),
@@ -97,7 +97,6 @@ async function mintSession(
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  // Self-heal: ensure email + phone + password are canonical for this user.
   const { data: getRes } = await supabaseAdmin.auth.admin.getUserById(authUserId);
   const currentUser = getRes?.user;
   const patch: Record<string, unknown> = { password };
@@ -112,7 +111,6 @@ async function mintSession(
 
   const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, patch);
   if (pwErr) {
-    // Phone update may collide (e.g., another row already holds e164). Retry without phone.
     if (patch.phone) {
       console.warn("phone_update_rejected_continuing_email_only", { auth_user_id: authUserId });
       const retryPatch = { ...patch };
@@ -129,13 +127,11 @@ async function mintSession(
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
-  // Email sign-in only — never phone.
   let { data, error } = await anonClient.auth.signInWithPassword({
     email: bridgeEmail,
     password,
   });
 
-  // One retry on invalid_credentials (covers the rare update→signIn replication gap).
   if (error && /invalid_credentials/i.test(error.message || "")) {
     await new Promise((r) => setTimeout(r, 400));
     const retry = await anonClient.auth.signInWithPassword({ email: bridgeEmail, password });
@@ -154,6 +150,61 @@ async function mintSession(
     expires_at: data.session.expires_at,
     expires_in: data.session.expires_in,
   };
+}
+
+// ── Extract KBZ identity from getUserInfo response ──────────────
+function extractKbzIdentity(parsedContent: any, userData: any): { openid: string | null; fullName: string | null } {
+  const openid =
+    parsedContent?.user?.Response?.openid ||
+    parsedContent?.user?.Response?.open_id ||
+    parsedContent?.openid ||
+    parsedContent?.open_id ||
+    userData?.content?.user?.Response?.openid ||
+    userData?.content?.openid ||
+    userData?.openid ||
+    userData?.Response?.openid ||
+    null;
+
+  const fullName =
+    parsedContent?.user?.Response?.fullName ||
+    parsedContent?.user?.Response?.full_name ||
+    parsedContent?.user?.Response?.nickName ||
+    parsedContent?.user?.Response?.nick_name ||
+    parsedContent?.fullName ||
+    parsedContent?.full_name ||
+    parsedContent?.nickName ||
+    userData?.content?.user?.Response?.fullName ||
+    userData?.content?.fullName ||
+    userData?.fullName ||
+    userData?.Response?.fullName ||
+    null;
+
+  return { openid: openid ? String(openid) : null, fullName: fullName ? String(fullName) : null };
+}
+
+// ── Store KBZ identity on customer record ─────────────────────────
+async function storeKbzIdentity(
+  supabaseAdmin: any,
+  customerId: string,
+  openid: string | null,
+  fullName: string | null,
+) {
+  if (!openid && !fullName) return;
+  const update: Record<string, unknown> = {};
+  if (openid) update.kbz_openid = openid;
+  if (fullName) update.kbz_full_name = fullName;
+  
+  const { error } = await supabaseAdmin
+    .from("customers")
+    .update(update)
+    .eq("id", customerId);
+  
+  if (error) {
+    // Unique constraint violation on kbz_openid = another customer already has this openid
+    console.warn("[AUTO-LOGIN] kbz_identity store failed (may be duplicate openid):", error.message);
+  } else {
+    console.log(`[AUTO-LOGIN] Stored kbz identity for customer=${customerId} openid=${openid?.slice(0,8)}...`);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -319,6 +370,12 @@ Deno.serve(async (req) => {
       return json({ error: "No phone returned from KBZ Pay", failure_code: "KBZ_NO_PHONE" }, 502);
     }
 
+    // ── GAP 4: Extract KBZ identity (openid + fullName) ──────────
+    const kbzIdentity = extractKbzIdentity(parsedContent, userData);
+    if (kbzIdentity.openid) {
+      console.log(`[AUTO-LOGIN] KBZ identity extracted: openid=${kbzIdentity.openid.slice(0, 8)}... fullName=${kbzIdentity.fullName || 'null'}`);
+    }
+
     const norm = normalizePhone(rawPhone);
     if (!norm) {
       console.error("UNRECOGNIZED_PHONE_FORMAT for raw KBZ phone (length:", String(rawPhone).length, ")");
@@ -333,7 +390,46 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // ── Look up customer_phones → customers ────────────────────
+    // ── GAP 5: FAST PATH — check kbz_openid first (O(1) indexed) ──
+    if (kbzIdentity.openid) {
+      const { data: openidMatch } = await supabaseAdmin
+        .from("customers")
+        .select("id, full_name, auth_user_id, kbz_openid")
+        .eq("kbz_openid", kbzIdentity.openid)
+        .maybeSingle();
+
+      if (openidMatch && openidMatch.auth_user_id) {
+        // Returning KBZ user — skip ALL phone matching
+        console.log(`[AUTO-LOGIN] FAST PATH: kbz_openid match → customer=${openidMatch.id}`);
+        
+        const session = await mintSession(supabaseAdmin, openidMatch.auth_user_id, bridgeEmail, e164);
+
+        // Update fullName if changed
+        if (kbzIdentity.fullName && kbzIdentity.fullName !== openidMatch.full_name) {
+          await storeKbzIdentity(supabaseAdmin, openidMatch.id, null, kbzIdentity.fullName);
+        }
+
+        await supabaseAdmin.from("activity_logs").insert({
+          entity_type: "customer",
+          entity_id: openidMatch.id,
+          action_type: "kbzpay.auto_login.success",
+          summary: `KBZ Pay fast-path auto-login for ${phoneMasked} via openid`,
+          user_id: openidMatch.auth_user_id,
+          metadata: { phone_masked: phoneMasked, customer_id: openidMatch.id, fast_path: true },
+        });
+
+        return json({
+          status: "linked",
+          customer_id: openidMatch.id,
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: session.expires_at,
+          expires_in: session.expires_in,
+        });
+      }
+    }
+
+    // ── Standard phone matching (existing logic) ───────────────
     const { data: matches, error: matchErr } = await supabaseAdmin
       .from("customer_phones")
       .select(`
@@ -349,7 +445,6 @@ Deno.serve(async (req) => {
       return json({ error: "Database error" }, 500);
     }
 
-    // Dedupe by customer_id
     const uniqueCustomers = new Map<string, any>();
     for (const m of matches || []) {
       const c = (m as any).customers;
@@ -358,7 +453,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Also check customers.phone directly (legacy fallback)
     const { data: directMatches } = await supabaseAdmin
       .from("customers")
       .select("id, full_name, address, township, auth_user_id, created_at")
@@ -372,7 +466,6 @@ Deno.serve(async (req) => {
 
     const customerList = Array.from(uniqueCustomers.values());
 
-    // ── Get order stats in a single query ───────────
     const customerIds = customerList.map((c: any) => c.id);
     let orderStatsMap = new Map<string, { count: number; lastDate: string | null }>();
 
@@ -419,14 +512,12 @@ Deno.serve(async (req) => {
       return b.total_orders - a.total_orders;
     });
 
-    // ── Branch on match count ──────────────────────────────────
-
-    // 0 matches → new_account
+    // ── 0 matches → new_account ──────────────────────────────────
     if (candidates.length === 0) {
       let userId: string;
 
-      // bridgeEmail-first lookup before createUser
-      const existing = await findAuthUser(supabaseAdmin, { bridgeEmail, e164, e164NoPlus });
+      // GAP 5 FIX: Try bridge email lookup instead of listUsers({perPage:1000})
+      const existing = await findAuthUserByEmail(supabaseAdmin, bridgeEmail);
       if (existing) {
         userId = existing.id;
         await supabaseAdmin.from("activity_logs").insert({
@@ -448,7 +539,7 @@ Deno.serve(async (req) => {
           email_confirm: true,
           phone: e164,
           phone_confirm: true,
-          password: crypto.randomUUID(), // temp; mintSession will overwrite with HMAC
+          password: crypto.randomUUID(),
         });
         if (createErr || !newUser?.user) {
           console.error("Create user error:", createErr);
@@ -457,16 +548,17 @@ Deno.serve(async (req) => {
         userId = newUser.user.id;
       }
 
-      // Create customers row
       const { data: newCustomer, error: custErr } = await supabaseAdmin
         .from("customers")
         .insert({
           auth_user_id: userId,
           phone: phone,
-          full_name: "",
+          full_name: kbzIdentity.fullName || "",
           address: "",
           township: "",
           status: "active",
+          kbz_openid: kbzIdentity.openid || null,
+          kbz_full_name: kbzIdentity.fullName || null,
         })
         .select("id")
         .single();
@@ -494,7 +586,7 @@ Deno.serve(async (req) => {
         action_type: "kbzpay.auto_login.new_account",
         summary: `New KBZ Pay account created for ${phoneMasked}`,
         user_id: userId,
-        metadata: { phone_masked: phoneMasked, source: "kbzpay_miniapp", customer_id: customerId },
+        metadata: { phone_masked: phoneMasked, source: "kbzpay_miniapp", customer_id: customerId, kbz_openid: kbzIdentity.openid },
       });
 
       return json({
@@ -507,7 +599,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 1 match with auth → linked
+    // ── 1 match with auth → linked ──────────────────────────────
     if (candidates.length === 1 && candidates[0].has_auth_account) {
       const c = candidates[0];
 
@@ -519,13 +611,16 @@ Deno.serve(async (req) => {
 
       const session = await mintSession(supabaseAdmin, c._auth_user_id, bridgeEmail, e164);
 
+      // GAP 4: Store KBZ identity on successful link
+      await storeKbzIdentity(supabaseAdmin, c.customer_id, kbzIdentity.openid, kbzIdentity.fullName);
+
       await supabaseAdmin.from("activity_logs").insert({
         entity_type: "customer",
         entity_id: c.customer_id,
         action_type: "kbzpay.auto_login.success",
         summary: `KBZ Pay auto-login for ${phoneMasked} → linked to existing account`,
         user_id: c._auth_user_id,
-        metadata: { phone_masked: phoneMasked, customer_id: c.customer_id },
+        metadata: { phone_masked: phoneMasked, customer_id: c.customer_id, kbz_openid: kbzIdentity.openid },
       });
 
       return json({
@@ -538,7 +633,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 1 match without auth OR 2+ matches → generate token
+    // ── 1 match without auth OR 2+ matches → generate token ─────
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
     const tokenHex = Array.from(tokenBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
