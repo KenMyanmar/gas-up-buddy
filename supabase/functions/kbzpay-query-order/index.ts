@@ -283,7 +283,7 @@ Deno.serve(async (req) => {
 
       console.log(`[QUERYORDER] RECONCILED: order=${order.id} marked PAID via queryorder`);
 
-    } else if (result === "SUCCESS" && (tradeStatus === "CLOSED" || tradeStatus === "TRADE_CLOSED")) {
+    } else if (result === "SUCCESS" && (tradeStatus === "CLOSED" || tradeStatus === "TRADE_CLOSED" || tradeStatus === "ORDER_EXPIRED")) {
       // Transaction expired/closed by KBZ — Option A: terminal state = cancelled + failed
       reconciliationAction = "mark_expired";
       newPaymentStatus = "failed";

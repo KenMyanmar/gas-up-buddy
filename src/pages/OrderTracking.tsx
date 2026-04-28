@@ -206,7 +206,7 @@ const OrderTracking = () => {
         await refreshOrder();
       } else if (status === "WAIT_BUYER_PAY" || status === "WAIT_PAY") {
         toast({ title: "Payment not yet completed. Please finish payment in KBZ Pay or place new order." });
-      } else if (status === "CLOSED" || status === "TRADE_CLOSED") {
+      } else if (status === "CLOSED" || status === "TRADE_CLOSED" || status === "ORDER_EXPIRED") {
         toast({ title: "This payment expired. Please place a new order." });
         await refreshOrder();
       } else {
