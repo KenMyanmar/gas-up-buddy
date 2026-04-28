@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startPay, pollOrderUntilPaid } from "@/lib/kbzpay-bridge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import AddressGate from "@/components/AddressGate";
 
 interface OrderState {
   cylinderType: string;
@@ -38,6 +39,7 @@ const OrderConfirm = () => {
   const [placing, setPlacing] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState("");
+  const [showAddressGate, setShowAddressGate] = useState(false);
 
   if (!orderState) {
     return <Navigate to="/order/configure" replace />;
@@ -48,7 +50,7 @@ const OrderConfirm = () => {
     setPlacing(true);
     try {
       // 1. Create the order
-      const { data, error } = await supabase.functions.invoke("create-customer-order", {
+      const { data, error } = await supabase.functions.invoke("create-order-intent", {
         body: {
           cylinderType: orderState.cylinderType,
           sizeKg: orderState.sizeKg,
@@ -63,8 +65,13 @@ const OrderConfirm = () => {
         },
       });
       if (error) throw error;
-      const result = data as { success?: boolean; order_id?: string; total_amount?: number; error?: string };
-      if (!result?.success) throw new Error(result?.error ?? "Order creation failed");
+      const result = data as { success?: boolean; order_id?: string; total_amount?: number; error?: string; code?: string; redirect?: string };
+      if (result?.code === "ADDRESS_REQUIRED" || result?.code === "TOWNSHIP_REQUIRED") {
+        setShowAddressGate(true);
+        setPlacing(false);
+        return;
+      }
+      if (!result?.order_id) throw new Error(result?.error ?? "Order creation failed");
 
       const orderId = result.order_id!;
 
@@ -98,14 +105,14 @@ const OrderConfirm = () => {
         if (isExplicitCancel) {
           navigate(`/order/success${location.search}`, {
             replace: true,
-            state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled" },
+            state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled", brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
           });
           return;
         }
         if (isExplicitFail) {
           navigate(`/order/success${location.search}`, {
             replace: true,
-            state: { orderId, totalAmount: result.total_amount, paymentStatus: "failed" },
+            state: { orderId, totalAmount: result.total_amount, paymentStatus: "failed", brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
           });
           return;
         }
@@ -121,17 +128,23 @@ const OrderConfirm = () => {
                   : "pending";
         navigate(`/order/success${location.search}`, {
           replace: true,
-          state: { orderId, totalAmount: result.total_amount, paymentStatus },
+          state: { orderId, totalAmount: result.total_amount, paymentStatus, brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
         });
       } catch (payError: any) {
         console.error("startPay failed:", payError);
         // Bridge/timeout error — order exists, webhook may still arrive. Show pending.
         navigate(`/order/success${location.search}`, {
           replace: true,
-          state: { orderId, totalAmount: result.total_amount, paymentStatus: "pending" },
+          state: { orderId, totalAmount: result.total_amount, paymentStatus: "pending", brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
         });
       }
     } catch (err: unknown) {
+      const anyErr = err as { context?: { code?: string; error?: string; json?: () => Promise<unknown> }; message?: string };
+      if (anyErr?.context?.code === "ADDRESS_REQUIRED" || anyErr?.context?.code === "TOWNSHIP_REQUIRED" || anyErr?.message?.includes("ADDRESS_REQUIRED") || anyErr?.message?.includes("TOWNSHIP_REQUIRED")) {
+        setShowAddressGate(true);
+        setPlacing(false);
+        return;
+      }
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Order Failed", description: message, variant: "destructive" });
       setPlacing(false);
