@@ -186,6 +186,38 @@ const OrderTracking = () => {
   const showHelpFooter = ["new", "confirmed"].includes(order.status);
   const isActive = ["confirmed", "in_progress"].includes(order.status);
   const agentInitials = agent?.owner_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
+  const isPendingKbzPayment = order.payment_method === "kbzpay" && order.payment_status === "pending";
+  const isOlderThanTwoMinutes = Date.now() - new Date(order.created_at).getTime() > 120_000;
+  const isInCooldown = Date.now() < checkCooldownUntil;
+  const showCheckPayment = isPendingKbzPayment && isOlderThanTwoMinutes;
+
+  const handleCheckPayment = async () => {
+    if (checkingPayment || isInCooldown) return;
+    setCheckingPayment(true);
+    setCheckCooldownUntil(Date.now() + 30_000);
+    try {
+      const { data, error } = await supabase.functions.invoke("kbzpay-query-order", {
+        body: { order_id: order.id },
+      });
+      if (error) throw error;
+      const status = (data as { kbz_trade_status?: string } | null)?.kbz_trade_status;
+      if (status === "PAY_SUCCESS") {
+        toast({ title: "Payment confirmed!" });
+        await refreshOrder();
+      } else if (status === "WAIT_BUYER_PAY") {
+        toast({ title: "Payment not yet completed. Please finish payment in KBZ Pay or place new order." });
+      } else if (status === "CLOSED" || status === "TRADE_CLOSED") {
+        toast({ title: "This payment expired. Please place a new order." });
+        await refreshOrder();
+      } else {
+        toast({ title: "Could not check payment. Please try again or call 8484.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Could not check payment. Please try again or call 8484.", variant: "destructive" });
+    } finally {
+      setCheckingPayment(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background pb-6">
@@ -321,9 +353,13 @@ const OrderTracking = () => {
             <span className="font-display font-extrabold text-action">{(order.total_amount ?? 0).toLocaleString()} MMK</span>
           </div>
           <div className="h-px bg-divider my-1" />
-          <div className="flex justify-between">
+          <div className="flex items-start justify-between gap-3">
             <span className="text-muted-foreground font-semibold">Deliver to</span>
-            <span className="text-right font-bold text-foreground">{order.address}, {order.township}</span>
+            <div className="text-right">
+              <p className="font-bold text-foreground">Township: {order.township}</p>
+              <p className="font-bold text-foreground">Address: {order.address}</p>
+              {order.landmark && <p className="text-xs italic text-muted-foreground">Landmark: {order.landmark}</p>}
+            </div>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground font-semibold">Payment</span>
@@ -336,6 +372,14 @@ const OrderTracking = () => {
           </div>
         </div>
       </div>
+
+      {showCheckPayment && (
+        <div className="mx-5 mt-4">
+          <Button variant="action" size="full" onClick={handleCheckPayment} disabled={checkingPayment || isInCooldown}>
+            {checkingPayment ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking with KBZ Pay...</> : "Check Payment Status"}
+          </Button>
+        </div>
+      )}
 
       {/* Help footer for early-stage orders */}
       {showHelpFooter && (
