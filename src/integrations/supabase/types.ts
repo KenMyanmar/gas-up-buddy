@@ -848,6 +848,8 @@ export type Database = {
           gps_lng: number | null
           gps_source: string | null
           id: string
+          kbz_full_name: string | null
+          kbz_openid: string | null
           normalized_address_text: string | null
           notes: string | null
           original_customer_id: string | null
@@ -870,6 +872,8 @@ export type Database = {
           gps_lng?: number | null
           gps_source?: string | null
           id?: string
+          kbz_full_name?: string | null
+          kbz_openid?: string | null
           normalized_address_text?: string | null
           notes?: string | null
           original_customer_id?: string | null
@@ -892,6 +896,8 @@ export type Database = {
           gps_lng?: number | null
           gps_source?: string | null
           id?: string
+          kbz_full_name?: string | null
+          kbz_openid?: string | null
           normalized_address_text?: string | null
           notes?: string | null
           original_customer_id?: string | null
@@ -4321,6 +4327,7 @@ export type Database = {
         | "delivered"
         | "cancelled"
         | "failed"
+        | "draft"
       order_type: "refill" | "new_setup" | "exchange" | "service_call"
       payment_method: "kbz_pay" | "wave" | "cb_pay" | "cash" | "kbzpay"
       social_channel: "facebook_dm" | "facebook_comment" | "zoho_messenger"
@@ -4473,6 +4480,7 @@ export const Constants = {
         "delivered",
         "cancelled",
         "failed",
+        "draft",
       ],
       order_type: ["refill", "new_setup", "exchange", "service_call"],
       payment_method: ["kbz_pay", "wave", "cb_pay", "cash", "kbzpay"],
