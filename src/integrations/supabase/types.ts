@@ -850,6 +850,7 @@ export type Database = {
           id: string
           kbz_full_name: string | null
           kbz_openid: string | null
+          landmark: string | null
           normalized_address_text: string | null
           notes: string | null
           original_customer_id: string | null
@@ -874,6 +875,7 @@ export type Database = {
           id?: string
           kbz_full_name?: string | null
           kbz_openid?: string | null
+          landmark?: string | null
           normalized_address_text?: string | null
           notes?: string | null
           original_customer_id?: string | null
@@ -898,6 +900,7 @@ export type Database = {
           id?: string
           kbz_full_name?: string | null
           kbz_openid?: string | null
+          landmark?: string | null
           normalized_address_text?: string | null
           notes?: string | null
           original_customer_id?: string | null

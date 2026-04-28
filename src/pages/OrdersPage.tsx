@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders, useCustomerProfile } from "@/hooks/useOrders";
 import { Skeleton } from "@/components/ui/skeleton";
+import AddressGate from "@/components/AddressGate";
 
 const tabs = ["All", "Active", "Completed", "Cancelled"];
 
@@ -29,6 +30,7 @@ const activeStatuses = ["new", "pending", "confirmed", "assigned", "in_transit",
 
 const OrdersPage = () => {
   const [activeTab, setActiveTab] = useState("All");
+  const [showAddressGate, setShowAddressGate] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlCustomerId = searchParams.get("cid");
@@ -125,12 +127,14 @@ const OrdersPage = () => {
                   Track Order →
                 </div>
               ) : (
-                <button
-                  onClick={(e) => { e.stopPropagation(); navigate(`/order/configure${cidQs}`); }}
-                  className="mt-3 w-full rounded-xl bg-action-light py-2.5 text-center text-sm font-extrabold text-action transition-colors active:bg-action/20"
-                >
-                  Reorder
-                </button>
+                <AddressGate open={showAddressGate} onOpenChange={setShowAddressGate}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(`/order/configure${cidQs}`); }}
+                    className="mt-3 w-full rounded-xl bg-action-light py-2.5 text-center text-sm font-extrabold text-action transition-colors active:bg-action/20"
+                  >
+                    Reorder
+                  </button>
+                </AddressGate>
               )}
             </div>
           ))

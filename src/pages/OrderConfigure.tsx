@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile } from "@/hooks/useOrders";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import AddressGate from "@/components/AddressGate";
 
 const brandColors = ["#E65100", "#1565C0", "#2E7D32", "#6A1B9A", "#C62828", "#00838F"];
 
@@ -27,6 +28,7 @@ const OrderConfigure = () => {
   const [deliveryType, setDeliveryType] = useState<"refill" | "new">(routeState?.orderType ?? "refill");
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [showAddressGate, setShowAddressGate] = useState(false);
 
   // Filter brands by delivery type
   const filteredBrands = useMemo(() => {
@@ -289,32 +291,34 @@ const OrderConfigure = () => {
               <span className="font-display text-[22px] font-black text-action">{total.toLocaleString()} MMK</span>
             </div>
           </div>
-          <Button
-            variant="action"
-            size="full"
-            onClick={() => {
-              if (!selectedProduct || !selectedBrand) return;
-              navigate(`/order/confirm${location.search}`, {
-                state: {
-                  cylinderType: selectedProduct.display_name,
-                  sizeKg: selectedProduct.size_kg,
-                  brandId: activeBrandId,
-                  brandName: selectedBrand.name,
-                  orderType: deliveryType,
-                  quantity,
-                  unitPrice,
-                  gasSubtotal: (pricing?.gasPrice ?? 0) * quantity,
-                  cylinderSubtotal: (pricing?.cylinderDeposit ?? 0) * quantity,
-                  deliveryFee,
-                  totalAmount: total,
-                  gasPricePerKg: selectedProduct.price_per_kg ?? 0,
-                },
-              });
-            }}
-            disabled={!canConfirm}
-          >
-            CONFIRM ORDER
-          </Button>
+          <AddressGate open={showAddressGate} onOpenChange={setShowAddressGate}>
+            <Button
+              variant="action"
+              size="full"
+              onClick={() => {
+                if (!selectedProduct || !selectedBrand) return;
+                navigate(`/order/confirm${location.search}`, {
+                  state: {
+                    cylinderType: selectedProduct.display_name,
+                    sizeKg: selectedProduct.size_kg,
+                    brandId: activeBrandId,
+                    brandName: selectedBrand.name,
+                    orderType: deliveryType,
+                    quantity,
+                    unitPrice,
+                    gasSubtotal: (pricing?.gasPrice ?? 0) * quantity,
+                    cylinderSubtotal: (pricing?.cylinderDeposit ?? 0) * quantity,
+                    deliveryFee,
+                    totalAmount: total,
+                    gasPricePerKg: selectedProduct.price_per_kg ?? 0,
+                  },
+                });
+              }}
+              disabled={!canConfirm}
+            >
+              CONFIRM ORDER
+            </Button>
+          </AddressGate>
         </div>
       </div>
     </div>

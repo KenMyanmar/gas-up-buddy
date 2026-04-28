@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { X, CheckCircle2 } from "lucide-react";
+import { X, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -30,6 +32,7 @@ const customerIcon = new L.Icon({
 interface OrderData {
   id: string; status: string; cylinder_type: string | null; total_amount: number | null;
   quantity: number; order_type: string | null; township: string; address: string;
+  customer_id: string | null; landmark?: string | null;
   supplier_id: string | null; agent_id: string | null; created_at: string;
   payment_status: string | null;
   payment_method: string | null;
@@ -67,19 +70,34 @@ const OrderTracking = () => {
   const urlCustomerId = searchParams.get("cid");
   const cidQs = urlCustomerId ? `?cid=${urlCustomerId}` : "";
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [agent, setAgent] = useState<AgentProfile | null>(null);
   const [agentLocation, setAgentLocation] = useState<AgentLocation | null>(null);
   const [customerPos, setCustomerPos] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [checkCooldownUntil, setCheckCooldownUntil] = useState(0);
+
+  const refreshOrder = useCallback(async () => {
+    if (!orderId) return;
+    const { data } = await supabase
+      .from("orders")
+      .select("id, status, cylinder_type, total_amount, quantity, order_type, township, address, customer_id, supplier_id, agent_id, created_at, payment_status, payment_method, customers(landmark)")
+      .eq("id", orderId)
+      .single();
+    if (data) {
+      const row = data as any;
+      setOrder({ ...row, landmark: row.customers?.landmark ?? null } as OrderData);
+    }
+    setLoading(false);
+  }, [orderId]);
 
   // Fetch order
   useEffect(() => {
-    if (!orderId) return;
-    supabase.from("orders").select("id, status, cylinder_type, total_amount, quantity, order_type, township, address, supplier_id, agent_id, created_at, payment_status, payment_method")
-      .eq("id", orderId).single().then(({ data }) => { if (data) setOrder(data as OrderData); setLoading(false); });
-  }, [orderId]);
+    refreshOrder();
+  }, [refreshOrder]);
 
   // Fetch agent profile
   useEffect(() => {
@@ -168,6 +186,38 @@ const OrderTracking = () => {
   const showHelpFooter = ["new", "confirmed"].includes(order.status);
   const isActive = ["confirmed", "in_progress"].includes(order.status);
   const agentInitials = agent?.owner_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
+  const isPendingKbzPayment = order.payment_method === "kbzpay" && order.payment_status === "pending";
+  const isOlderThanTwoMinutes = Date.now() - new Date(order.created_at).getTime() > 120_000;
+  const isInCooldown = Date.now() < checkCooldownUntil;
+  const showCheckPayment = isPendingKbzPayment && isOlderThanTwoMinutes;
+
+  const handleCheckPayment = async () => {
+    if (checkingPayment || isInCooldown) return;
+    setCheckingPayment(true);
+    setCheckCooldownUntil(Date.now() + 30_000);
+    try {
+      const { data, error } = await supabase.functions.invoke("kbzpay-query-order", {
+        body: { order_id: order.id },
+      });
+      if (error) throw error;
+      const status = (data as { kbz_trade_status?: string } | null)?.kbz_trade_status;
+      if (status === "PAY_SUCCESS") {
+        toast({ title: "Payment confirmed!" });
+        await refreshOrder();
+      } else if (status === "WAIT_BUYER_PAY") {
+        toast({ title: "Payment not yet completed. Please finish payment in KBZ Pay or place new order." });
+      } else if (status === "CLOSED" || status === "TRADE_CLOSED") {
+        toast({ title: "This payment expired. Please place a new order." });
+        await refreshOrder();
+      } else {
+        toast({ title: "Could not check payment. Please try again or call 8484.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Could not check payment. Please try again or call 8484.", variant: "destructive" });
+    } finally {
+      setCheckingPayment(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background pb-6">
@@ -303,9 +353,13 @@ const OrderTracking = () => {
             <span className="font-display font-extrabold text-action">{(order.total_amount ?? 0).toLocaleString()} MMK</span>
           </div>
           <div className="h-px bg-divider my-1" />
-          <div className="flex justify-between">
+          <div className="flex items-start justify-between gap-3">
             <span className="text-muted-foreground font-semibold">Deliver to</span>
-            <span className="text-right font-bold text-foreground">{order.address}, {order.township}</span>
+            <div className="text-right">
+              <p className="font-bold text-foreground">Township: {order.township}</p>
+              <p className="font-bold text-foreground">Address: {order.address}</p>
+              {order.landmark && <p className="text-xs italic text-muted-foreground">Landmark: {order.landmark}</p>}
+            </div>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground font-semibold">Payment</span>
@@ -318,6 +372,14 @@ const OrderTracking = () => {
           </div>
         </div>
       </div>
+
+      {showCheckPayment && (
+        <div className="mx-5 mt-4">
+          <Button variant="action" size="full" onClick={handleCheckPayment} disabled={checkingPayment || isInCooldown}>
+            {checkingPayment ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking with KBZ Pay...</> : "Check Payment Status"}
+          </Button>
+        </div>
+      )}
 
       {/* Help footer for early-stage orders */}
       {showHelpFooter && (

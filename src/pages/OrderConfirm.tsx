@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startPay, pollOrderUntilPaid } from "@/lib/kbzpay-bridge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import AddressGate from "@/components/AddressGate";
 
 interface OrderState {
   cylinderType: string;
@@ -38,6 +39,7 @@ const OrderConfirm = () => {
   const [placing, setPlacing] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState("");
+  const [showAddressGate, setShowAddressGate] = useState(false);
 
   if (!orderState) {
     return <Navigate to="/order/configure" replace />;
@@ -48,7 +50,7 @@ const OrderConfirm = () => {
     setPlacing(true);
     try {
       // 1. Create the order
-      const { data, error } = await supabase.functions.invoke("create-customer-order", {
+      const { data, error } = await supabase.functions.invoke("create-order-intent", {
         body: {
           cylinderType: orderState.cylinderType,
           sizeKg: orderState.sizeKg,
@@ -63,8 +65,13 @@ const OrderConfirm = () => {
         },
       });
       if (error) throw error;
-      const result = data as { success?: boolean; order_id?: string; total_amount?: number; error?: string };
-      if (!result?.success) throw new Error(result?.error ?? "Order creation failed");
+      const result = data as { success?: boolean; order_id?: string; total_amount?: number; error?: string; code?: string; redirect?: string };
+      if (result?.code === "ADDRESS_REQUIRED" || result?.code === "TOWNSHIP_REQUIRED") {
+        setShowAddressGate(true);
+        setPlacing(false);
+        return;
+      }
+      if (!result?.order_id) throw new Error(result?.error ?? "Order creation failed");
 
       const orderId = result.order_id!;
 
@@ -98,14 +105,14 @@ const OrderConfirm = () => {
         if (isExplicitCancel) {
           navigate(`/order/success${location.search}`, {
             replace: true,
-            state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled" },
+            state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled", brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
           });
           return;
         }
         if (isExplicitFail) {
           navigate(`/order/success${location.search}`, {
             replace: true,
-            state: { orderId, totalAmount: result.total_amount, paymentStatus: "failed" },
+            state: { orderId, totalAmount: result.total_amount, paymentStatus: "failed", brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
           });
           return;
         }
@@ -121,17 +128,23 @@ const OrderConfirm = () => {
                   : "pending";
         navigate(`/order/success${location.search}`, {
           replace: true,
-          state: { orderId, totalAmount: result.total_amount, paymentStatus },
+          state: { orderId, totalAmount: result.total_amount, paymentStatus, brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
         });
       } catch (payError: any) {
         console.error("startPay failed:", payError);
         // Bridge/timeout error — order exists, webhook may still arrive. Show pending.
         navigate(`/order/success${location.search}`, {
           replace: true,
-          state: { orderId, totalAmount: result.total_amount, paymentStatus: "pending" },
+          state: { orderId, totalAmount: result.total_amount, paymentStatus: "pending", brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
         });
       }
     } catch (err: unknown) {
+      const anyErr = err as { context?: { code?: string; error?: string; json?: () => Promise<unknown> }; message?: string };
+      if (anyErr?.context?.code === "ADDRESS_REQUIRED" || anyErr?.context?.code === "TOWNSHIP_REQUIRED" || anyErr?.message?.includes("ADDRESS_REQUIRED") || anyErr?.message?.includes("TOWNSHIP_REQUIRED")) {
+        setShowAddressGate(true);
+        setPlacing(false);
+        return;
+      }
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Order Failed", description: message, variant: "destructive" });
       setPlacing(false);
@@ -167,13 +180,15 @@ const OrderConfirm = () => {
 
         {/* Delivering To Bar */}
         {customer?.address && (
-          <div className="flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3">
-            <MapPin className="h-4 w-4 text-green-600 flex-shrink-0" />
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-success/10 px-4 py-3">
+            <MapPin className="h-4 w-4 text-success flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wider">Delivering to</p>
-              <p className="text-sm text-foreground truncate">{customer.address}, {customer.township}</p>
+              <p className="text-[10px] text-success font-semibold uppercase tracking-wider">Delivering to</p>
+              <p className="text-sm font-bold text-foreground truncate">Township: {customer.township}</p>
+              <p className="text-sm text-foreground truncate">Address: {customer.address}</p>
+              {customer.landmark && <p className="text-xs italic text-muted-foreground truncate">Landmark: {customer.landmark}</p>}
             </div>
-            <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+            <Check className="h-4 w-4 text-success flex-shrink-0" />
           </div>
         )}
 
@@ -196,11 +211,13 @@ const OrderConfirm = () => {
               <span className="font-bold text-foreground">× {orderState.quantity}</span>
             </div>
             <div className="h-px bg-divider my-2" />
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-action" />
-              <span className="text-foreground text-[13px]">
-                {customer?.address ?? "—"}, {customer?.township ?? "—"}
-              </span>
+            <div className="flex items-start gap-2">
+              <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-action" />
+              <div className="space-y-0.5 text-[13px]">
+                <p className="font-semibold text-foreground">Township: {customer?.township ?? "—"}</p>
+                <p className="text-foreground">Address: {customer?.address ?? "—"}</p>
+                {customer?.landmark && <p className="text-xs italic text-muted-foreground">Landmark: {customer.landmark}</p>}
+              </div>
             </div>
             <div className="h-px bg-divider my-2" />
             <div className="flex justify-between">
@@ -263,16 +280,18 @@ const OrderConfirm = () => {
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-divider bg-card px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div className="mx-auto max-w-md">
-          <Button variant="action" size="full" onClick={handlePlaceOrder} disabled={placing} className="text-lg">
-            {placing ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              `Pay with KBZPay — ${orderState.totalAmount.toLocaleString()} MMK`
-            )}
-          </Button>
+          <AddressGate open={showAddressGate} onOpenChange={setShowAddressGate}>
+            <Button variant="action" size="full" onClick={handlePlaceOrder} disabled={placing} className="text-lg">
+              {placing ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                `Pay with KBZPay — ${orderState.totalAmount.toLocaleString()} MMK`
+              )}
+            </Button>
+          </AddressGate>
         </div>
       </div>
     </div>
