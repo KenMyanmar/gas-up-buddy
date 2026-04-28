@@ -1,76 +1,62 @@
-## Revised iPhone KBZPay WebView Zoom Fix
+Yes — the uploaded `.md` file is better than the PDF and should be treated as the canonical source for this drift recovery.
 
-### Decision
-Use Option B: drop the global CSS guard and ship only the two load-bearing textarea fixes.
+Revised execution plan
 
-Reason: a base-layer selector like `input, textarea, select { font-size: 16px; }` would not reliably override Tailwind utility classes such as `.text-sm`. Adding `!important` would work, but it creates unnecessary global styling debt. The current bug is fully addressed by Steps 1 and 2.
+Scope lock
+- Only write files under `supabase/functions/`.
+- Do not touch React/frontend code, `src/`, routing, UI, customer app intent model, or CRM frontend.
+- Do not edit database schema, SQL, cron schedules, or Supabase config unless separately approved.
+- Do not refactor, reformat, or improve the source while syncing.
+- Do not delete legacy `supabase/functions/_shared/phone.ts`.
 
-### Implementation plan
+Canonical source
+- Use `user-uploads://I_ll_pull_all_5_fresh_from_Supabase_right_now_to_guarantee_you_re_getting_the_current_deployed_source.md`.
+- Ignore the PDF for copying source because long code blocks can be corrupted by PDF extraction.
+- Extract the six fenced code blocks from the Markdown source exactly.
 
-#### 1. Fix the Confirm Order Special Instructions textarea
-File: `src/pages/OrderConfirm.tsx`
+Files to sync
+1. Overwrite:
+   - `supabase/functions/kbzpay-auto-login/index.ts`
+   - `supabase/functions/kbzpay-create-payment/index.ts`
 
-Patch the only raw `<textarea>` on this page, in the Special Instructions section.
+2. Create:
+   - `supabase/functions/kbzpay-auto-login/phone.ts`
+   - `supabase/functions/kbzpay-query-order/index.ts`
+   - `supabase/functions/create-order-intent/index.ts`
+   - `supabase/functions/kbzpay-reconcile-cron/index.ts`
 
-Change:
-```tsx
-text-sm
-```
+Critical implementation guardrails
+- Preserve `kbzpay-auto-login/index.ts` import exactly as:
+  ```ts
+  import { normalizePhone } from "./phone.ts";
+  ```
+- Do not allow auto-import cleanup to change it back to `../_shared/phone.ts`.
+- Preserve straight quotes, long strings, operators, em dashes in comments, and trailing newlines from the Markdown source.
+- Leave `supabase/functions/_shared/phone.ts` untouched as legacy.
 
-to:
-```tsx
-text-base md:text-sm
-```
+Verification before reporting
+- Confirm all six intended files exist.
+- Confirm the only written paths are the six listed `supabase/functions/*` files.
+- Confirm no files under `src/` changed.
+- Confirm `supabase/functions/_shared/phone.ts` is unchanged.
+- Confirm `kbzpay-auto-login/index.ts` imports `./phone.ts`.
+- If Markdown extraction is incomplete or any code block cannot be mapped cleanly to its file, stop and report the blocker instead of guessing.
 
-Target class currently appears on the textarea className:
-```tsx
-className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-bg-warm p-4 text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-action min-h-[70px] text-sm"
-```
+Commit and report
+- Use a single commit if commit access is available:
+  `Sync deployed KBZ Pay functions to main (drift recovery)`
 
-Result:
-```tsx
-className="w-full rounded-[14px] border-[1.5px] border-border-strong bg-bg-warm p-4 text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-action min-h-[70px] text-base md:text-sm"
-```
+- Commit body:
+  ```text
+  Backend drift recovery — these 5 functions were deployed via
+  Supabase API directly and were missing or stale in the repo.
 
-#### 2. Harden the shared shadcn Textarea component
-File: `src/components/ui/textarea.tsx`
+  Sources pulled verbatim from production at versions v44/v36/v3/v1/v2.
+  No code changes, only sync. Customer app frontend changes are NOT
+  in this commit.
+  ```
 
-Change the default textarea class from:
-```tsx
-text-sm
-```
-
-to:
-```tsx
-text-base md:text-sm
-```
-
-This matches the existing safe pattern in `src/components/ui/input.tsx`:
-```tsx
-text-base ... md:text-sm
-```
-
-#### 3. Do not change `index.html` viewport
-No `maximum-scale=1.0` and no `user-scalable=no` will be added.
-
-Reason: disabling user zoom is an accessibility regression. The root cause is the sub-16px focused textarea font size, not the viewport meta tag.
-
-#### 4. Do not add the global CSS guard
-No `input, textarea, select { font-size: 16px; }` rule will be added to `src/index.css`.
-
-Reason: without `!important`, it does not override Tailwind `.text-sm`; with `!important`, it is broader than necessary.
-
-### Verification after implementation
-- Grep `src/pages/OrderConfirm.tsx` for the Special Instructions `<textarea>` and confirm it uses `text-base md:text-sm`.
-- Confirm `src/components/ui/textarea.tsx` uses `text-base md:text-sm`.
-- Confirm `src/components/ui/input.tsx` remains unchanged.
-- Confirm there are no backend, Supabase, payment, routing, or KBZPay bridge changes.
-
-### Publish and retest path
-1. Apply the two frontend CSS class changes.
-2. Click Lovable Publish → Update.
-3. Wait about 60 seconds for `miniapp.anygas.org` CDN propagation.
-4. Force-close KBZPay on the tester’s iPhone so the WebView reloads fresh assets.
-5. Reopen AnyGas 8484 mini app → go to Confirm Order → tap Special Instructions.
-
-Expected result: focusing and blurring the Special Instructions field should no longer zoom the Confirm Order screen.
+- Report back:
+  - Commit SHA on main, if available.
+  - The six file paths actually written.
+  - Any function where the source differed unexpectedly or could not be copied cleanly.
