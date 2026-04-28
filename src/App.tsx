@@ -16,6 +16,7 @@ import OrderSuccess from "./pages/OrderSuccess";
 import OrderTracking from "./pages/OrderTracking";
 import OrdersPage from "./pages/OrdersPage";
 import ProfilePage from "./pages/ProfilePage";
+import ProfileAddress from "./pages/ProfileAddress";
 import ProfileAddresses from "./pages/ProfileAddresses";
 import ProfileFAQ from "./pages/ProfileFAQ";
 import ProfileTerms from "./pages/ProfileTerms";
@@ -70,6 +71,7 @@ const AppRoutes = () => (
       <Route path="/order/tracking/:orderId" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/profile/address" element={<ProtectedRoute><ProfileAddress /></ProtectedRoute>} />
       <Route path="/profile/addresses" element={<ProtectedRoute><ProfileAddresses /></ProtectedRoute>} />
       <Route path="/profile/faq" element={<ProtectedRoute><ProfileFAQ /></ProtectedRoute>} />
       <Route path="/profile/terms" element={<ProtectedRoute><ProfileTerms /></ProtectedRoute>} />
