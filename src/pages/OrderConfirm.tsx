@@ -96,6 +96,22 @@ const OrderConfirm = () => {
         // Webhook is the source of truth for "paid". A null/missing result
         // is "unknown" — start polling, do not assume cancelled.
         const rawCode = paymentResult?.resultCode;
+        // PERF-DIAG: capture raw startPay result for telemetry. 
+        // Fire-and-forget. Wrapped in try-catch so ANY error 
+        // (sync or async) cannot derail the payment flow.
+        try {
+          supabase.functions.invoke("client-diag", {
+            body: {
+              tag: "startpay-result",
+              orderId,
+              resultCode: rawCode ?? null,
+              resultCodeType: typeof rawCode,
+              resultCodeString: rawCode == null ? null : String(rawCode),
+              paymentResultKeys: paymentResult ? Object.keys(paymentResult) : [],
+              timestamp: new Date().toISOString(),
+            },
+          }).catch(() => { /* swallow async rejection */ });
+        } catch { /* swallow sync throw */ }
         const codeStr = rawCode == null ? null : String(rawCode);
         const isSuccess = codeStr === "1";
         const isExplicitCancel = codeStr === "2"; // KBZ user-cancel
@@ -132,6 +148,17 @@ const OrderConfirm = () => {
         });
       } catch (payError: any) {
         console.error("startPay failed:", payError);
+        try {
+          supabase.functions.invoke("client-diag", {
+            body: {
+              tag: "startpay-error",
+              orderId,
+              errorName: payError?.name ?? "unknown",
+              errorMessage: payError?.message ?? String(payError),
+              timestamp: new Date().toISOString(),
+            },
+          }).catch(() => { /* swallow async rejection */ });
+        } catch { /* swallow sync throw */ }
         // Bridge/timeout error — order exists, webhook may still arrive. Show pending.
         navigate(`/order/success${location.search}`, {
           replace: true,
