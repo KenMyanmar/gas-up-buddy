@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { X, CheckCircle2 } from "lucide-react";
+import { X, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -30,6 +32,7 @@ const customerIcon = new L.Icon({
 interface OrderData {
   id: string; status: string; cylinder_type: string | null; total_amount: number | null;
   quantity: number; order_type: string | null; township: string; address: string;
+  customer_id: string | null; landmark?: string | null;
   supplier_id: string | null; agent_id: string | null; created_at: string;
   payment_status: string | null;
   payment_method: string | null;
@@ -67,19 +70,34 @@ const OrderTracking = () => {
   const urlCustomerId = searchParams.get("cid");
   const cidQs = urlCustomerId ? `?cid=${urlCustomerId}` : "";
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [agent, setAgent] = useState<AgentProfile | null>(null);
   const [agentLocation, setAgentLocation] = useState<AgentLocation | null>(null);
   const [customerPos, setCustomerPos] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [checkCooldownUntil, setCheckCooldownUntil] = useState(0);
+
+  const refreshOrder = useCallback(async () => {
+    if (!orderId) return;
+    const { data } = await supabase
+      .from("orders")
+      .select("id, status, cylinder_type, total_amount, quantity, order_type, township, address, customer_id, supplier_id, agent_id, created_at, payment_status, payment_method, customers(landmark)")
+      .eq("id", orderId)
+      .single();
+    if (data) {
+      const row = data as any;
+      setOrder({ ...row, landmark: row.customers?.landmark ?? null } as OrderData);
+    }
+    setLoading(false);
+  }, [orderId]);
 
   // Fetch order
   useEffect(() => {
-    if (!orderId) return;
-    supabase.from("orders").select("id, status, cylinder_type, total_amount, quantity, order_type, township, address, supplier_id, agent_id, created_at, payment_status, payment_method")
-      .eq("id", orderId).single().then(({ data }) => { if (data) setOrder(data as OrderData); setLoading(false); });
-  }, [orderId]);
+    refreshOrder();
+  }, [refreshOrder]);
 
   // Fetch agent profile
   useEffect(() => {
