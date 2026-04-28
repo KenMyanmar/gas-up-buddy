@@ -324,10 +324,12 @@ Deno.serve(async (req) => {
 
       console.log(`[QUERYORDER] EXPIRED: order=${order.id} marked CANCELLED+FAILED (trade_status=${tradeStatus})`);
 
-    } else if (result === "SUCCESS" && tradeStatus === "WAIT_BUYER_PAY") {
-      // Still waiting — prepay_id alive, user hasn't paid yet
+    } else if (result === "SUCCESS" && (tradeStatus === "WAIT_BUYER_PAY" || tradeStatus === "WAIT_PAY")) {
+      // Still waiting — prepay_id alive, user hasn't paid yet.
+      // KBZ Pay UAT verified to return "WAIT_PAY" (production log 2026-04-28).
+      // KBZ Pay docs reference "WAIT_BUYER_PAY" in older specs.
       reconciliationAction = "still_pending";
-      console.log(`[QUERYORDER] STILL PENDING: order=${order.id} (WAIT_BUYER_PAY)`);
+      console.log(`[QUERYORDER] STILL PENDING: order=${order.id} (${tradeStatus})`);
 
     } else {
       // Unexpected response — log but don't change state

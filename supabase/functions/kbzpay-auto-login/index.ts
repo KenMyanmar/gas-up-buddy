@@ -154,7 +154,14 @@ async function mintSession(
 
 // ── Extract KBZ identity from getUserInfo response ──────────────
 function extractKbzIdentity(parsedContent: any, userData: any): { openid: string | null; fullName: string | null } {
+  // KBZ AppCube doc-confirmed response shape: { accessToken, userInfo: { openid, fullName, msisdn, userId } }
+  // The VPS proxy may pass it through as parsedContent or userData.content depending on wrapping.
   const openid =
+    // PRIMARY paths — userInfo wrapper (KBZ AppCube spec confirmed)
+    parsedContent?.userInfo?.openid ||
+    userData?.userInfo?.openid ||
+    userData?.content?.userInfo?.openid ||
+    // FALLBACK paths — kept defensively for unknown proxy shapes
     parsedContent?.user?.Response?.openid ||
     parsedContent?.user?.Response?.open_id ||
     parsedContent?.openid ||
@@ -166,6 +173,11 @@ function extractKbzIdentity(parsedContent: any, userData: any): { openid: string
     null;
 
   const fullName =
+    // PRIMARY paths — userInfo wrapper
+    parsedContent?.userInfo?.fullName ||
+    userData?.userInfo?.fullName ||
+    userData?.content?.userInfo?.fullName ||
+    // FALLBACK paths
     parsedContent?.user?.Response?.fullName ||
     parsedContent?.user?.Response?.full_name ||
     parsedContent?.user?.Response?.nickName ||
@@ -374,6 +386,20 @@ Deno.serve(async (req) => {
     const kbzIdentity = extractKbzIdentity(parsedContent, userData);
     if (kbzIdentity.openid) {
       console.log(`[AUTO-LOGIN] KBZ identity extracted: openid=${kbzIdentity.openid.slice(0, 8)}... fullName=${kbzIdentity.fullName || 'null'}`);
+    } else {
+      // DIAGNOSTIC: if openid still missing after spec-aligned paths,
+      // capture actual response keys so we can identify the right path.
+      // Removable in a future commit once openid is observed flowing.
+      console.warn("[AUTO-LOGIN] openid_missing — diagnostic dump:", {
+        parsedContent_keys: parsedContent && typeof parsedContent === 'object' ? Object.keys(parsedContent) : null,
+        parsedContent_userInfo_keys: parsedContent?.userInfo && typeof parsedContent.userInfo === 'object' ? Object.keys(parsedContent.userInfo) : null,
+        parsedContent_user_keys: parsedContent?.user && typeof parsedContent.user === 'object' ? Object.keys(parsedContent.user) : null,
+        userData_top_keys: userData ? Object.keys(userData) : null,
+        userData_userInfo_keys: userData?.userInfo && typeof userData.userInfo === 'object' ? Object.keys(userData.userInfo) : null,
+        userData_content_type: typeof userData?.content,
+        userData_content_keys: userData?.content && typeof userData.content === 'object' ? Object.keys(userData.content) : null,
+        phone_extracted_ok: !!rawPhone,
+      });
     }
 
     const norm = normalizePhone(rawPhone);
