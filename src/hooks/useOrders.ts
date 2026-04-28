@@ -14,6 +14,7 @@ export interface OrderWithDetails {
   delivered_at: string | null;
   township: string;
   address: string;
+  customer_id: string | null;
   brand_id: string | null;
   brands: { id: string; name: string } | null;
 }
@@ -25,8 +26,9 @@ export const useOrders = (customerId: string | undefined) => {
       if (!customerId) return [];
       const { data, error } = await supabase
         .from('orders')
-        .select('id, cylinder_type, quantity, total_amount, gas_subtotal, delivery_fee, status, order_type, created_at, delivered_at, township, address, brand_id, brands(id, name)')
+        .select('id, cylinder_type, quantity, total_amount, gas_subtotal, delivery_fee, status, order_type, created_at, delivered_at, township, address, customer_id, brand_id, brands(id, name)')
         .eq('customer_id', customerId)
+        .neq('status', 'draft')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as unknown as OrderWithDetails[];
