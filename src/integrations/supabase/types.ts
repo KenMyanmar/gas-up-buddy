@@ -2065,6 +2065,65 @@ export type Database = {
           },
         ]
       }
+      payment_events: {
+        Row: {
+          actor_id: string | null
+          actor_type: string
+          branch: string
+          created_at: string
+          from_status: string
+          id: string
+          idempotency_key: string | null
+          kbz_trade_no: string | null
+          order_id: string
+          provider_ref: string | null
+          raw_payload: Json | null
+          reason: string | null
+          to_status: string
+          triggered_by: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_type?: string
+          branch: string
+          created_at?: string
+          from_status: string
+          id?: string
+          idempotency_key?: string | null
+          kbz_trade_no?: string | null
+          order_id: string
+          provider_ref?: string | null
+          raw_payload?: Json | null
+          reason?: string | null
+          to_status: string
+          triggered_by: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_type?: string
+          branch?: string
+          created_at?: string
+          from_status?: string
+          id?: string
+          idempotency_key?: string | null
+          kbz_trade_no?: string | null
+          order_id?: string
+          provider_ref?: string | null
+          raw_payload?: Json | null
+          reason?: string | null
+          to_status?: string
+          triggered_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
@@ -4246,6 +4305,10 @@ export type Database = {
       is_crm_user: { Args: { _user_id: string }; Returns: boolean }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
       is_my_order: { Args: { order_customer_id: string }; Returns: boolean }
+      is_valid_payment_transition: {
+        Args: { p_from: string; p_to: string }
+        Returns: boolean
+      }
       manage_customer_phone: {
         Args: {
           p_action: string
@@ -4291,6 +4354,21 @@ export type Database = {
           p_request_id: string
         }
         Returns: undefined
+      }
+      transition_payment_status: {
+        Args: {
+          p_actor_id?: string
+          p_actor_type?: string
+          p_idempotency_key?: string
+          p_kbz_trade_no?: string
+          p_order_id: string
+          p_provider_ref?: string
+          p_raw_payload?: Json
+          p_reason?: string
+          p_to_status: string
+          p_triggered_by: string
+        }
+        Returns: Json
       }
       update_agent_inventory: {
         Args: { p_brand_id: string; p_new_stock: number; p_supplier_id: string }
