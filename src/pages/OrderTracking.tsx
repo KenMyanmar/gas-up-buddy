@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { X, CheckCircle2, Loader2 } from "lucide-react";
+import { X, CheckCircle2, Loader2, Clock, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -284,11 +284,10 @@ const OrderTracking = () => {
         </div>
       )}
 
-      {/* Order confirmed banner (no spinner — payment received, agent assignment pending) */}
-      {order.status === "new" && (
+      {/* Order status banner — payment-status-aware */}
+      {order.status === "new" && order.payment_status === "paid" && (
         <div className="mx-5 mt-4 overflow-hidden rounded-[20px] border border-border bg-card shadow-sm">
           <div className="relative px-5 py-6">
-            {/* Soft brand wash background */}
             <div
               className="absolute inset-0 opacity-60"
               style={{
@@ -301,15 +300,55 @@ const OrderTracking = () => {
                 <CheckCircle2 className="h-7 w-7 text-green-600" strokeWidth={2.5} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-display text-[17px] font-extrabold text-foreground">
-                  Order confirmed!
-                </p>
-                <p className="mt-1 text-[13px] font-semibold text-green-600">
-                  ✓ Payment received via KBZPay
-                </p>
-                <p className="mt-1.5 text-[13px] text-muted-foreground leading-relaxed">
-                  Your delivery agent will be assigned shortly.
-                </p>
+                <p className="font-display text-[17px] font-extrabold text-foreground">Order confirmed!</p>
+                <p className="mt-1 text-[13px] font-semibold text-green-600">✓ Payment received via KBZPay</p>
+                <p className="mt-1.5 text-[13px] text-muted-foreground leading-relaxed">Your delivery agent will be assigned shortly.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {order.status === "new" && order.payment_status === "pending" && (
+        <div className="mx-5 mt-4 overflow-hidden rounded-[20px] border border-amber-300/30 bg-card shadow-sm">
+          <div className="relative px-5 py-6">
+            <div
+              className="absolute inset-0 opacity-60"
+              style={{
+                background: "radial-gradient(120% 80% at 100% 0%, hsl(45 90% 50% / 0.08), transparent 60%)",
+              }}
+            />
+            <div className="relative flex items-start gap-3.5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-500/10 ring-2 ring-amber-500/20">
+                <Clock className="h-7 w-7 text-amber-600" strokeWidth={2.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-display text-[17px] font-extrabold text-foreground">Payment processing</p>
+                <p className="mt-1 text-[13px] font-semibold text-amber-600">Confirming with KBZ Pay...</p>
+                <p className="mt-1.5 text-[13px] text-muted-foreground leading-relaxed">This usually takes a moment. Use the button below to check status.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {order.status === "new" && (order.payment_status === "failed" || order.payment_status === "expired") && (
+        <div className="mx-5 mt-4 overflow-hidden rounded-[20px] border border-red-300/30 bg-card shadow-sm">
+          <div className="relative px-5 py-6">
+            <div
+              className="absolute inset-0 opacity-60"
+              style={{
+                background: "radial-gradient(120% 80% at 100% 0%, hsl(0 70% 50% / 0.08), transparent 60%)",
+              }}
+            />
+            <div className="relative flex items-start gap-3.5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-500/10 ring-2 ring-red-500/20">
+                <AlertCircle className="h-7 w-7 text-red-600" strokeWidth={2.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-display text-[17px] font-extrabold text-foreground">Payment failed</p>
+                <p className="mt-1 text-[13px] font-semibold text-red-600">Your payment did not go through</p>
+                <p className="mt-1.5 text-[13px] text-muted-foreground leading-relaxed">Please place a new order or call 8484 for help.</p>
               </div>
             </div>
           </div>
