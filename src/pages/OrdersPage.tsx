@@ -41,9 +41,15 @@ const OrdersPage = () => {
 
   const filtered = (orders ?? []).filter((o) => {
     if (activeTab === "All") return true;
-    if (activeTab === "Active") return activeStatuses.includes(o.status);
+    if (activeTab === "Active") {
+      // Exclude orders where payment failed or expired — they're not truly active
+      if (o.payment_status === "failed" || o.payment_status === "expired") return false;
+      return activeStatuses.includes(o.status);
+    }
     if (activeTab === "Completed") return o.status === "delivered" || o.status === "completed";
-    if (activeTab === "Cancelled") return o.status === "cancelled";
+    if (activeTab === "Cancelled") {
+      return o.status === "cancelled" || o.payment_status === "failed" || o.payment_status === "expired";
+    }
     return true;
   });
 
@@ -116,8 +122,18 @@ const OrdersPage = () => {
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold", statusStyles[order.status] ?? "bg-secondary text-muted-foreground")}>
-                    {statusLabels[order.status] ?? order.status.replace("_", " ")}
+                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold",
+                    (order.payment_status === "failed" || order.payment_status === "expired")
+                      ? "bg-destructive/10 text-destructive"
+                      : order.payment_status === "pending" && order.status === "new"
+                      ? "bg-amber-100 text-amber-700"
+                      : statusStyles[order.status] ?? "bg-secondary text-muted-foreground"
+                  )}>
+                    {(order.payment_status === "failed" || order.payment_status === "expired")
+                      ? "Payment Failed"
+                      : order.payment_status === "pending" && order.status === "new"
+                      ? "Payment Pending"
+                      : statusLabels[order.status] ?? order.status.replace("_", " ")}
                   </span>
                   <p className="mt-1.5 font-display text-base font-extrabold text-action">{order.total_amount.toLocaleString()} MMK</p>
                 </div>
