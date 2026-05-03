@@ -1,13 +1,23 @@
 # Phase 2.0 Grand Plan: Payment State Machine
 
-**Version:** 1.3.2
+**Version:** 1.3.3
 **Date:** 2026-05-03
 **Author:** Cowork (Claude)
 **Reviewers:** Architect (Oldman), Operator (Codex)
 **Approver:** CEO (Ken)
 **Status:** DRAFT -- awaiting Architect final + CEO sign-off
 
-**Changelog from v1.3.1 (Architect final review -- cron migration guards):**
+**Changelog from v1.3.2 (consensus review -- pseudocode corrections):**
+
+| Finding | Severity | Fix |
+|---|---|---|
+| F16a: Phase 3 guard had inverted condition (`if (checkedOrderIds.has(order.id)) continue`) -- correct intent is to SKIP rows already handled by Phase 2, but the surrounding rewrite must read clearly as a negative guard. | HIGH | §4 F15 Phase 3 pseudocode rewritten with explicit `if (!checkedOrderIds.has(old.id))` gating block and inline comments. |
+| F16b: `checkedOrderIds.add(order.id)` was called unconditionally at the top of the Phase 2 loop, marking orders as "checked" even when the KBZ query failed or threw. That would let Phase 3 skip orders Phase 2 never actually resolved, leaving them stuck in `pending` forever. | HIGH | §4 F15 now has a dedicated Phase 2 pseudocode block. `.add()` is called ONLY inside `if (queryRes.ok)` after a confirmed transition. Network/timeout/non-OK paths must NOT add to the set. |
+| F17: Phase 1 and Phase 3 RPC calls used `p_note:` which is not a parameter of `transition_payment_status`. The RPC defines `p_reason`. Calls would fail with `function does not exist` or be silently dropped. | HIGH | §4 F14 and F15 pseudocode now use `p_reason:` matching the Block 3 signature. |
+| F18: Phase 1 SELECT lacked `status = 'draft'` filter. `payment_status = 'draft'` is the gate per the writer map, but adding the redundant `orders.status` filter prevents accidents if a future migration changes default values. | LOW | §4 F14 pseudocode now includes `.eq('status', 'draft')` as the first filter. |
+| F15 rationale: prior wording emphasised "racing the webhook" which understated the real risk. The dangerous case is force-expiring an order Phase 2 already transitioned to `paid` (the RPC would reject it, but a fresh `payment_events` row noise is undesirable and any future relaxation of the validator could cause a real regression). | LOW | §4 F15 "Why this matters" rewritten to lead with the force-expire-paid scenario. |
+
+**Prior changelog from v1.3.1 (Architect final review -- cron migration guards):**
 
 | Finding | Severity | Fix |
 |---|---|---|
@@ -501,6 +511,7 @@ The Phase 1 sweep (`draft -> abandoned` for stale drafts >30min) MUST NOT touch 
 const { data: staleDrafts } = await supabase
   .from('orders')
   .select('id, order_source, payment_status, created_at')
+  .eq('status', 'draft')                          // F18: belt-and-suspenders, orders.status guard
   .eq('payment_status', 'draft')
   .eq('order_source', 'kbzpay_miniapp')          // F14: hard guard, KBZ-only
   .lt('created_at', new Date(Date.now() - 30 * 60_000).toISOString());
@@ -512,30 +523,50 @@ for (const order of staleDrafts ?? []) {
     p_order_id: order.id,
     p_to_status: 'abandoned',
     p_triggered_by: 'kbzpay-reconcile-cron:phase1',
-    p_note: 'Phase 1: stale draft >30min, KBZ never received precreate',
+    p_reason: 'Phase 1: stale KBZ draft >30min, never received precreate',  // F17: RPC param is p_reason
   });
 }
 ```
 
 **Why this matters:** R2 in the writer map covers CRM/agent-created orders. Those orders may sit in `draft` for hours while a dispatcher prepares them. If Phase 1 swept them, they would flip to `cancelled` (the RPC side-effect for `abandoned`) and confuse both the CRM UI and the agent app. The `order_source` filter is the single line that keeps the two worlds apart.
 
-### F15: Phase 3 must guard on `checkedOrderIds` set (R4 protection, idempotency)
+### F15: Phase 3 must guard on `checkedOrderIds` set (F16a condition, F16b set timing)
 
-Phase 2 of the cron queries KBZ via `kbzpay-query-order` for every pending order and may already have transitioned each row to `paid`, `failed`, or `expired`. Phase 3 (force-expire `pending` orders older than 6 hours) MUST skip any order Phase 2 already touched. Without the guard, Phase 3 races the in-flight webhook, double-logs `payment_events`, and risks fighting Phase 2's resolution.
+Two invariants govern this guard:
 
-**Required in-process guard:**
+1. **Phase 2 marks the set only after a confirmed KBZ result.** A network error, timeout, non-OK HTTP response, or thrown exception MUST NOT add the order id to `checkedOrderIds`. If we marked optimistically, Phase 3 would skip orders Phase 2 never actually resolved, and they would sit in `pending` until the next cron tick (or forever, if the failure mode is persistent).
+2. **Phase 3 skips any order Phase 2 successfully resolved.** The condition is a *negative* guard: `if (!checkedOrderIds.has(old.id))` -- only orders absent from the set proceed to force-expire. Reading the condition in plain English: "if Phase 2 did NOT already handle this order, then force-expire it."
+
+**Why this matters:** The dangerous case is Phase 3 force-expiring an order that Phase 2 has just transitioned to `paid`. The RPC's transition validator would reject `paid -> expired` (a rejected event row would be logged), so user-visible damage is bounded -- but the rejected-event noise is undesirable and any future relaxation of the validator (or a bug in the validator itself) would convert this into a real regression where a paid customer order flips to `cancelled`. The `checkedOrderIds` set is the cheap, in-process belt that makes the suspenders redundant.
+
+**Required Phase 2 pseudocode (F16b: set populated only on success):**
 
 ```ts
-// kbzpay-reconcile-cron
+// kbzpay-reconcile-cron, Phase 2
 const checkedOrderIds = new Set<string>();
 
-// --- Phase 2: query KBZ for each pending order ---
 for (const order of pendingOrders ?? []) {
-  checkedOrderIds.add(order.id);                    // F15: record every Phase 2 touch
-  await runQueryOrderAndTransition(order);          // may RPC to paid/failed/expired
-}
+  let queryRes;
+  try {
+    queryRes = await runQueryOrderAndTransition(order);   // returns { ok, transitionedTo, ... }
+  } catch (err) {
+    // F16b: network/timeout/throw -- DO NOT add to checkedOrderIds.
+    // Phase 3 (or the next cron tick) must be free to retry this order.
+    console.error('phase2: query failed for', order.id, err);
+    continue;
+  }
 
-// --- Phase 3: force-expire pending older than 6h ---
+  if (queryRes.ok) {
+    checkedOrderIds.add(order.id);                        // F16b: mark only on confirmed result
+  }
+  // else: non-OK KBZ response -- DO NOT add. Same retry rationale.
+}
+```
+
+**Required Phase 3 pseudocode (F16a: negative guard, F17: p_reason):**
+
+```ts
+// kbzpay-reconcile-cron, Phase 3
 const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60_000).toISOString();
 const { data: oldPending } = await supabase
   .from('orders')
@@ -543,18 +574,18 @@ const { data: oldPending } = await supabase
   .eq('payment_status', 'pending')
   .lt('created_at', sixHoursAgo);
 
-for (const order of oldPending ?? []) {
-  if (checkedOrderIds.has(order.id)) continue;      // F15: Phase 2 already handled it
-  await supabase.rpc('transition_payment_status', {
-    p_order_id: order.id,
-    p_to_status: 'expired',
-    p_triggered_by: 'kbzpay-reconcile-cron:phase3',
-    p_note: 'Phase 3: force-expire pending >6h, KBZ unreachable or unresponsive',
-  });
+for (const old of oldPending ?? []) {
+  if (!checkedOrderIds.has(old.id)) {                     // F16a: NEGATIVE guard -- only act if Phase 2 did NOT resolve
+    await supabase.rpc('transition_payment_status', {
+      p_order_id: old.id,
+      p_to_status: 'expired',
+      p_triggered_by: 'kbzpay-reconcile-cron:phase3',
+      p_reason: 'Phase 3: force-expire pending >6h, KBZ unreachable or unresponsive',  // F17: RPC param is p_reason
+    });
+  }
+  // else: Phase 2 already transitioned this order -- skip to avoid noise/regressions.
 }
 ```
-
-**Why this matters:** R4 in the writer map is the cron itself, which must be idempotent across overlapping runs and across phases of a single run. The `checkedOrderIds` set is in-memory per invocation and guarantees no order is processed twice within one cron tick. Combined with the RPC's `FOR UPDATE` row lock and noop-on-same-state behaviour, this makes Phase 3 safe even if Phase 2's transition is mid-flight at the DB layer.
 
 ### F9 clarification: call ordering in kbzpay-create-payment
 
@@ -815,4 +846,4 @@ Edge functions: Redeploy previous versions from Git history.
 
 Lovable lands this plan as draft. SQL Blocks 0-3 and the four edge-function migrations are Cowork's to execute. Lovable picks up the optional useOrders draft-filter only after Cowork confirms payment_events is populating.
 
-End of Grand Plan v1.3.2. All 15 findings resolved: Architect F1-F9, F11, F14, F15 and Operator F12 (provider_ref), F13 (cashier payload), Block 0 rollback, Test 5 reset. Awaiting Architect final line-level review and CEO sign-off.
+End of Grand Plan v1.3.3. 18 total findings: 15 addressed in plan (Architect F1-F9, F11, F14, F15; Operator F12 provider_ref, F13 cashier payload, F16a/F16b/F17/F18 pseudocode corrections, Block 0 rollback, Test 5 reset), 3 deferred to Phase 2.1 (F3 enum dedup, F4 validator naming, F6 1:1 order:tx). Awaiting Architect+Operator final line-level review and CEO sign-off.
