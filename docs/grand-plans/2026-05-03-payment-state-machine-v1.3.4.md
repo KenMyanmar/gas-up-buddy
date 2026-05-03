@@ -536,14 +536,14 @@ for (const order of staleDrafts ?? []) {
 
 **Why this matters:** R2 in the writer map covers CRM/agent-created orders. Those orders may sit in `draft` for hours while a dispatcher prepares them. If Phase 1 swept them, they would flip to `cancelled` (the RPC side-effect for `abandoned`) and confuse both the CRM UI and the agent app. The `order_source` filter is the single line that keeps the two worlds apart.
 
-### F15: Phase 3 must guard on `checkedOrderIds` set (F16a condition, F16b set timing)
+### F15: Phase 3 must only force-expire orders Phase 2 verified this run (v1.3.4 semantics correction)
 
 Two invariants govern this guard:
 
-1. **Phase 2 marks the set only after a confirmed KBZ result.** A network error, timeout, non-OK HTTP response, or thrown exception MUST NOT add the order id to `checkedOrderIds`. If we marked optimistically, Phase 3 would skip orders Phase 2 never actually resolved, and they would sit in `pending` until the next cron tick (or forever, if the failure mode is persistent).
-2. **Phase 3 skips any order Phase 2 successfully resolved.** The condition is a *negative* guard: `if (!checkedOrderIds.has(old.id))` -- only orders absent from the set proceed to force-expire. Reading the condition in plain English: "if Phase 2 did NOT already handle this order, then force-expire it."
+1. **Phase 2 marks the set only after a confirmed KBZ result.** A network error, timeout, non-OK HTTP response, or thrown exception MUST NOT add the order id to `checkedOrderIds` (F16b, unchanged from v1.3.3). If we marked optimistically, Phase 3 could force-expire orders Phase 2 never actually resolved.
+2. **Phase 3 force-expires ONLY orders Phase 2 successfully verified this run.** The condition is `if (!checkedOrderIds.has(old.id))` -- if the order is NOT in the set, skip it, count it via `skippedUnchecked`, and let the next cron tick try again. Only orders present in the set (i.e. Phase 2 got a confirmed KBZ response this run) are eligible for force-expire.
 
-**Why this matters:** The dangerous case is Phase 3 force-expiring an order that Phase 2 has just transitioned to `paid`. The RPC's transition validator would reject `paid -> expired` (a rejected event row would be logged), so user-visible damage is bounded -- but the rejected-event noise is undesirable and any future relaxation of the validator (or a bug in the validator itself) would convert this into a real regression where a paid customer order flips to `cancelled`. The `checkedOrderIds` set is the cheap, in-process belt that makes the suspenders redundant.
+**Why this matters:** A pending order older than 6h whose KBZ status we could not verify this run might still be `paid` upstream. Flipping it to `expired/cancelled` based on age alone would risk losing a real customer payment if the validator is ever relaxed or if KBZ catches up between cron ticks. Requiring a successful KBZ verification this run before force-expire makes the operation safe-by-construction. The `skippedUnchecked` counter surfaces persistent KBZ outages in cron logs so operators can react before the backlog grows.
 
 **Required Phase 2 pseudocode (F16b: set populated only on success):**
 
@@ -569,11 +569,12 @@ for (const order of pendingOrders ?? []) {
 }
 ```
 
-**Required Phase 3 pseudocode (F16a: negative guard, F17: p_reason):**
+**Required Phase 3 pseudocode (v1.3.4: skip-unchecked, only force-expire verified):**
 
 ```ts
 // kbzpay-reconcile-cron, Phase 3
 const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60_000).toISOString();
+let skippedUnchecked = 0;
 const { data: oldPending } = await supabase
   .from('orders')
   .select('id, payment_status, created_at')
@@ -581,15 +582,21 @@ const { data: oldPending } = await supabase
   .lt('created_at', sixHoursAgo);
 
 for (const old of oldPending ?? []) {
-  if (!checkedOrderIds.has(old.id)) {                     // F16a: NEGATIVE guard -- only act if Phase 2 did NOT resolve
-    await supabase.rpc('transition_payment_status', {
-      p_order_id: old.id,
-      p_to_status: 'expired',
-      p_triggered_by: 'kbzpay-reconcile-cron:phase3',
-      p_reason: 'Phase 3: force-expire pending >6h, KBZ unreachable or unresponsive',  // F17: RPC param is p_reason
-    });
+  if (!checkedOrderIds.has(old.id)) {
+    skippedUnchecked++;
+    results.push({ order_id: old.id, action: 'skipped_unchecked' });
+    continue;
   }
-  // else: Phase 2 already transitioned this order -- skip to avoid noise/regressions.
+  await supabase.rpc('transition_payment_status', {
+    p_order_id: old.id,
+    p_to_status: 'expired',
+    p_triggered_by: 'kbzpay-reconcile-cron:phase3',
+    p_reason: 'Phase 3: force-expire pending >6h after successful KBZ verification this run',
+  });
+  results.push({ order_id: old.id, action: 'expired' });
+}
+if (skippedUnchecked > 0) {
+  console.warn(`[Phase 3] Skipped ${skippedUnchecked} orders not verified against KBZ this run`);
 }
 ```
 
