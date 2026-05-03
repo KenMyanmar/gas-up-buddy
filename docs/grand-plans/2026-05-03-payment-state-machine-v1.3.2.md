@@ -490,6 +490,72 @@ Four edge functions will be patched to call the RPC instead of direct UPDATEs:
   - Phase 2/3: pending -> expired (KBZ expired or force-expire >6h)
   - Phase 2: failed -> abandoned (stale failed >24h)
 
+### F14: Phase 1 must guard on `order_source = 'kbzpay_miniapp'` (R2 protection)
+
+The Phase 1 sweep (`draft -> abandoned` for stale drafts >30min) MUST NOT touch draft orders created by the CRM, agent app, or any non-KBZ flow. Those orders use the `draft` payment_status legitimately and have their own lifecycle. Without an explicit guard, the KBZ cron would silently abandon them.
+
+**Required SELECT guard:**
+
+```ts
+// kbzpay-reconcile-cron, Phase 1
+const { data: staleDrafts } = await supabase
+  .from('orders')
+  .select('id, order_source, payment_status, created_at')
+  .eq('payment_status', 'draft')
+  .eq('order_source', 'kbzpay_miniapp')          // F14: hard guard, KBZ-only
+  .lt('created_at', new Date(Date.now() - 30 * 60_000).toISOString());
+
+for (const order of staleDrafts ?? []) {
+  // Defensive belt-and-suspenders re-check before RPC
+  if (order.order_source !== 'kbzpay_miniapp') continue;   // F14
+  await supabase.rpc('transition_payment_status', {
+    p_order_id: order.id,
+    p_to_status: 'abandoned',
+    p_triggered_by: 'kbzpay-reconcile-cron:phase1',
+    p_note: 'Phase 1: stale draft >30min, KBZ never received precreate',
+  });
+}
+```
+
+**Why this matters:** R2 in the writer map covers CRM/agent-created orders. Those orders may sit in `draft` for hours while a dispatcher prepares them. If Phase 1 swept them, they would flip to `cancelled` (the RPC side-effect for `abandoned`) and confuse both the CRM UI and the agent app. The `order_source` filter is the single line that keeps the two worlds apart.
+
+### F15: Phase 3 must guard on `checkedOrderIds` set (R4 protection, idempotency)
+
+Phase 2 of the cron queries KBZ via `kbzpay-query-order` for every pending order and may already have transitioned each row to `paid`, `failed`, or `expired`. Phase 3 (force-expire `pending` orders older than 6 hours) MUST skip any order Phase 2 already touched. Without the guard, Phase 3 races the in-flight webhook, double-logs `payment_events`, and risks fighting Phase 2's resolution.
+
+**Required in-process guard:**
+
+```ts
+// kbzpay-reconcile-cron
+const checkedOrderIds = new Set<string>();
+
+// --- Phase 2: query KBZ for each pending order ---
+for (const order of pendingOrders ?? []) {
+  checkedOrderIds.add(order.id);                    // F15: record every Phase 2 touch
+  await runQueryOrderAndTransition(order);          // may RPC to paid/failed/expired
+}
+
+// --- Phase 3: force-expire pending older than 6h ---
+const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60_000).toISOString();
+const { data: oldPending } = await supabase
+  .from('orders')
+  .select('id, payment_status, created_at')
+  .eq('payment_status', 'pending')
+  .lt('created_at', sixHoursAgo);
+
+for (const order of oldPending ?? []) {
+  if (checkedOrderIds.has(order.id)) continue;      // F15: Phase 2 already handled it
+  await supabase.rpc('transition_payment_status', {
+    p_order_id: order.id,
+    p_to_status: 'expired',
+    p_triggered_by: 'kbzpay-reconcile-cron:phase3',
+    p_note: 'Phase 3: force-expire pending >6h, KBZ unreachable or unresponsive',
+  });
+}
+```
+
+**Why this matters:** R4 in the writer map is the cron itself, which must be idempotent across overlapping runs and across phases of a single run. The `checkedOrderIds` set is in-memory per invocation and guarantees no order is processed twice within one cron tick. Combined with the RPC's `FOR UPDATE` row lock and noop-on-same-state behaviour, this makes Phase 3 safe even if Phase 2's transition is mid-flight at the DB layer.
+
 ### F9 clarification: call ordering in kbzpay-create-payment
 
 The OPEN branch call MUST happen AFTER the KBZ precreate API succeeds:
