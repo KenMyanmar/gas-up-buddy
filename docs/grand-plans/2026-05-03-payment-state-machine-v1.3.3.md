@@ -1,13 +1,23 @@
 # Phase 2.0 Grand Plan: Payment State Machine
 
-**Version:** 1.3.2
+**Version:** 1.3.3
 **Date:** 2026-05-03
 **Author:** Cowork (Claude)
 **Reviewers:** Architect (Oldman), Operator (Codex)
 **Approver:** CEO (Ken)
 **Status:** DRAFT -- awaiting Architect final + CEO sign-off
 
-**Changelog from v1.3.1 (Architect final review -- cron migration guards):**
+**Changelog from v1.3.2 (consensus review -- pseudocode corrections):**
+
+| Finding | Severity | Fix |
+|---|---|---|
+| F16a: Phase 3 guard had inverted condition (`if (checkedOrderIds.has(order.id)) continue`) -- correct intent is to SKIP rows already handled by Phase 2, but the surrounding rewrite must read clearly as a negative guard. | HIGH | §4 F15 Phase 3 pseudocode rewritten with explicit `if (!checkedOrderIds.has(old.id))` gating block and inline comments. |
+| F16b: `checkedOrderIds.add(order.id)` was called unconditionally at the top of the Phase 2 loop, marking orders as "checked" even when the KBZ query failed or threw. That would let Phase 3 skip orders Phase 2 never actually resolved, leaving them stuck in `pending` forever. | HIGH | §4 F15 now has a dedicated Phase 2 pseudocode block. `.add()` is called ONLY inside `if (queryRes.ok)` after a confirmed transition. Network/timeout/non-OK paths must NOT add to the set. |
+| F17: Phase 1 and Phase 3 RPC calls used `p_note:` which is not a parameter of `transition_payment_status`. The RPC defines `p_reason`. Calls would fail with `function does not exist` or be silently dropped. | HIGH | §4 F14 and F15 pseudocode now use `p_reason:` matching the Block 3 signature. |
+| F18: Phase 1 SELECT lacked `status = 'draft'` filter. `payment_status = 'draft'` is the gate per the writer map, but adding the redundant `orders.status` filter prevents accidents if a future migration changes default values. | LOW | §4 F14 pseudocode now includes `.eq('status', 'draft')` as the first filter. |
+| F15 rationale: prior wording emphasised "racing the webhook" which understated the real risk. The dangerous case is force-expiring an order Phase 2 already transitioned to `paid` (the RPC would reject it, but a fresh `payment_events` row noise is undesirable and any future relaxation of the validator could cause a real regression). | LOW | §4 F15 "Why this matters" rewritten to lead with the force-expire-paid scenario. |
+
+**Prior changelog from v1.3.1 (Architect final review -- cron migration guards):**
 
 | Finding | Severity | Fix |
 |---|---|---|
