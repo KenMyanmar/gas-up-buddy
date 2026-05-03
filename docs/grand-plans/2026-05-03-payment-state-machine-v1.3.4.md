@@ -1,13 +1,19 @@
 # Phase 2.0 Grand Plan: Payment State Machine
 
-**Version:** 1.3.3
+**Version:** 1.3.4
 **Date:** 2026-05-03
 **Author:** Cowork (Claude)
 **Reviewers:** Architect (Oldman), Operator (Codex)
 **Approver:** CEO (Ken)
 **Status:** DRAFT -- awaiting Architect final + CEO sign-off
 
-**Changelog from v1.3.2 (consensus review -- pseudocode corrections):**
+**Changelog from v1.3.3 (F15 semantics correction):**
+
+| Finding | Severity | Fix |
+|---|---|---|
+| F15 semantics inversion: v1.3.3 Phase 3 force-expired any `pending` order older than 6h that Phase 2 had NOT verified against KBZ this run. That is the opposite of safe behaviour -- an order Phase 2 could not reach (KBZ down, timeout, network error) is exactly the order we are LEAST sure about, and we must not cancel it. | HIGH | §4 F15 Phase 3 rewritten: only orders Phase 2 successfully verified this run are eligible for force-expire. Orders not verified this run are skipped and counted via `skippedUnchecked` for observability. |
+
+**Prior changelog from v1.3.2 (consensus review -- pseudocode corrections):**
 
 | Finding | Severity | Fix |
 |---|---|---|
