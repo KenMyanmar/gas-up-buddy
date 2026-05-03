@@ -101,23 +101,7 @@ Deno.serve(async (req) => {
       return json({ error: "Order already paid" }, 400);
     }
 
-    // ── INTENT MODEL: Promote draft → new+pending ──────────────
-    if (order.status === "draft") {
-      const { error: promoteErr } = await supabaseAdmin
-        .from("orders")
-        .update({
-          status: "new",
-          payment_status: "pending",
-        })
-        .eq("id", orderId)
-        .eq("status", "draft"); // Optimistic lock
-
-      if (promoteErr) {
-        console.error("[CREATE-PAYMENT] Draft promotion failed:", promoteErr);
-        return json({ error: "Failed to promote draft order" }, 500);
-      }
-      console.log(`[CREATE-PAYMENT] Promoted draft→new: order=${orderId}`);
-    }
+    // ── Phase 2.0: Draft promotion removed — RPC OPEN branch handles it below ──
 
     // ── Check existing payment for retry safety (P0-4 fix) ─────
     const { data: existingPayment } = await supabaseAdmin
@@ -252,22 +236,25 @@ Deno.serve(async (req) => {
       return json({ error: "Missing prepay_id from KBZ" }, 502);
     }
 
-    // ── Store/update payment record via upsert ─────────────────
-    await supabaseAdmin.from("payments").upsert(
+    // ── Phase 2.0: Call RPC OPEN branch (F9: only after precreate succeeds) ──
+    const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc(
+      "transition_payment_status",
       {
-        order_id: orderId,
-        amount: order.total_amount,
-        method: "kbzpay",
-        status: "pending",
-        provider_ref: merchOrderId,
-        metadata: {
-          merch_order_id: merchOrderId,
-          precreate_response: kbzResponse,
-          last_attempt_at: new Date().toISOString(),
-        },
-      },
-      { onConflict: "order_id" },
+        p_order_id: orderId,
+        p_to_status: "pending",
+        p_triggered_by: "kbzpay-create-payment",
+        p_reason: `Precreate succeeded, prepay_id=${prepayId}`,
+        p_provider_ref: merchOrderId,        // F12: merchOrderId, NOT prepay_id
+        p_raw_payload: kbzResponse,          // Full precreate response for audit
+      }
     );
+
+    if (rpcErr || !rpcResult?.ok) {
+      console.error("[CREATE-PAYMENT] RPC failed:", rpcErr || rpcResult);
+      return json({ error: "Failed to open payment", detail: rpcResult }, 500);
+    }
+
+    console.log(`[CREATE-PAYMENT] RPC OPEN: order=${orderId}`, rpcResult);
 
     // ── Fix 8: Build signed orderInfo for frontend ─────────────
     const responseNonceStr = kbzResponse.nonce_str || nonceStr;

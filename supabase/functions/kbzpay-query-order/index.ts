@@ -1,5 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * kbzpay-query-order v10 — Phase 2.0: RPC gatekeeper migration.
+ *
+ * v10 changes:
+ *   Phase 2.0: Replace direct payments/orders UPDATEs with transition_payment_status RPC
+ *   Phase 2.0: CLOSED/EXPIRED now uses p_to_status="expired" (not "failed")
+ *              — RPC maps expired → payments.status=failed internally per F1
+ */
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -49,7 +58,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
     // Allow service_role invocation (for cron/admin) or authenticated user
-    const isServiceRole = apiKey === serviceRoleKey || 
+    const isServiceRole = apiKey === serviceRoleKey ||
       authHeader?.replace("Bearer ", "") === serviceRoleKey;
 
     const supabaseAdmin = createClient(
@@ -239,32 +248,27 @@ Deno.serve(async (req) => {
     let newPaymentStatus = order.payment_status;
 
     if (result === "SUCCESS" && tradeStatus === "PAY_SUCCESS") {
-      // Payment confirmed by KBZ — reconcile!
+      // ── Phase 2.0: PAY_SUCCESS → call RPC TRANSITION (pending → paid) ──
       reconciliationAction = "mark_paid";
-      newPaymentStatus = "paid";
 
-      await supabaseAdmin
-        .from("orders")
-        .update({
-          payment_status: "paid",
-          paid_at: new Date().toISOString(),
-        })
-        .eq("id", order.id);
+      const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc(
+        "transition_payment_status",
+        {
+          p_order_id: order.id,
+          p_to_status: "paid",
+          p_triggered_by: "kbzpay-query-order",
+          p_reason: `queryorder confirmed PAY_SUCCESS`,
+          p_kbz_trade_no: kbzTransactionId || null,
+          p_provider_ref: merchOrderIdToQuery,
+          p_raw_payload: kbzResponse,
+        }
+      );
 
-      await supabaseAdmin
-        .from("payments")
-        .update({
-          status: "paid",
-          metadata: {
-            ...((payment.metadata as Record<string, unknown>) || {}),
-            reconciled_at: new Date().toISOString(),
-            reconciled_by: "kbzpay-query-order",
-            kbz_transaction_id: kbzTransactionId,
-          },
-        })
-        .eq("id", payment.id);
+      if (rpcErr) console.error("[QUERYORDER] RPC error:", rpcErr);
+      newPaymentStatus = rpcResult?.ok ? "paid" : order.payment_status;
+      console.log(`[QUERYORDER] RECONCILED: order=${order.id}`, rpcResult);
 
-      // Log to activity_logs — summary is NOT NULL, must be included
+      // Activity log — separate audit trail from payment_events
       const { error: logError } = await supabaseAdmin.from("activity_logs").insert({
         action_type: "kbzpay.payment.reconciled",
         entity_type: "order",
@@ -281,32 +285,29 @@ Deno.serve(async (req) => {
         console.error("[QUERYORDER] Failed to write activity_log:", logError);
       }
 
-      console.log(`[QUERYORDER] RECONCILED: order=${order.id} marked PAID via queryorder`);
-
     } else if (result === "SUCCESS" && (tradeStatus === "CLOSED" || tradeStatus === "TRADE_CLOSED" || tradeStatus === "ORDER_EXPIRED")) {
-      // Transaction expired/closed by KBZ — Option A: terminal state = cancelled + failed
+      // ── Phase 2.0: CLOSED/EXPIRED → call RPC TRANSITION (pending → expired) ──
+      // NOTE: p_to_status is "expired" not "failed" — RPC maps expired → payments.status=failed internally (F1)
       reconciliationAction = "mark_expired";
-      newPaymentStatus = "failed";
 
-      await supabaseAdmin
-        .from("orders")
-        .update({ status: "cancelled", payment_status: "failed" })
-        .eq("id", order.id);
+      const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc(
+        "transition_payment_status",
+        {
+          p_order_id: order.id,
+          p_to_status: "expired",            // NOT "failed" — RPC maps internally per F1
+          p_triggered_by: "kbzpay-query-order",
+          p_reason: `queryorder trade_status=${tradeStatus}`,
+          p_kbz_trade_no: kbzTransactionId || null,
+          p_provider_ref: merchOrderIdToQuery,
+          p_raw_payload: kbzResponse,
+        }
+      );
 
-      await supabaseAdmin
-        .from("payments")
-        .update({
-          status: "failed",
-          metadata: {
-            ...((payment.metadata as Record<string, unknown>) || {}),
-            reconciled_at: new Date().toISOString(),
-            reconciled_by: "kbzpay-query-order",
-            kbz_trade_status: tradeStatus,
-          },
-        })
-        .eq("id", payment.id);
+      if (rpcErr) console.error("[QUERYORDER] RPC error:", rpcErr);
+      newPaymentStatus = rpcResult?.ok ? "expired" : order.payment_status;
+      console.log(`[QUERYORDER] EXPIRED: order=${order.id} (${tradeStatus})`, rpcResult);
 
-      // Log expiry to activity_logs for audit trail
+      // Activity log for audit trail
       const { error: logError } = await supabaseAdmin.from("activity_logs").insert({
         action_type: "kbzpay.payment.reconciled",
         entity_type: "order",
@@ -321,8 +322,6 @@ Deno.serve(async (req) => {
       if (logError) {
         console.error("[QUERYORDER] Failed to write activity_log:", logError);
       }
-
-      console.log(`[QUERYORDER] EXPIRED: order=${order.id} marked CANCELLED+FAILED (trade_status=${tradeStatus})`);
 
     } else if (result === "SUCCESS" && (tradeStatus === "WAIT_BUYER_PAY" || tradeStatus === "WAIT_PAY")) {
       // Still waiting — prepay_id alive, user hasn't paid yet.
