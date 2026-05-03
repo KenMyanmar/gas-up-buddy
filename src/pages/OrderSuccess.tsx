@@ -61,7 +61,7 @@ const OrderSuccess = () => {
         : "Your payment didn't go through. Please try again or call 8484.",
       totalLabel: "Total",
       showEstimatedDelivery: false,
-      primaryButton: { text: "Try Again", action: "retry" as const },
+     primaryButton: { text: "View Order Status", action: "retry" as const },
       secondaryButton: { text: "Call 8484", action: "call" as const },
     },
     pending: {
@@ -83,7 +83,7 @@ const OrderSuccess = () => {
   const handleAction = (action: "track" | "home" | "retry" | "call") => {
     if (action === "track") navigate(`/order/tracking/${state.orderId}${location.search}`);
     else if (action === "home") navigate(`/home${location.search}`);
-    else if (action === "retry") navigate(`/order/configure${location.search}`);
+    else if (action === "retry") navigate(`/order/tracking/${state.orderId}${location.search}`);
     else if (action === "call") window.location.href = "tel:8484";
   };
 
