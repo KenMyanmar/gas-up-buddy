@@ -815,4 +815,4 @@ Edge functions: Redeploy previous versions from Git history.
 
 Lovable lands this plan as draft. SQL Blocks 0-3 and the four edge-function migrations are Cowork's to execute. Lovable picks up the optional useOrders draft-filter only after Cowork confirms payment_events is populating.
 
-End of Grand Plan v1.3.1. Addresses all Architect findings (F1-F9, F11) and Operator findings (F12 provider_ref, F13 cashier payload, Block 0 rollback, Test 5 reset). Awaiting repo commit via Lovable, then CEO sign-off.
+End of Grand Plan v1.3.2. All 15 findings resolved: Architect F1-F9, F11, F14, F15 and Operator F12 (provider_ref), F13 (cashier payload), Block 0 rollback, Test 5 reset. Awaiting Architect final line-level review and CEO sign-off.
