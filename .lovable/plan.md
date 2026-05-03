@@ -1,44 +1,56 @@
-## Plan: Commit Grand Plan v1.2 to the repo (docs only)
+## Plan: Grand Plan v1.3.4 (docs-only)
 
-Per TRIO v1.2, Lovable's role here is the GitHub write channel — not SQL execution. The schema/RPC blocks in this plan must be executed by **Cowork** against Supabase, not by me. What I can (and should) do now is land the plan as a versioned markdown document so Architect's final approval and CEO sign-off have a canonical, reviewable artifact in the repo.
+Pure documentation update. No code, SQL, edge function, or publish changes.
 
-### What I will do
+### 1. File rename
 
-1. **Create** `docs/grand-plans/2026-05-03-payment-state-machine-v1.2.md`
-   - Verbatim copy of the Grand Plan v1.2 you pasted (problem statement, corrected writer map, live data table, two-branch RPC contracts, state-machine diagram, transition table, SQL Blocks 1–3, edge-function migration sequence, testing plan, rollback, success criteria, out-of-scope).
-   - Frontmatter aligned to `_template.md`: Date 2026-05-03, Author Cowork, Reviewers Architect + Operator, Approver CEO, **Status: DRAFT — awaiting Architect final approval, then CEO sign-off**, Risk class P0, Rollback time ~2 min per block.
-   - Includes the v1.1 → v1.2 changelog table and the SQL evidence for Issues 3 and 4.
+Rename `docs/grand-plans/2026-05-03-payment-state-machine-v1.3.3.md` → `docs/grand-plans/2026-05-03-payment-state-machine-v1.3.4.md`.
 
-2. **Update** `docs/grand-plans/README.md` index table — replace the `(none yet …)` row with:
-   | Plan | Date | Status | Owner |
-   |---|---|---|---|
-   | [Payment State Machine v1.2](./2026-05-03-payment-state-machine-v1.2.md) | 2026-05-03 | Draft | Cowork |
+### 2. Edits inside the new v1.3.4 file
 
-3. **Update** `docs/active-work.md` — add a lock entry noting Cowork holds the SQL write lock for `payment_events`, `is_valid_payment_transition`, `transition_payment_status`, and the four KBZ edge functions (`kbzpay-create-payment`, `kbzpay-webhook`, `kbzpay-query-order`, `kbzpay-reconcile-cron`) for the duration of this plan's execution. Lovable will not touch those edge functions until Cowork releases the lock.
+**Header (line 3):** `Version: 1.3.3` → `Version: 1.3.4`. Status line unchanged.
 
-### What I will NOT do (out of scope for Lovable per TRIO v1.2)
+**New top changelog block** (inserted above the existing v1.3.2→v1.3.3 table):
 
-- Run Blocks 1–3 SQL (DDL is Cowork-only).
-- Modify or redeploy `kbzpay-create-payment`, `kbzpay-webhook`, `kbzpay-query-order`, `kbzpay-reconcile-cron` (edge function deploys are Cowork-only).
-- Backfill or mutate any rows in `orders` / `payments` / `payment_events`.
-- Touch `src/integrations/supabase/types.ts` (read-only; the new RPC will appear there only after Cowork ships the migration and types regenerate).
+> **Changelog from v1.3.3 (F15 semantics correction):**
+>
+> | Finding | Severity | Fix |
+> |---|---|---|
+> | F15 semantics inversion: v1.3.3 Phase 3 force-expired any `pending` order older than 6h that Phase 2 had NOT verified against KBZ this run. That is the opposite of safe behaviour — an order Phase 2 could not reach (KBZ down, timeout, network error) is exactly the order we are LEAST sure about, and we must not cancel it. | HIGH | §4 F15 Phase 3 rewritten: only orders Phase 2 successfully verified this run are eligible for force-expire. Orders not verified this run are skipped and counted via `skippedUnchecked` for observability. |
 
-### Frontend follow-ups (flagged, NOT executed in this plan)
+**§4 F15 section (lines 533-588):** keep the heading, replace prose + both pseudocode blocks.
 
-These are noted in §9 of the Grand Plan as "may need one-line draft filter". I will hold these for a separate, smaller plan **after** Cowork deploys Block 1–3 and the new `kbzpay-create-payment`:
+- Two invariants:
+  1. Phase 2 marks `checkedOrderIds` only after a confirmed KBZ result (unchanged from v1.3.3 — F16b still applies).
+  2. Phase 3 force-expires ONLY orders Phase 2 successfully verified this run. If `checkedOrderIds.has(old.id)` is false, skip and count via `skippedUnchecked`; the next cron tick will retry.
+- Why this matters: a pending order older than 6h whose KBZ status we could not check this run might still be `paid` upstream. Flipping it to `expired/cancelled` based on age alone would risk losing real customer payments if the validator is ever relaxed or KBZ catches up between cron ticks. Requiring a successful KBZ verification this run before force-expire makes the operation safe-by-construction. The `skippedUnchecked` counter surfaces persistent KBZ outages in cron logs.
+- Phase 2 pseudocode: keep v1.3.3 block as-is.
+- Phase 3 pseudocode: replace with the exact snippet provided by the user (declares `sixHoursAgo` and `skippedUnchecked`, queries `oldPending`, uses `if (!checkedOrderIds.has(old.id))` to push `action: 'skipped_unchecked'` and `continue`, then calls `transition_payment_status` with `p_reason: 'Phase 3: force-expire pending >6h after successful KBZ verification this run'`, pushes `action: 'expired'`, and emits a `console.warn` summary when `skippedUnchecked > 0`).
 
-- `src/hooks/useOrders.ts` — confirm the customer Orders list filters out `status='draft'` (orders that never reached the OPEN branch should not appear as "active" to customers).
-- `src/pages/OrderTracking.tsx` / `src/pages/OrderSuccess.tsx` — confirm banner copy still maps correctly when `payment_status` lands on `expired` vs `failed` vs `abandoned` (the RPC normalises these but UI strings should be sanity-checked once events start flowing).
+**Footer (line 849):** replace with exactly:
 
-I will not edit those files in this turn — they depend on the RPC being live.
+> End of Grand Plan v1.3.4. 20 total findings: 17 addressed in plan, 3 deferred to Phase 2.1. Awaiting Architect+Operator final line-level review and CEO sign-off.
 
-### Verification after I commit
+No other changes anywhere in the file.
 
-- `docs/grand-plans/2026-05-03-payment-state-machine-v1.2.md` opens and renders.
-- README index links resolve.
-- `docs/active-work.md` shows the Cowork lock so Operator/Architect don't race.
-- No code files changed; no migrations queued; types.ts untouched.
+### 3. `docs/grand-plans/README.md`
 
-### Hand-off note for Cowork (will be in the doc's footer)
+- Replace the v1.3.3 row with:
+  ```
+  | [Payment State Machine v1.3.4](./2026-05-03-payment-state-machine-v1.3.4.md) | 2026-05-03 | Draft (awaiting Architect+Operator final + CEO sign-off) | Cowork |
+  ```
+- Update the v1.2 row's status to `Superseded by v1.3.4`.
 
-> Lovable has landed this plan as draft. SQL Blocks 1–3 and the four edge-function migrations are **Cowork's** to execute, in the order specified in §4. Lovable will pick up the optional `useOrders` draft-filter and tracking-banner sanity check **only after** Cowork confirms `payment_events` is populating and the new `kbzpay-create-payment` is live.
+### 4. `docs/active-work.md`
+
+- Line 5: `Grand Plan v1.3.3 commit` → `Grand Plan v1.3.4 commit`
+- Line 14: `Phase 2.0 v1.3.3` → `Phase 2.0 v1.3.4`
+- Line 15: `Standby for v1.3.3 final review` → `Standby for v1.3.4 final review`
+- Line 16: `Landed Grand Plan v1.3.3 doc` → `Landed Grand Plan v1.3.4 doc`
+- Line 54: `Phase 2.0 v1.3.3` → `Phase 2.0 v1.3.4`
+- Append to "Recently shipped":
+  `| 2026-05-03 | Grand Plan v1.3.4 committed (F15 semantics correction — only force-expire orders verified by KBZ this run) | Lovable |`
+
+### Commit message
+
+`docs: Grand Plan v1.3.4 — F15 semantics correction (only force-expire orders verified by KBZ this run)`
