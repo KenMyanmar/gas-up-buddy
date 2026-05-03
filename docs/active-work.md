@@ -2,7 +2,7 @@
 
 **Purpose:** Prevent concurrent writes by Architect, Operator, Cowork, and Lovable. Read before starting work. Update before pushing.
 
-**Last updated:** 2026-05-03 by Lovable (Grand Plan v1.3.3 commit)
+**Last updated:** 2026-05-03 by Lovable (Grand Plan v1.3.4 commit)
 
 ---
 
@@ -11,9 +11,9 @@
 | Actor | Task | ETA | Files locked |
 |---|---|---|---|
 | Architect | TRIO docs scaffolding | 2026-05-03 | `docs/*` |
-| Cowork | Phase 2.0 v1.3.3 — pending Architect+Operator final approval, then CEO sign-off, then SQL Blocks 0–3 execution + redeploy 4 KBZ edge functions | 2026-05-05 | `payment_events`, `is_valid_payment_transition`, `transition_payment_status`, `supabase/functions/kbzpay-create-payment`, `supabase/functions/kbzpay-webhook`, `supabase/functions/kbzpay-query-order`, `supabase/functions/kbzpay-reconcile-cron` |
-| Operator (Codex) | Standby for v1.3.3 final review | - | none |
-| Lovable | Landed Grand Plan v1.3.3 doc; idle pending Cowork deploy | - | none |
+| Cowork | Phase 2.0 v1.3.4 — pending Architect+Operator final approval, then CEO sign-off, then SQL Blocks 0–3 execution + redeploy 4 KBZ edge functions | 2026-05-05 | `payment_events`, `is_valid_payment_transition`, `transition_payment_status`, `supabase/functions/kbzpay-create-payment`, `supabase/functions/kbzpay-webhook`, `supabase/functions/kbzpay-query-order`, `supabase/functions/kbzpay-reconcile-cron` |
+| Operator (Codex) | Standby for v1.3.4 final review | - | none |
+| Lovable | Landed Grand Plan v1.3.4 doc; idle pending Cowork deploy | - | none |
 
 ---
 
@@ -43,6 +43,7 @@
 | 2026-05-03 | Grand Plan v1.3.1 committed (F12/F13 fixes), then superseded | Lovable |
 | 2026-05-03 | Grand Plan v1.3.2 committed (F14/F15 cron guards), then superseded | Lovable |
 | 2026-05-03 | Grand Plan v1.3.3 committed (F16-F18 pseudocode corrections) | Lovable |
+| 2026-05-03 | Grand Plan v1.3.4 committed (F15 semantics correction — only force-expire orders verified by KBZ this run) | Lovable |
 
 ---
 
@@ -51,7 +52,7 @@
 | What | Owner | Blocked by |
 |---|---|---|
 | W3 deploy | Operator | Vault secret fix (Ken) |
-| Phase 2.0 v1.3.3 | Architect+Operator final approval → CEO sign-off → Cowork executes | Architect+Operator review |
+| Phase 2.0 v1.3.4 | Architect+Operator final approval → CEO sign-off → Cowork executes | Architect+Operator review |
 | OrderConfirm.tsx softening | Lovable | CEO timing decision |
 
 ---
