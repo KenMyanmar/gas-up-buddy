@@ -1,8 +1,10 @@
 # AnyGas TRIO — Role Definitions
 
-**Version:** 1.1
+**Version:** 1.2
 **Last updated:** 2026-05-03
 **Authority:** Supersedes informal practices. Updates require ADR.
+
+> v1.2 — tightened SQL write and Edge Function deploy to Cowork-only per CEO refinement.
 
 ---
 
@@ -31,6 +33,8 @@ Five roles. Each has a job. Each has limits. Each is named.
 - Push to GitHub (read-only access)
 - Skip Grand Plan format for architectural changes
 - Make speculative claims — only SQL-evidenced statements
+- Execute SQL writes or DDL operations (proposes for Cowork to execute)
+- Deploy edge functions (proposes for Cowork to deploy)
 
 ---
 
@@ -51,6 +55,8 @@ Five roles. Each has a job. Each has limits. Each is named.
 - Push to GitHub directly (read-only access)
 - Deploy without Architect approval if change touches schema, RLS, payment flow, webhook contracts, auth, cron jobs
 - Mark a deploy "complete" without smoke tests passing
+- Execute SQL writes or DDL operations (proposes for Cowork to execute)
+- Deploy edge functions (proposes for Cowork to deploy)
 
 ---
 
@@ -125,8 +131,8 @@ When AI agents disagree, the resolution is **written, not remembered**.
 | Read GitHub | ✅ | ✅ | ❌ | (auto) | ✅ |
 | Write GitHub | ❌ | ❌ | ❌ | ✅ (only) | ✅ |
 | Read Supabase SQL | ✅ | ✅ | ✅ | ❌ | ✅ |
-| Write Supabase SQL | ✅ | ✅ | ✅ | ❌ | ✅ |
-| Deploy Edge Functions | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Write Supabase SQL (DDL/DML) | ❌ | ❌ | ✅ (only) | ❌ | ✅ |
+| Deploy Edge Functions | ❌ | ❌ | ✅ (only) | ❌ | ✅ |
 | Configure infra | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ---
