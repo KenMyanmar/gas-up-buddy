@@ -1,0 +1,745 @@
+# Phase 2.0 Grand Plan: Payment State Machine
+
+**Version:** 1.3.1
+**Date:** 2026-05-03
+**Author:** Cowork (Claude)
+**Reviewers:** Architect (Oldman), Operator (Codex)
+**Approver:** CEO (Ken)
+**Status:** DRAFT -- awaiting repo commit, Architect final line-level review, CEO sign-off
+
+**Changelog from v1.3 (Architect final approval + Operator review + Architect F11 finding):**
+
+| Finding | Severity | Fix |
+|---|---|---|
+| F8: expired to abandoned not in legal transitions | CLARIFICATION | `expired` is terminal except for late `paid` rescue. Cron never attempts expired to abandoned. Transition table annotated. |
+| F9: Edge function call ordering unclear | CLARIFICATION | Section 4 now states: KBZ precreate API first, RPC OPEN second. If precreate fails, order stays draft, no DB write. |
+| F11: Cron Phase 1 draft to abandoned has no RPC path | MEDIUM | **Option D adopted:** Added `draft -> abandoned` to legal transitions in Block 2. Cron Phase 1 now calls RPC TRANSITION branch. Event logged, orders.status side-effect handled by RPC. |
+| F12: provider_ref should be merchOrderId not prepay_id | HIGH | **Fixed:** §4 step 4 now passes `merchOrderId` as `p_provider_ref`. prepay_id goes in `p_raw_payload`. Webhook/query-order resolve payments by `provider_ref = merchOrderId`. |
+| F13: Frontend needs full cashier payload not just prepay_id | MEDIUM | **Fixed:** §4 step 5 now specifies all 4 fields: `prepay_id`, `orderinfo`, `sign`, `signType`. |
+| Block 0 rollback unsafe | LOW | Rollback section rewritten: Block 0 rollback is impractical and unnecessary. |
+| Test 5 reset missing paid_at = NULL | LOW | `paid_at = NULL` added to Test 5 reset SQL. |
+
+**Prior changelog (v1.2 to v1.3):**
+
+| Finding | Severity | Fix |
+|---|---|---|
+| F1: payments.status enum drift | HIGH | Option A adopted: payments.status in {pending, paid, failed} only. |
+| F2: succeeded to paid migration missing | HIGH | Block 0 added. |
+| F5: EXCEPTION catches all unique_violations | LOW | Exception handler checks constraint name. |
+| F7: Tests 1-8 are placeholder comments | MEDIUM | Full runnable SQL with expected outputs. |
+
+**Deferred (per Architect approval):**
+- F3: `kbz_pay`/`kbzpay` enum dedup -- Phase 2.1
+- F4: `is_valid_payment_transition` naming -- minor, no change
+- F6: 1:1 order:tx assumption -- noted for multi-provider future
+
+---
+
+## 1. Problem Statement
+
+*(Unchanged from v1.2 -- see that version for full writer map, current data, and diagnosis.)*
+
+Five edge functions independently write `orders.payment_status` with no coordinator. One gatekeeper RPC with row locking, transition validation, and an immutable event log fixes this.
+
+### Design decision: payments.status scope (F1 resolution)
+
+**`payments.status` remains in {pending, paid, failed}.** Three values only. No new values introduced.
+
+| orders.payment_status | payments.status | Why |
+|---|---|---|
+| draft | (no row yet) | Payment not attempted |
+| pending | pending | Payment attempt open |
+| paid | paid | Money moved |
+| failed | failed | Payment attempt failed |
+| expired | failed | KBZ expired the prepay -- payment failed |
+| abandoned | failed | Cron aged out -- payment failed |
+
+**Rationale:** The `payments` table answers one question: "did money move?" The answer is `paid`, `failed`, or `pending`. *Why* it failed (timeout, expiry, abandonment) is captured in `orders.payment_status` and the `payment_events` ledger. Adding `expired`/`abandoned` to `payments.status` would create a second source of truth for failure reasons with no reader.
+
+---
+
+## 2. Solution: Two-Branch RPC
+
+*(State machine diagram, legal transitions table, orders.status scope statement -- unchanged from v1.2.)*
+
+### State Machine
+
+```
+     +------------+
+     |   draft    |  (create-order-intent inserts this)
+     +-----+------+
+           |
+     +-----+------+
+     |             |
+     v             v
+  OPEN branch   TRANSITION branch
+  (-> pending)  (-> abandoned, cron Phase 1, >30min stale)
+     |             |
+     v             v
+  +----------+   +---------+
+  | pending  |   |abandoned|
+  +----+-----+   |TERMINAL |
+       |         +---------+
+       | TRANSITION branch
+   +---+---+----+
+   v       v    v
+ +----+ +----+ +-------+
+ |paid| |fail| |expired|
+ |TERM| +-+--+ +---+---+
+ +----+   |        |
+       +--+----+   |
+       v      v    v
+    (paid) <- late webhook
+    (paid)(exp)(abandoned)
+       |
+       +---------+
+       |abandoned|
+       |TERMINAL |
+       +---------+
+```
+
+**Note on terminal states (F8 clarification):** `paid`, `abandoned`, and `cod` are fully terminal -- no outbound transitions. `expired` is *effectively terminal* with one exception: a late KBZ webhook can rescue expired to paid. The cron job never attempts expired to abandoned because by design, only `failed` orders age into `abandoned` (the cron WHERE clause filters on `payment_status = 'failed'`). This means `is_valid_payment_transition` does not need an expired to abandoned edge, and this is correct by design, not an omission.
+
+### Complete transition table
+
+| From | To | Branch | Trigger | orders.status | payments.status |
+|---|---|---|---|---|---|
+| `draft` | `pending` | OPEN | create-payment | -> `new` | INSERT `pending` |
+| `draft` | `abandoned` | TRANSITION | cron Phase 1 (>30min stale) | -> `cancelled` | no-op (no payments row) |
+| `pending` | `paid` | TRANSITION | webhook, query-order | no change | -> `paid` |
+| `pending` | `failed` | TRANSITION | webhook, query-order | -> `cancelled` | -> `failed` |
+| `pending` | `expired` | TRANSITION | query-order, cron | -> `cancelled` | -> `failed` |
+| `failed` | `paid` | TRANSITION | webhook (late) | -> `new` (un-cancel) | -> `paid` |
+| `failed` | `expired` | TRANSITION | cron | no change | no change (already `failed`) |
+| `failed` | `abandoned` | TRANSITION | cron (>24h) | no change | no change (already `failed`) |
+| `expired` | `paid` | TRANSITION | webhook (very late) | -> `new` (un-cancel) | -> `paid` |
+
+*No expired to abandoned row exists because cron only abandons from `failed` -- see F8 note above.*
+*draft to abandoned (F11) is for stale drafts that never got a KBZ payment session. No payments row exists, so the payments UPDATE inside TRANSITION is a 0-row no-op.*
+
+### orders.status scope statement
+
+- Payment dies -> `cancelled` (with `cancelled_at`, `cancelled_reason`)
+- Payment revives -> `new` (un-cancel)
+- OPEN branch -> `new` (visible to CRM/agents)
+- Normal paid from pending -> no change
+
+---
+
+## 3. Schema: SQL Blocks
+
+### Block 0: Normalize legacy payments.status (F2 fix)
+
+```sql
+-- Block 0: Normalize 'succeeded' -> 'paid' (4,780 rows)
+UPDATE payments SET status = 'paid' WHERE status = 'succeeded';
+```
+
+Verification:
+
+```sql
+SELECT status, count(*) FROM payments GROUP BY status ORDER BY count(*) DESC;
+-- EXPECTED: paid ~4841, failed 30, pending 1
+-- MUST NOT contain 'succeeded'
+```
+
+### Block 1: payment_events table
+
+```sql
+CREATE TABLE public.payment_events (
+  id              uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  order_id        uuid NOT NULL REFERENCES orders(id),
+  from_status     text NOT NULL,
+  to_status       text NOT NULL,
+  branch          text NOT NULL CHECK (branch IN ('open', 'transition', 'rejected')),
+  triggered_by    text NOT NULL,
+  actor_type      text NOT NULL DEFAULT 'system',
+  actor_id        text,
+  reason          text,
+  kbz_trade_no    text,
+  provider_ref    text,
+  raw_payload     jsonb,
+  idempotency_key text,
+  created_at      timestamptz DEFAULT now() NOT NULL
+);
+
+CREATE INDEX idx_payment_events_order_id ON payment_events(order_id);
+CREATE INDEX idx_payment_events_created_at ON payment_events(created_at);
+CREATE UNIQUE INDEX idx_payment_events_idempotency
+  ON payment_events(idempotency_key) WHERE idempotency_key IS NOT NULL;
+
+ALTER TABLE payment_events ENABLE ROW LEVEL SECURITY;
+```
+
+Verification:
+
+```sql
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_name = 'payment_events' ORDER BY ordinal_position;
+-- EXPECTED: 14 columns (id, order_id, from_status, to_status, branch,
+--   triggered_by, actor_type, actor_id, reason, kbz_trade_no,
+--   provider_ref, raw_payload, idempotency_key, created_at)
+```
+
+### Block 2: Transition validation helper
+
+```sql
+CREATE OR REPLACE FUNCTION public.is_valid_payment_transition(
+  p_from text,
+  p_to   text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+  IF p_from IN ('paid', 'abandoned', 'cod') THEN
+    RETURN false;
+  END IF;
+
+  RETURN CASE
+    WHEN p_from = 'draft'   AND p_to = 'abandoned' THEN true   -- F11: cron Phase 1 stale draft kill
+    WHEN p_from = 'pending' AND p_to IN ('paid', 'failed', 'expired') THEN true
+    WHEN p_from = 'failed'  AND p_to IN ('paid', 'expired', 'abandoned') THEN true
+    WHEN p_from = 'expired' AND p_to = 'paid' THEN true
+    ELSE false
+  END;
+END;
+$$;
+```
+
+Verification:
+
+```sql
+SELECT is_valid_payment_transition('pending', 'paid');      -- EXPECTED: true
+SELECT is_valid_payment_transition('paid', 'expired');      -- EXPECTED: false
+SELECT is_valid_payment_transition('expired', 'paid');      -- EXPECTED: true
+SELECT is_valid_payment_transition('failed', 'abandoned');  -- EXPECTED: true
+SELECT is_valid_payment_transition('draft', 'pending');     -- EXPECTED: false (OPEN branch handles this)
+SELECT is_valid_payment_transition('draft', 'abandoned');   -- EXPECTED: true (F11: cron Phase 1 stale draft kill)
+SELECT is_valid_payment_transition('expired', 'abandoned'); -- EXPECTED: false (F8: cron never does this)
+```
+
+### Block 3: The RPC
+
+```sql
+CREATE OR REPLACE FUNCTION public.transition_payment_status(
+  p_order_id        uuid,
+  p_to_status       text,
+  p_triggered_by    text,
+  p_reason          text DEFAULT NULL,
+  p_actor_type      text DEFAULT 'system',
+  p_actor_id        text DEFAULT NULL,
+  p_kbz_trade_no    text DEFAULT NULL,
+  p_provider_ref    text DEFAULT NULL,
+  p_raw_payload     jsonb DEFAULT NULL,
+  p_idempotency_key text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_current_payment_status text;
+  v_current_order_status   text;
+  v_order_source           text;
+  v_total_amount           integer;
+  v_is_open_branch         boolean;
+  v_new_order_status       text;
+BEGIN
+
+  -- ================================================================
+  -- STEP 1: Lock the order row (serializes concurrent writers)
+  -- ================================================================
+  SELECT payment_status, status::text, order_source, total_amount
+  INTO v_current_payment_status, v_current_order_status, v_order_source, v_total_amount
+  FROM orders
+  WHERE id = p_order_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'order_not_found',
+      'detail', format('Order %s does not exist', p_order_id)
+    );
+  END IF;
+
+  -- ================================================================
+  -- STEP 2: Idempotency -- already at target = no-op
+  -- ================================================================
+  IF v_current_payment_status = p_to_status THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'noop', true,
+      'detail', format('Already at %s', p_to_status)
+    );
+  END IF;
+
+  -- ================================================================
+  -- STEP 3: Determine branch
+  -- ================================================================
+  v_is_open_branch := (v_current_payment_status = 'draft' AND p_to_status = 'pending');
+
+  -- ================================================================
+  -- BRANCH A: OPEN (draft -> pending)
+  -- CREATE semantics: promotes order to visible + creates payment row
+  -- ================================================================
+  IF v_is_open_branch THEN
+
+    IF v_current_order_status NOT IN ('new', 'draft') THEN
+      RETURN jsonb_build_object(
+        'ok', false,
+        'error', 'invalid_order_state_for_open',
+        'detail', format('Cannot open payment: orders.status is %s, expected new or draft', v_current_order_status)
+      );
+    END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM payments
+      WHERE order_id = p_order_id AND status IN ('pending', 'paid')
+    ) THEN
+      RETURN jsonb_build_object(
+        'ok', false,
+        'error', 'payment_already_open',
+        'detail', 'A pending or paid payment already exists'
+      );
+    END IF;
+
+    -- INSERT payments row (status = 'pending')
+    INSERT INTO payments (order_id, amount, method, status, provider_ref, metadata)
+    VALUES (
+      p_order_id,
+      v_total_amount,
+      'kbzpay'::payment_method,
+      'pending',
+      p_provider_ref,
+      COALESCE(p_raw_payload, '{}'::jsonb)
+    );
+
+    -- UPDATE order: draft->new (visible) + draft->pending (payment opened)
+    UPDATE orders
+    SET status = 'new'::order_status,
+        payment_status = 'pending',
+        payment_method = 'kbzpay',
+        updated_at = now()
+    WHERE id = p_order_id;
+
+    -- Log event
+    INSERT INTO payment_events (
+      order_id, from_status, to_status, branch, triggered_by,
+      actor_type, actor_id, reason, kbz_trade_no, provider_ref,
+      raw_payload, idempotency_key
+    ) VALUES (
+      p_order_id, 'draft', 'pending', 'open', p_triggered_by,
+      p_actor_type, p_actor_id, p_reason, p_kbz_trade_no, p_provider_ref,
+      p_raw_payload, p_idempotency_key
+    );
+
+    RETURN jsonb_build_object(
+      'ok', true,
+      'noop', false,
+      'branch', 'open',
+      'from_status', 'draft',
+      'to_status', 'pending',
+      'order_status', 'new'
+    );
+
+  END IF;
+
+  -- ================================================================
+  -- BRANCH B: TRANSITION (draft/pending/failed/expired -> target)
+  -- UPDATE semantics: validates allowlist, updates existing state
+  -- Note: draft -> abandoned (F11) has no payments row, so payments
+  -- UPDATE is a 0-row no-op. orders.status side-effect handles cancel.
+  -- ================================================================
+
+  IF NOT is_valid_payment_transition(v_current_payment_status, p_to_status) THEN
+    INSERT INTO payment_events (
+      order_id, from_status, to_status, branch, triggered_by,
+      actor_type, actor_id, reason, kbz_trade_no, provider_ref,
+      raw_payload, idempotency_key
+    ) VALUES (
+      p_order_id, v_current_payment_status, p_to_status, 'rejected', p_triggered_by,
+      p_actor_type, p_actor_id,
+      format('REJECTED: %s -> %s by %s. %s', v_current_payment_status, p_to_status, p_triggered_by, COALESCE(p_reason, '')),
+      p_kbz_trade_no, p_provider_ref, p_raw_payload, p_idempotency_key
+    );
+
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'invalid_transition',
+      'detail', format('Cannot transition from %s to %s', v_current_payment_status, p_to_status),
+      'current_status', v_current_payment_status
+    );
+  END IF;
+
+  -- Determine orders.status side-effect
+  v_new_order_status := CASE
+    WHEN p_to_status IN ('failed', 'expired', 'abandoned')
+      AND v_current_order_status != 'cancelled'
+      THEN 'cancelled'
+    WHEN p_to_status = 'paid'
+      AND v_current_payment_status IN ('failed', 'expired')
+      AND v_current_order_status = 'cancelled'
+      THEN 'new'
+    ELSE NULL
+  END;
+
+  -- UPDATE orders
+  UPDATE orders
+  SET payment_status = p_to_status,
+      updated_at = now(),
+      paid_at = CASE WHEN p_to_status = 'paid' THEN COALESCE(paid_at, now()) ELSE paid_at END,
+      status = COALESCE(v_new_order_status::order_status, status),
+      cancelled_at = CASE
+        WHEN v_new_order_status = 'cancelled' THEN COALESCE(cancelled_at, now())
+        ELSE cancelled_at
+      END,
+      cancelled_reason = CASE
+        WHEN v_new_order_status = 'cancelled' AND cancelled_reason IS NULL
+        THEN format('Payment %s (auto)', p_to_status)
+        ELSE cancelled_reason
+      END
+  WHERE id = p_order_id;
+
+  -- UPDATE payments.status (F1 resolution: map to {pending, paid, failed} only)
+  IF p_to_status = 'paid' THEN
+    -- Payment succeeded
+    UPDATE payments
+    SET status = 'paid',
+        paid_at = COALESCE(paid_at, now()),
+        provider_ref = COALESCE(provider_ref, p_provider_ref),
+        transaction_id = COALESCE(transaction_id, p_kbz_trade_no)
+    WHERE order_id = p_order_id
+      AND status != 'paid';
+
+  ELSIF p_to_status IN ('failed', 'expired', 'abandoned') THEN
+    -- Payment died (any reason) -> payments.status = 'failed'
+    -- WHY it died is in orders.payment_status and payment_events
+    UPDATE payments
+    SET status = 'failed'
+    WHERE order_id = p_order_id
+      AND status NOT IN ('paid', 'failed');
+
+  END IF;
+
+  -- Log event
+  INSERT INTO payment_events (
+    order_id, from_status, to_status, branch, triggered_by,
+    actor_type, actor_id, reason, kbz_trade_no, provider_ref,
+    raw_payload, idempotency_key
+  ) VALUES (
+    p_order_id, v_current_payment_status, p_to_status, 'transition', p_triggered_by,
+    p_actor_type, p_actor_id, p_reason, p_kbz_trade_no, p_provider_ref,
+    p_raw_payload, p_idempotency_key
+  );
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'noop', false,
+    'branch', 'transition',
+    'from_status', v_current_payment_status,
+    'to_status', p_to_status,
+    'order_status_changed', v_new_order_status IS NOT NULL,
+    'new_order_status', COALESCE(v_new_order_status, v_current_order_status)
+  );
+
+EXCEPTION WHEN unique_violation THEN
+  -- F5 fix: only catch idempotency key violations, re-raise others
+  IF SQLERRM LIKE '%idx_payment_events_idempotency%' THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'noop', true,
+      'detail', 'Duplicate idempotency key -- already processed'
+    );
+  ELSE
+    RAISE;
+  END IF;
+END;
+$$;
+```
+
+Verification:
+
+```sql
+SELECT proname, pronargs FROM pg_proc WHERE proname = 'transition_payment_status';
+-- EXPECTED: transition_payment_status, 10
+```
+
+---
+
+## 4. Edge Function Migration
+
+*(create-order-intent needs no change -- it writes draft and that is correct.)*
+
+Four edge functions will be patched to call the RPC instead of direct UPDATEs:
+
+- **kbzpay-create-payment** -- calls OPEN branch (draft -> pending)
+- **kbzpay-webhook** -- calls TRANSITION branch (pending -> paid/failed)
+- **kbzpay-query-order** -- calls TRANSITION branch (pending -> paid/failed/expired)
+- **kbzpay-reconcile-cron** -- calls TRANSITION branch for three paths:
+  - Phase 1: draft -> abandoned (stale drafts >30min, F11)
+  - Phase 2/3: pending -> expired (KBZ expired or force-expire >6h)
+  - Phase 2: failed -> abandoned (stale failed >24h)
+
+### F9 clarification: call ordering in kbzpay-create-payment
+
+The OPEN branch call MUST happen AFTER the KBZ precreate API succeeds:
+
+1. Edge function receives order_id from frontend
+2. Edge function calls KBZ precreate API via VPS proxy -> gets `prepay_id`, `merchOrderId`, `orderinfo`, `sign`, `signType`
+3. If precreate fails: return error to frontend. Order stays draft. No RPC call. No DB write.
+4. If precreate succeeds: call `transition_payment_status(order_id, 'pending', 'kbzpay-create-payment', ...)` with **`merchOrderId` as `p_provider_ref`** (NOT `prepay_id` -- webhook and query-order look up payments by `provider_ref = merchOrderId`). Pass full precreate response in `p_raw_payload` (which stores `prepay_id` for audit).
+5. Return the full cashier payload to frontend: `{ prepay_id, orderinfo, sign, signType }` -- all four fields are required by the frontend's tradePay bridge call (see `kbzpay-bridge.ts` and `OrderConfirm.tsx`).
+
+**Why this ordering matters:** If the RPC ran first (draft -> pending) but precreate failed, the order would be stuck in pending with no KBZ payment session. The customer would see a spinner and no payment screen. The cron would eventually expire it, but that is 15+ minutes of bad UX. By calling KBZ first, we guarantee that every pending order has a real KBZ payment session behind it.
+
+**Why merchOrderId in provider_ref (not prepay_id):** The existing webhook (`kbzpay-webhook`) and query-order (`kbzpay-query-order`) both resolve the payment row via `payments.provider_ref = merchOrderId`. If we stored `prepay_id` there instead, neither reconciliation path would find the payment. `prepay_id` lives in `p_raw_payload` for audit purposes only.
+
+---
+
+## 5. Testing Plan -- Full Runnable SQL (F7 fix)
+
+### Setup: Create a test order in draft state
+
+```sql
+-- Create test order for SQL-level tests
+INSERT INTO orders (
+  id, customer_phone, township, address, quantity, status,
+  payment_status, payment_method, order_source, total_amount
+) VALUES (
+  '00000000-0000-0000-0000-000000000099',
+  '09000000099', 'Test Township', 'Test Address', 1,
+  'draft'::order_status, 'draft', 'kbzpay', 'kbzpay_miniapp', 23000
+);
+```
+
+### Test 1: OPEN -- draft -> pending (+ orders.status -> new)
+
+```sql
+SELECT transition_payment_status(
+  '00000000-0000-0000-0000-000000000099'::uuid,
+  'pending',
+  'test-open',
+  'Test 1: OPEN branch'
+);
+-- EXPECTED: {"ok": true, "noop": false, "branch": "open", "from_status": "draft", "to_status": "pending", "order_status": "new"}
+```
+
+Verify side-effects:
+
+```sql
+SELECT status::text, payment_status, payment_method FROM orders WHERE id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: new, pending, kbzpay
+
+SELECT status, amount, method::text FROM payments WHERE order_id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: pending, 23000, kbzpay
+
+SELECT branch, from_status, to_status, triggered_by FROM payment_events WHERE order_id = '00000000-0000-0000-0000-000000000099' ORDER BY created_at;
+-- EXPECTED: 1 row: open, draft, pending, test-open
+```
+
+### Test 2: TRANSITION -- pending -> paid
+
+```sql
+SELECT transition_payment_status(
+  '00000000-0000-0000-0000-000000000099'::uuid,
+  'paid',
+  'test-transition',
+  'Test 2: normal payment success',
+  'system', NULL, 'TRADE_TEST_001', 'MERCH_TEST_001'
+);
+-- EXPECTED: {"ok": true, "noop": false, "branch": "transition", "from_status": "pending", "to_status": "paid", "order_status_changed": false, "new_order_status": "new"}
+```
+
+Verify:
+
+```sql
+SELECT status::text, payment_status, paid_at IS NOT NULL as has_paid_at FROM orders WHERE id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: new, paid, true
+
+SELECT status, transaction_id FROM payments WHERE order_id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: paid, TRADE_TEST_001
+```
+
+### Test 3: ILLEGAL -- paid -> expired (terminal state)
+
+```sql
+SELECT transition_payment_status(
+  '00000000-0000-0000-0000-000000000099'::uuid,
+  'expired',
+  'test-illegal',
+  'Test 3: should be rejected'
+);
+-- EXPECTED: {"ok": false, "error": "invalid_transition", "detail": "Cannot transition from paid to expired", "current_status": "paid"}
+```
+
+Verify rejected event logged:
+
+```sql
+SELECT branch, from_status, to_status, reason FROM payment_events
+WHERE order_id = '00000000-0000-0000-0000-000000000099' AND branch = 'rejected';
+-- EXPECTED: 1 row: rejected, paid, expired, 'REJECTED: paid -> expired by test-illegal. Test 3: should be rejected'
+```
+
+### Test 4: Idempotency -- already at target = noop
+
+```sql
+SELECT transition_payment_status(
+  '00000000-0000-0000-0000-000000000099'::uuid,
+  'paid',
+  'test-idempotent',
+  'Test 4: already paid'
+);
+-- EXPECTED: {"ok": true, "noop": true, "detail": "Already at paid"}
+```
+
+Verify no new event:
+
+```sql
+SELECT count(*) FROM payment_events WHERE order_id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: 3 (from tests 1, 2, 3 -- test 4 produces no event)
+```
+
+### Test 5: Reset test order, then test expired -> payments.status = 'failed'
+
+```sql
+-- Reset: force order back to pending for further tests
+UPDATE orders SET payment_status = 'pending', status = 'new'::order_status, paid_at = NULL, cancelled_at = NULL, cancelled_reason = NULL WHERE id = '00000000-0000-0000-0000-000000000099';
+UPDATE payments SET status = 'pending', paid_at = NULL, transaction_id = NULL WHERE order_id = '00000000-0000-0000-0000-000000000099';
+
+SELECT transition_payment_status(
+  '00000000-0000-0000-0000-000000000099'::uuid,
+  'expired',
+  'test-expired',
+  'Test 5: payment expired by cron'
+);
+-- EXPECTED: {"ok": true, "noop": false, "branch": "transition", "from_status": "pending", "to_status": "expired", "order_status_changed": true, "new_order_status": "cancelled"}
+```
+
+Verify payments.status maps to failed (F1 resolution):
+
+```sql
+SELECT status::text, payment_status, cancelled_reason FROM orders WHERE id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: cancelled, expired, 'Payment expired (auto)'
+
+SELECT status FROM payments WHERE order_id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: failed (NOT 'expired' -- per F1 Option A)
+```
+
+### Test 6: abandoned -> payments.status stays 'failed'
+
+```sql
+-- Order is now expired. Transition to abandoned.
+UPDATE orders SET payment_status = 'failed', status = 'cancelled'::order_status WHERE id = '00000000-0000-0000-0000-000000000099';
+
+SELECT transition_payment_status(
+  '00000000-0000-0000-0000-000000000099'::uuid,
+  'abandoned',
+  'test-abandoned',
+  'Test 6: cron abandons after 24h'
+);
+-- EXPECTED: {"ok": true, "noop": false, "branch": "transition", "from_status": "failed", "to_status": "abandoned", "order_status_changed": false, "new_order_status": "cancelled"}
+```
+
+Verify:
+
+```sql
+SELECT status::text, payment_status FROM orders WHERE id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: cancelled, abandoned
+
+SELECT status FROM payments WHERE order_id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: failed (stays failed -- per F1 Option A, no new value introduced)
+```
+
+### Test 7: orders.status -> cancelled when payment dies
+
+(Already verified in Test 5 -- pending->expired sets orders.status=cancelled)
+
+### Test 8: Payment revives -- failed -> paid (un-cancel)
+
+```sql
+-- Reset to failed + cancelled
+UPDATE orders SET payment_status = 'failed', status = 'cancelled'::order_status WHERE id = '00000000-0000-0000-0000-000000000099';
+UPDATE payments SET status = 'failed' WHERE order_id = '00000000-0000-0000-0000-000000000099';
+
+SELECT transition_payment_status(
+  '00000000-0000-0000-0000-000000000099'::uuid,
+  'paid',
+  'test-revive',
+  'Test 8: late KBZ webhook success',
+  'system', NULL, 'TRADE_LATE_001'
+);
+-- EXPECTED: {"ok": true, "noop": false, "branch": "transition", "from_status": "failed", "to_status": "paid", "order_status_changed": true, "new_order_status": "new"}
+```
+
+Verify un-cancel:
+
+```sql
+SELECT status::text, payment_status, paid_at IS NOT NULL as has_paid_at FROM orders WHERE id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: new, paid, true (un-cancelled, back in agent queue)
+
+SELECT status, transaction_id FROM payments WHERE order_id = '00000000-0000-0000-0000-000000000099';
+-- EXPECTED: paid, TRADE_LATE_001
+```
+
+### Cleanup: Remove test order
+
+```sql
+DELETE FROM payment_events WHERE order_id = '00000000-0000-0000-0000-000000000099';
+DELETE FROM payments WHERE order_id = '00000000-0000-0000-0000-000000000099';
+DELETE FROM orders WHERE id = '00000000-0000-0000-0000-000000000099';
+```
+
+---
+
+## 6. Rollback
+
+Blocks 3, 2, 1 are cleanly reversible:
+
+```sql
+-- Block 3: DROP FUNCTION IF EXISTS transition_payment_status(uuid, text, text, text, text, text, text, text, jsonb, text);
+-- Block 2: DROP FUNCTION IF EXISTS is_valid_payment_transition(text, text);
+-- Block 1: DROP TABLE IF EXISTS payment_events;
+```
+
+Block 0 (succeeded -> paid normalization) is **NOT reversible**. After Block 0 runs, there is no way to distinguish rows that were originally paid from rows that were normalized from succeeded. However, rollback is also unnecessary: the succeeded value was a legacy inconsistency, and paid is the correct canonical value regardless of whether this plan proceeds. All existing code already reads paid; no code path reads succeeded. Leaving Block 0 applied even if Blocks 1-3 are rolled back is safe and correct.
+
+Edge functions: Redeploy previous versions from Git history.
+
+---
+
+## 7. Success Criteria
+
+- Zero direct UPDATEs to orders.payment_status from edge functions
+- Every state change logged in payment_events with branch, triggered_by, reason
+- Illegal transitions blocked and logged as branch = 'rejected'
+- OPEN and TRANSITION branches have separate contracts, zero shared validation
+- orders.status -> cancelled when payment dies; -> new when payment revives
+- payments.status in {pending, paid, failed} only -- no new values introduced (F1)
+- No succeeded values remain in payments.status (F2)
+- updated_at explicitly set on every order UPDATE
+- Idempotent -- duplicates produce one event
+- Exception handler only catches idempotency violations (F5)
+- CRM and Agent apps unaffected
+
+---
+
+## 8. What This Plan Does NOT Cover
+
+- CRM/Agent cash payment flows
+- Refund handling (Phase 2.1)
+- orders.status lifecycle state machine (separate plan)
+- payment_attempts table (deferred)
+- Backfilling payment_events for existing 100 orders (optional Phase 2.1)
+- Frontend changes (may need one-line draft filter)
+- kbz_pay/kbzpay enum dedup (Phase 2.1, F3)
+
+---
+
+## Hand-off note (Lovable -> Cowork)
+
+Lovable lands this plan as draft. SQL Blocks 0-3 and the four edge-function migrations are Cowork's to execute. Lovable picks up the optional useOrders draft-filter only after Cowork confirms payment_events is populating.
+
+End of Grand Plan v1.3.1. Addresses all Architect findings (F1-F9, F11) and Operator findings (F12 provider_ref, F13 cashier payload, Block 0 rollback, Test 5 reset). Awaiting repo commit via Lovable, then CEO sign-off.
