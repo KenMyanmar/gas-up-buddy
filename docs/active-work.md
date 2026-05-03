@@ -2,7 +2,7 @@
 
 **Purpose:** Prevent concurrent writes by Architect, Operator, Cowork, and Lovable. Read before starting work. Update before pushing.
 
-**Last updated:** 2026-05-03 by Lovable (commit Grand Plan v1.2 draft)
+**Last updated:** 2026-05-03 by Lovable (Grand Plan v1.3.3 commit)
 
 ---
 
@@ -11,9 +11,9 @@
 | Actor | Task | ETA | Files locked |
 |---|---|---|---|
 | Architect | TRIO docs scaffolding | 2026-05-03 | `docs/*` |
-| Cowork | Phase 2.0 v1.2 — execute SQL Blocks 1–3 + redeploy 4 KBZ edge functions | 2026-05-05 | `payment_events`, `is_valid_payment_transition`, `transition_payment_status`, `supabase/functions/kbzpay-create-payment`, `supabase/functions/kbzpay-webhook`, `supabase/functions/kbzpay-query-order`, `supabase/functions/kbzpay-reconcile-cron` |
-| Operator (Codex) | Standby for v1.2 final review | - | none |
-| Lovable | Landed Grand Plan v1.2 doc; idle pending Cowork deploy | - | none |
+| Cowork | Phase 2.0 v1.3.3 — pending Architect+Operator final approval, then CEO sign-off, then SQL Blocks 0–3 execution + redeploy 4 KBZ edge functions | 2026-05-05 | `payment_events`, `is_valid_payment_transition`, `transition_payment_status`, `supabase/functions/kbzpay-create-payment`, `supabase/functions/kbzpay-webhook`, `supabase/functions/kbzpay-query-order`, `supabase/functions/kbzpay-reconcile-cron` |
+| Operator (Codex) | Standby for v1.3.3 final review | - | none |
+| Lovable | Landed Grand Plan v1.3.3 doc; idle pending Cowork deploy | - | none |
 
 ---
 
@@ -37,9 +37,12 @@
 |---|---|---|
 | 2026-05-03 | Frontend 4-file payment status fix (commit `a80b6bf`) | Lovable + Operator |
 | 2026-05-03 | webhook v34 (W1+W2+W4 fixes) | Operator |
-| 2026-05-03 | reconcile-cron v7 (R4+R1+R2+R3 fixes) | Operator |
+| 2026-05-03 | reconcile-cron v8 (R1-R4 fixes + JWT auth fix) | Operator |
 | 2026-05-03 | cron Job#4 scheduled (⚠️ vault secret 401 — needs CEO fix) | Operator |
 | 2026-05-03 | Grand Plan v1.2 committed as draft (`docs/grand-plans/2026-05-03-payment-state-machine-v1.2.md`) | Lovable |
+| 2026-05-03 | Grand Plan v1.3.1 committed (F12/F13 fixes), then superseded | Lovable |
+| 2026-05-03 | Grand Plan v1.3.2 committed (F14/F15 cron guards), then superseded | Lovable |
+| 2026-05-03 | Grand Plan v1.3.3 committed (F16-F18 pseudocode corrections) | Lovable |
 
 ---
 
@@ -48,7 +51,7 @@
 | What | Owner | Blocked by |
 |---|---|---|
 | W3 deploy | Operator | Vault secret fix (Ken) |
-| Phase 2.0 v1.2 | Architect final approval → CEO sign-off → Cowork executes | Architect review |
+| Phase 2.0 v1.3.3 | Architect+Operator final approval → CEO sign-off → Cowork executes | Architect+Operator review |
 | OrderConfirm.tsx softening | Lovable | CEO timing decision |
 
 ---
