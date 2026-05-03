@@ -33,4 +33,4 @@ Use `_template.md`. Number plans by date: `YYYY-MM-DD-short-name.md`.
 
 | Plan | Date | Status | Owner |
 |---|---|---|---|
-| (none yet — first plan will be Phase 2.0 state machine v1.1) | - | - | Cowork |
+| [Payment State Machine v1.2](./2026-05-03-payment-state-machine-v1.2.md) | 2026-05-03 | Draft (awaiting Architect final + CEO sign-off) | Cowork |
