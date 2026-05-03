@@ -107,24 +107,22 @@ const OrderConfirm = () => {
               resultCode: rawCode ?? null,
               resultCodeType: typeof rawCode,
               resultCodeString: rawCode == null ? null : String(rawCode),
+              resultFlag: (paymentResult as any)?.resultFlag ?? null,
               paymentResultKeys: paymentResult ? Object.keys(paymentResult) : [],
               timestamp: new Date().toISOString(),
             },
           }).catch(() => { /* swallow async rejection */ });
         } catch { /* swallow sync throw */ }
         const codeStr = rawCode == null ? null : String(rawCode);
+        // KBZ Pay H5 spec — only two documented result codes:
+        //   "1" => PIN flow success (webhook = source of truth)
+        //   "2" => KBZ-side payment failure
+        // Anything else ("3", "-1", null, undefined, etc.) is UNDOCUMENTED
+        // and must NOT be treated as a definitive failure — fall through to poll.
         const isSuccess = codeStr === "1";
-        const isExplicitCancel = codeStr === "2"; // KBZ user-cancel
-        const isExplicitFail = codeStr === "3" || codeStr === "-1";
-        const isUnknown = rawCode == null || (!isSuccess && !isExplicitCancel && !isExplicitFail);
+        const isExplicitFail = codeStr === "2";
+        const isUnknown = !isSuccess && !isExplicitFail;
 
-        if (isExplicitCancel) {
-          navigate(`/order/success${location.search}`, {
-            replace: true,
-            state: { orderId, totalAmount: result.total_amount, paymentStatus: "cancelled", brandName: orderState.brandName, sizeKg: orderState.sizeKg, cylinderType: orderState.cylinderType },
-          });
-          return;
-        }
         if (isExplicitFail) {
           navigate(`/order/success${location.search}`, {
             replace: true,

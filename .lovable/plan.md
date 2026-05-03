@@ -1,38 +1,105 @@
-# Frontend Payment State Fixes
+## Investigation Summary
 
-Apply 4 surgical changes to make payment status correctly drive UI. Scope locked to 4 files.
+**The bug.** In `src/pages/OrderConfirm.tsx` (lines 115–134), the KBZ Pay `startPay` result is classified using **undocumented assumptions**:
 
-## Files & Changes
+```ts
+const isSuccess        = codeStr === "1";
+const isExplicitCancel = codeStr === "2";          // WRONG: KBZ spec says 2 = failure, not cancel
+const isExplicitFail   = codeStr === "3" || codeStr === "-1"; // UNDOCUMENTED codes
+const isUnknown        = ...;
+```
 
-### 1. `src/hooks/useOrders.ts`
-- Add `payment_status: string | null` and `payment_method: string | null` to `OrderWithDetails` interface (after `status`).
-- Add `payment_status, payment_method` to the `.select()` string in the orders query.
+Per the KBZ Pay H5 / Mini App spec, `startPay` only documents:
+- `resultCode === "1"` → user finished the PIN flow (webhook is the source of truth for "paid")
+- `resultCode === "2"` → KBZ-side failure
 
-### 2. `src/pages/OrderTracking.tsx`
-- Extend lucide-react import with `Clock, AlertCircle`.
-- Replace the single "Order confirmed" banner (gated only on `status === "new"`) with three payment-status-aware banners:
-  - `status==="new" && payment_status==="paid"` → existing green "Order confirmed!" banner.
-  - `status==="new" && payment_status==="pending"` → amber Clock "Payment processing" banner.
-  - `status==="new" && (payment_status==="failed" || "expired")` → red AlertCircle "Payment failed" banner.
-- Leave handleCheckPayment, showCheckPayment, realtime, map, and all other code untouched.
+Everything else (`"3"`, `"-1"`, `null`, `undefined`, missing field, `InterruptedException`-driven results, etc.) is **undocumented** and must not be treated as a definitive payment failure.
 
-### 3. `src/pages/OrdersPage.tsx`
-- Update the `filtered` const so:
-  - "Active" excludes orders where `payment_status` is `failed` or `expired`.
-  - "Cancelled" includes `status==="cancelled"` OR failed/expired payment.
-- Replace the status badge `<span>` on order cards so failed/expired payments render a destructive "Payment Failed" badge, pending payments on `new` orders render amber "Payment Pending", otherwise the existing label/style.
-- No changes to tabs array, activeStatuses, imports, or other logic.
+**Real-world impact.** Order `…C03001B9` hit the failure screen after an `InterruptedException`. By elimination of code paths it must have returned `resultCode === "3"`, which we mapped to `"failed"` and showed the customer "Payment Failed" — but the underlying payment state was actually unknown (and could still settle via webhook). We've been telling customers their payment failed when we don't actually know.
 
-### 4. `src/pages/OrderSuccess.tsx`
-- In `handleAction`, change `retry` navigation from `/order/configure...` to `/order/tracking/${state.orderId}${location.search}`.
-- In the failure variant's `screenConfig`, change `primaryButton.text` from `"Try Again"` to `"View Order Status"`.
-- Success and pending variants remain byte-identical.
+**Other notes from the investigation.**
+- `OrderSuccess.tsx` already supports `paymentStatus: "pending"` with a distinct screen variant — no changes needed there.
+- `pollOrderUntilPaid` returns `"paid" | "failed" | "timeout"` with a 120s budget — this is left untouched per scope.
+- The `catch` block (bridge throw) already routes to `"pending"` — correct, leave alone.
+- `client-diag` already captures `resultCode`, `resultCodeType`, `paymentResultKeys`. We'll add `resultFlag` so future debugging can correlate KBZ's secondary signal with `resultCode`.
+- Scope is locked to **one file**: `src/pages/OrderConfirm.tsx`. No edge function, schema, RLS, or other UI changes.
 
-## Verification
-- TypeScript clean.
-- Pending-payment order on tracking page shows amber banner.
-- OrdersPage Active tab excludes failed/expired payments; they appear under Cancelled with red badge.
-- OrderSuccess failure screen → "View Order Status" → tracking page (preserves orderId).
+## Plan — Surgical change to `src/pages/OrderConfirm.tsx`
 
-## Out of Scope
-No edge function, schema, RLS, or other file changes.
+### 1. Replace the classification block (lines 115–119)
+
+From:
+```ts
+const codeStr = rawCode == null ? null : String(rawCode);
+const isSuccess        = codeStr === "1";
+const isExplicitCancel = codeStr === "2"; // KBZ user-cancel
+const isExplicitFail   = codeStr === "3" || codeStr === "-1";
+const isUnknown        = rawCode == null || (!isSuccess && !isExplicitCancel && !isExplicitFail);
+```
+
+To:
+```ts
+const codeStr = rawCode == null ? null : String(rawCode);
+// KBZ Pay H5 spec — only two documented result codes:
+//   "1" => PIN flow success (webhook = source of truth)
+//   "2" => KBZ-side payment failure
+// Anything else ("3", "-1", null, undefined, etc.) is UNDOCUMENTED.
+// We must not treat undocumented codes as definitive failure.
+const isSuccess      = codeStr === "1";
+const isExplicitFail = codeStr === "2";
+const isUnknown      = !isSuccess && !isExplicitFail;
+```
+
+### 2. Remove the `if (isExplicitCancel)` block (lines 121–127) entirely
+
+We have zero production evidence of resultCode `2` arriving today, and per spec it's not a separate cancel signal. Removing the cancelled-navigation branch is safe. (`OrderSuccess` keeps its existing `"cancelled"` rendering for any historical state, but no new code path will produce it from this page.)
+
+### 3. Keep the `if (isExplicitFail)` block (lines 128–134) as-is
+
+It's now triggered only by `codeStr === "2"`, matching the KBZ spec.
+
+### 4. Unknown codes fall through to existing poll
+
+The existing `pollOrderUntilPaid → paymentStatus` mapping at lines 137–148 already does the right thing:
+- poll → `"paid"` ⇒ `paymentStatus: "paid"`
+- poll → `"failed"` ⇒ `paymentStatus: "failed"` (webhook-confirmed failure, trusted)
+- poll → `"timeout"` ⇒ `paymentStatus: "pending"`
+
+No changes needed in that block beyond removing the now-unused `isExplicitCancel` reference (already handled by step 1).
+
+### 5. Extend the `client-diag` `startpay-result` payload
+
+Inside the existing telemetry call (lines 102–114), add one field:
+```ts
+resultFlag: (paymentResult as any)?.resultFlag ?? null,
+```
+Everything else in that payload stays byte-identical.
+
+### 6. Leave untouched
+
+- `catch (payError)` block — bridge errors stay `"pending"`.
+- `pollOrderUntilPaid` timing/behavior.
+- `OrderTracking.tsx`, `OrdersPage.tsx`, `OrderSuccess.tsx`, `HomePage.tsx`, `kbzpay-bridge.ts`, all edge functions.
+
+## Acceptance Checks
+
+| Scenario | Before | After |
+|---|---|---|
+| `resultCode "1"` + webhook in 120s | paid | paid (unchanged) |
+| `resultCode "1"` + webhook timeout | pending | pending (unchanged) |
+| `resultCode "2"` | cancelled (wrong) | **failed** (per spec) |
+| `resultCode "3"` | failed (lie) | **poll → pending/paid/failed** |
+| `resultCode "-1"` | failed (lie) | **poll → pending/paid/failed** |
+| `resultCode null/undefined` | pending via unknown→poll | pending via unknown→poll (unchanged) |
+| `startPay` throws (InterruptedException at bridge layer) | pending (catch) | pending (catch) (unchanged) |
+| client-diag `startpay-result` payload | no `resultFlag` | includes `resultFlag` |
+
+## Known UX Trade-off (not a blocker)
+
+Real failures arriving with undocumented codes will now spend up to 120s on the "Processing…" spinner before landing on the pending screen. This is intentional — better than lying about a failure. A follow-up PR can add a shorter unknown-result poll budget; out of scope here.
+
+## Files Changed
+
+- `src/pages/OrderConfirm.tsx` (one file, ~10 lines net)
+
+No other files. No edge functions. No DB.
