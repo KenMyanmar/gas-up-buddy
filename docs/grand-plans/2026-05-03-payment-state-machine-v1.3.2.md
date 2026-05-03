@@ -1,13 +1,20 @@
 # Phase 2.0 Grand Plan: Payment State Machine
 
-**Version:** 1.3.1
+**Version:** 1.3.2
 **Date:** 2026-05-03
 **Author:** Cowork (Claude)
 **Reviewers:** Architect (Oldman), Operator (Codex)
 **Approver:** CEO (Ken)
-**Status:** DRAFT -- awaiting repo commit, Architect final line-level review, CEO sign-off
+**Status:** DRAFT -- awaiting Architect final + CEO sign-off
 
-**Changelog from v1.3 (Architect final approval + Operator review + Architect F11 finding):**
+**Changelog from v1.3.1 (Architect final review -- cron migration guards):**
+
+| Finding | Severity | Fix |
+|---|---|---|
+| F14: Phase 1 (draft -> abandoned) could sweep non-KBZ drafts | HIGH | §4 Phase 1 now requires explicit `order_source = 'kbzpay_miniapp'` guard. Pseudocode added. Protects R2 (CRM/agent draft orders) from being abandoned by the KBZ cron. |
+| F15: Phase 3 (force-expire pending >6h) could double-process same row | MEDIUM | §4 Phase 3 now requires explicit `checkedOrderIds.has(order.id)` guard so any order already touched by Phase 2 (KBZ query reconcile) is skipped. Pseudocode added. Protects R4 (idempotency) and avoids racing the webhook. |
+
+**Prior changelog from v1.3 (Architect final approval + Operator review + Architect F11 finding):**
 
 | Finding | Severity | Fix |
 |---|---|---|
