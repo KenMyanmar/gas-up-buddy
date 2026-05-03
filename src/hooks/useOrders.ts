@@ -9,6 +9,8 @@ export interface OrderWithDetails {
   gas_subtotal: number | null;
   delivery_fee: number | null;
   status: string;
+  payment_status: string | null;
+  payment_method: string | null;
   order_type: string | null;
   created_at: string;
   delivered_at: string | null;
@@ -26,7 +28,7 @@ export const useOrders = (customerId: string | undefined) => {
       if (!customerId) return [];
       const { data, error } = await supabase
         .from('orders')
-        .select('id, cylinder_type, quantity, total_amount, gas_subtotal, delivery_fee, status, order_type, created_at, delivered_at, township, address, customer_id, brand_id, brands(id, name)')
+        .select('id, cylinder_type, quantity, total_amount, gas_subtotal, delivery_fee, status, payment_status, payment_method, order_type, created_at, delivered_at, township, address, customer_id, brand_id, brands(id, name)')
         .eq('customer_id', customerId)
         .neq('status', 'draft')
         .order('created_at', { ascending: false });
