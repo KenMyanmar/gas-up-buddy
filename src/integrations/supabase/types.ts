@@ -329,6 +329,8 @@ export type Database = {
           track_inventory: boolean
           unit: string
           updated_at: string | null
+          variant_name: string
+          variant_slug: string
         }
         Insert: {
           brand_id: string
@@ -346,6 +348,8 @@ export type Database = {
           track_inventory?: boolean
           unit?: string
           updated_at?: string | null
+          variant_name: string
+          variant_slug: string
         }
         Update: {
           brand_id?: string
@@ -363,6 +367,8 @@ export type Database = {
           track_inventory?: boolean
           unit?: string
           updated_at?: string | null
+          variant_name?: string
+          variant_slug?: string
         }
         Relationships: [
           {
@@ -962,6 +968,8 @@ export type Database = {
           quantity: number
           size_kg: number | null
           unit_price: number
+          variant_name: string | null
+          variant_slug: string | null
         }
         Insert: {
           brand_id: string
@@ -976,6 +984,8 @@ export type Database = {
           quantity: number
           size_kg?: number | null
           unit_price: number
+          variant_name?: string | null
+          variant_slug?: string | null
         }
         Update: {
           brand_id?: string
@@ -990,6 +1000,8 @@ export type Database = {
           quantity?: number
           size_kg?: number | null
           unit_price?: number
+          variant_name?: string | null
+          variant_slug?: string | null
         }
         Relationships: [
           {
@@ -1853,6 +1865,8 @@ export type Database = {
           agent_claimed_at: string | null
           agent_id: string | null
           brand_id: string | null
+          brand_name: string | null
+          brand_product_id: string | null
           bundle_id: string | null
           cancellation_notes: string | null
           cancelled_at: string | null
@@ -1864,6 +1878,7 @@ export type Database = {
           customer_id: string | null
           customer_name: string | null
           customer_phone: string
+          cylinder_display_name: string | null
           cylinder_subtotal: number | null
           cylinder_type: string | null
           delivered_at: string | null
@@ -1903,6 +1918,8 @@ export type Database = {
           township: string
           trade_in_credit: number | null
           updated_at: string | null
+          variant_name: string | null
+          variant_slug: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -1911,6 +1928,8 @@ export type Database = {
           agent_claimed_at?: string | null
           agent_id?: string | null
           brand_id?: string | null
+          brand_name?: string | null
+          brand_product_id?: string | null
           bundle_id?: string | null
           cancellation_notes?: string | null
           cancelled_at?: string | null
@@ -1922,6 +1941,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_phone: string
+          cylinder_display_name?: string | null
           cylinder_subtotal?: number | null
           cylinder_type?: string | null
           delivered_at?: string | null
@@ -1961,6 +1981,8 @@ export type Database = {
           township: string
           trade_in_credit?: number | null
           updated_at?: string | null
+          variant_name?: string | null
+          variant_slug?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -1969,6 +1991,8 @@ export type Database = {
           agent_claimed_at?: string | null
           agent_id?: string | null
           brand_id?: string | null
+          brand_name?: string | null
+          brand_product_id?: string | null
           bundle_id?: string | null
           cancellation_notes?: string | null
           cancelled_at?: string | null
@@ -1980,6 +2004,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string
+          cylinder_display_name?: string | null
           cylinder_subtotal?: number | null
           cylinder_type?: string | null
           delivered_at?: string | null
@@ -2019,6 +2044,8 @@ export type Database = {
           township?: string
           trade_in_credit?: number | null
           updated_at?: string | null
+          variant_name?: string | null
+          variant_slug?: string | null
         }
         Relationships: [
           {
@@ -2033,6 +2060,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_brand_product_id_fkey"
+            columns: ["brand_product_id"]
+            isOneToOne: false
+            referencedRelation: "brand_products"
             referencedColumns: ["id"]
           },
           {
