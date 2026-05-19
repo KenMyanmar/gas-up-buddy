@@ -66,33 +66,6 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
   const runAutoLogin = useCallback(async () => {
     if (running.current) return;
 
-    // GUARD: if a Supabase session already exists, do NOT re-run KBZ flow.
-    (window as any).__perf?.("kbz-getSession-start");
-    const { data: { session: existing } } = await supabase.auth.getSession();
-    (window as any).__perf?.("kbz-getSession-end", { hasSession: !!existing });
-    if (existing) {
-      console.log("[KBZ-DIAG] Session already exists — skipping auto-login");
-      safeSet(setStatus, "linked" as KbzAutoLoginStatus);
-      try {
-        const { data: cust } = await supabase
-          .from("customers")
-          .select("id, full_name, address, township, phone")
-          .eq("auth_user_id", existing.user.id)
-          .maybeSingle();
-        if (cust?.id) {
-          navigate(`/welcome?cid=${cust.id}`, {
-            replace: true,
-            state: { customer: cust },
-          });
-        } else {
-          navigate("/welcome", { replace: true });
-        }
-      } catch {
-        navigate("/welcome", { replace: true });
-      }
-      return;
-    }
-
     running.current = true;
     acRef.current?.abort();
     acRef.current = new AbortController();
@@ -242,14 +215,8 @@ export function useKbzAutoLogin(): KbzAutoLoginResult {
 
   useEffect(() => {
     if (globalRanOnce) {
-      console.log("[KBZ-DIAG] globalRanOnce true — checking existing session");
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session && mounted.current) {
-          console.log("[KBZ-DIAG] existing session found on remount → linked");
-          safeSet(setStatus, "linked" as KbzAutoLoginStatus);
-          navigate("/welcome", { replace: true });
-        }
-      });
+      console.log("[KBZ-DIAG] remount detected — re-verifying KBZ identity");
+      runAutoLogin();
       return;
     }
     globalRanOnce = true;
