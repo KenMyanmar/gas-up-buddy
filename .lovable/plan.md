@@ -1,36 +1,30 @@
-## Replace Mini App T&C with KBZ-Approved v2026-05-14 (bilingual)
+## Replace Mini App Privacy Policy with Bilingual Draft v1.0
 
-Mirror the FAQ pattern. MM default, EN ⇄ MM toggle, Accordion per section. All legal text preserved verbatim from the uploaded prompt — including approved heading typos (USEAGE, LIABLILITY, IDEMNIFICATION).
+Mirror the FAQ/T&C pattern for the Privacy screen. MM default, EN ⇄ MM toggle, Accordion per section. Content is DRAFT — not yet KBZ-approved.
 
 ### Files
 
-**1. CREATE `src/data/termsContent.ts`**
-- `export type Lang = "en" | "mm"`
-- `export const termsPreamble: Record<Lang, string>` — EN + MM opening paragraph, copied byte-for-byte from the prompt
-- `export interface TermsSection { en: { title; body }; mm: { title; body } }`
-- `export const termsSections: TermsSection[]` — all 30 KBZ-approved sections, verbatim
-- Bodies as plain strings with `\n\n` paragraph breaks; rendered via `whitespace-pre-line`
-- Pure data module — no React, no imports
+1. **CREATE `src/data/privacyContent.ts`** — pure data module:
+   - `Lang = "en" | "mm"`
+   - `PrivacySection` interface (en/mm title + body)
+   - `privacySections` array — 16 sections verbatim from the prompt, preserving the §16 numbering gap (jumps §15 → §17) and the `[full registered address to be added]` placeholder in §13
+   - `privacyLabels` record for header title, switch-to label, and draft footer
 
-**2. REPLACE `src/pages/ProfileTerms.tsx`**
-- Header layout: `[Back ←] [Title flex-1] [EN/MM toggle]` — same chrome as ProfileFAQ
-- `useState<Lang>("mm")` — session-only, no localStorage
-- Localized header title ("Terms & Conditions" / "စည်းကမ်းသတ်မှတ်ချက်များ")
-- Toggle button shows the *other* language ("EN" when MM active, "မြန်မာ" when EN active)
-- Preamble rendered as a muted intro paragraph above the Accordion
-- `Accordion type="single" collapsible` from `@/components/ui/accordion`
-- One `AccordionItem` per section (key = index):
-  - Trigger → `sec[lang].title`
-  - Content → `<p className="whitespace-pre-line text-[13px] text-muted-foreground leading-relaxed">{sec[lang].body}</p>`
-- Footer (muted, small): `KBZ-approved · Last updated 2026-05-14` (+ MM equivalent)
-- Styling: only semantic tokens (`bg-background`, `bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`, `font-display`)
+2. **REPLACE `src/pages/ProfilePrivacy.tsx`** — full rewrite mirroring `ProfileTerms.tsx`:
+   - `useState<Lang>("mm")` — session-only, no localStorage
+   - Header: `[Back button] [Title flex-1] [EN/MM toggle]`
+   - `Accordion type="single" collapsible` over `privacySections`, rendering `section[lang].title` and `section[lang].body` with `whitespace-pre-line`
+   - Footer line clearly marks DRAFT v1.0 + Pending KBZ review
 
 ### Constraints honored
-- No i18next / global i18n library
-- No localStorage
-- `/profile/terms` route untouched (App.tsx)
-- `ProfilePage.tsx` link untouched
-- All 30 sections + preamble copied verbatim, typos preserved
 
-### Out of scope
-- Routes, ProfilePage, FAQ page, edge functions, schema
+- No i18next or global i18n library
+- No localStorage
+- No changes to `App.tsx` route or `ProfilePage.tsx` link
+- No edge functions, no schema, no shared tables — zero cross-app risk
+- Semantic tokens only (border, bg-card, text-foreground, text-muted-foreground)
+- All EN + MM text copied verbatim from the prompt, including the intentional §16 gap
+
+### Verification after publish
+
+Profile → Privacy Policy shows MM by default, 16 sections (§1–§15 then §17), §6 has 6.1–6.5, §13 shows ken@parami.com + 8484 + long code + bracketed address placeholder, footer reads "Draft v1.0 · Last updated 2026-05-19 · Pending KBZ review", EN/MM toggle flips all content.
