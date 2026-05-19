@@ -58,10 +58,18 @@ function MapBounds({ agentPos, customerPos }: { agentPos: [number, number] | nul
 
 const statusSteps = [
   { key: "new", label: "Placed", icon: "📝" },
-  { key: "confirmed", label: "Accepted", icon: "✓" },
+  { key: "assigned", label: "Accepted", icon: "✓" },
   { key: "in_progress", label: "On the Way", icon: "🚚" },
   { key: "delivered", label: "Delivered", icon: "✅" },
 ];
+
+function getCurrentStepIndex(o: Pick<OrderData, "status" | "payment_status" | "supplier_id">): number {
+  if (o.status === "delivered")    return 3;
+  if (o.status === "in_progress")  return 2;
+  if (o.supplier_id)               return 1;
+  if (o.payment_status === "paid") return 0;
+  return -1;
+}
 
 const OrderTracking = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -182,9 +190,13 @@ const OrderTracking = () => {
   }
 
   const agentPos: [number, number] | null = agentLocation ? [agentLocation.lat, agentLocation.lng] : null;
-  const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status);
-  const showHelpFooter = ["new", "confirmed"].includes(order.status);
-  const isActive = ["confirmed", "in_progress"].includes(order.status);
+  const currentStepIndex = getCurrentStepIndex(order);
+  const showHelpFooter = order.status === "new";
+  const isActive =
+    !!order.supplier_id &&
+    order.status !== "delivered" &&
+    order.status !== "cancelled" &&
+    order.status !== "failed";
   const agentInitials = agent?.owner_name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
   const isPendingKbzPayment = order.payment_method === "kbzpay" && order.payment_status === "pending";
   const isOlderThanTwoMinutes = Date.now() - new Date(order.created_at).getTime() > 120_000;
@@ -236,7 +248,13 @@ const OrderTracking = () => {
         </div>
         <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/20 px-3.5 py-1.5 text-xs font-bold backdrop-blur-sm">
           {isActive && <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />}
-          {order.status === "in_progress" ? "On the Way" : order.status === "delivered" ? "Delivered" : order.status === "confirmed" ? "Accepted" : "Placed"}
+          {order.status === "delivered"
+            ? "Delivered"
+            : order.status === "in_progress"
+              ? "On the Way"
+              : order.supplier_id
+                ? "Accepted"
+                : "Placed"}
         </div>
       </div>
 
@@ -361,7 +379,11 @@ const OrderTracking = () => {
           <div className="relative h-[250px]">
             <div className="absolute left-3 top-3 z-[1000] rounded-full bg-card/90 px-3 py-1.5 shadow-sm backdrop-blur-sm">
               <span className="text-xs font-semibold text-foreground">
-                {order.status === "in_progress" ? "🕐 On the way" : order.status === "confirmed" ? "🔧 Preparing" : "📍 Agent location"}
+                {order.status === "in_progress"
+                  ? "🕐 On the way"
+                  : order.supplier_id
+                    ? "🔧 Preparing"
+                    : "📍 Agent location"}
               </span>
             </div>
             <MapContainer center={agentPos} zoom={14} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }} attributionControl={false}>
