@@ -231,11 +231,10 @@ We have selected providers that offer appropriate technical and organisational s
       title: "8. Data Retention",
       body: `We retain your personal information for the periods set out below, after which we delete or anonymise it. Where law requires longer retention (for example, accounting and tax records), we retain the relevant data only for the period required and protect it accordingly.
 
-Data type — Retention period:
-• Active customer profile — For as long as your account is in use
+• Active customer profile — for as long as your account is in use
 • Inactive customer profile — 24 months after your last order, then deletion or anonymisation
 • Order and transaction records — 7 years (Myanmar accounting and tax requirements)
-• Marketing consent records — Until you withdraw consent
+• Marketing consent records — until you withdraw consent
 • Delivery agent location logs — 30 days after order completion
 • Technical and security logs — 90 days
 
@@ -245,7 +244,6 @@ If you request deletion of your information, we will delete the data we are not 
       title: "၈။ ဒေတာ ထိန်းသိမ်းကာလ",
       body: `ကျွန်ုပ်တို့သည် အောက်ပါကာလများအတိုင်း သင်၏ ကိုယ်ရေးအချက်အလက်များကို ထိန်းသိမ်းထားပြီး နောက်ပိုင်းတွင် ဖျက်ပစ်ခြင်း သို့မဟုတ် မည်သူဖြစ်ကြောင်း မသိသာအောင် anonymise ပြုလုပ်ပါသည်။ ဥပဒေအရ ပိုမိုကြာရှည် ထိန်းသိမ်းရန် လိုအပ်သော အချက်အလက်များ (ဥပမာ — စာရင်းကိုင်နှင့် အခွန်ဆိုင်ရာ မှတ်တမ်းများ) ရှိပါက ၎င်းတို့ကို ဥပဒေလိုအပ်ချက်အတွက်သာ ထိန်းသိမ်းပြီး သင့်လျော်စွာ ကာကွယ်ပါမည်။
 
-ဒေတာအမျိုးအစား — ထိန်းသိမ်းကာလ:
 • အသုံးပြုနေသော customer profile — သင့် account အသုံးပြုနေသရွေ့
 • အသုံးမပြုတော့သော customer profile — နောက်ဆုံးအော်ဒါတင်ပြီး 24 လအထိ၊ ထို့နောက် ဖျက်ပစ်ခြင်း သို့မဟုတ် anonymise ပြုလုပ်ခြင်း
 • အော်ဒါနှင့် transaction မှတ်တမ်းများ — 7 နှစ် (မြန်မာနိုင်ငံ၏ စာရင်းကိုင်နှင့် အခွန်ဆိုင်ရာ လိုအပ်ချက်များ)
