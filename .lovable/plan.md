@@ -1,52 +1,62 @@
-## Patch C1 — Fix OrderTracking stepper to use verified state contract
+## Phase 1 — WelcomePage Visual Polish (v2)
 
-**Scope:** Single file — `src/pages/OrderTracking.tsx`. Frontend-only. No backend, no realtime, no schema, no copy changes to the 4 step labels.
+Single-file change: `src/pages/WelcomePage.tsx`. Frontend polish only. No backend, hooks, routing, or dependency changes.
 
-### Why
-Production data confirms `order.status = 'confirmed'` is never written (0/6,604 orders). The current stepper keys off `order.status` alone, so step 2 ("Accepted") is unreachable and the UI jumps from step 1 directly to steps 1+2+3 when the agent accepts. The verified contract uses three DB signals:
+### Scope
+Only the first-time empty state (`!isComplete && !showConfirmation`, form branch ~lines 313–357). Confirmation card, edit mode, loading, error, `handleSave`, validation, and the `customer-update` edge function call stay untouched.
 
-| Step | Lights when | Signal |
-|---|---|---|
-| 1. Placed | KBZ Pay paid | `payment_status === 'paid'` |
-| 2. Accepted | CRM assigns supplier | `supplier_id != null` |
-| 3. On the Way | Agent taps Accept | `status === 'in_progress'` |
-| 4. Delivered | Agent uploads proof | `status === 'delivered'` |
+### Changes
 
-The existing realtime subscription on `orders` already fires on `payment_status` / `supplier_id` / `status` UPDATE — no changes needed there.
+1. **Imports** — add `ShieldCheck` to the existing `lucide-react` import.
 
-### Changes (5 touchpoints, all in OrderTracking.tsx)
+2. **State** — add `const [nameWasPrefilled, setNameWasPrefilled] = useState(false);`. Inside the existing `useMemo` initializer, set it `true` when `customer.full_name?.trim()` is non-empty. In the Full Name input's `onChange`, also call `setNameWasPrefilled(false)` so the badge disappears on first keystroke.
 
-1. **Add helper** above the `OrderTracking` component:
-   ```ts
-   function getCurrentStepIndex(o: Pick<OrderData,'status'|'payment_status'|'supplier_id'>): number {
-     if (o.status === 'delivered')    return 3;
-     if (o.status === 'in_progress')  return 2;
-     if (o.supplier_id)               return 1;
-     if (o.payment_status === 'paid') return 0;
-     return -1;
-   }
-   ```
+3. **Primary phone** — derive `const primaryPhone = phonesQ.data?.find(p => p.is_primary)?.phone;`.
 
-2. **Step index** (line 185): replace `statusSteps.findIndex(...)` with `getCurrentStepIndex(order)`. Update the `statusSteps` array entry `key: "confirmed"` → `key: "assigned"` (cosmetic; key no longer drives logic). Labels untouched.
+4. **Heading microcopy** — in the existing heading ternary, replace empty-state `"Welcome to AnyGas 8484! 🎉"` with `"Welcome to AnyGas"`. The `hasAnyField` and `showConfirmation` branches stay the same.
 
-3. **Status badge** (line 239): priority order — delivered → in_progress → supplier_id → default "Placed".
+5. **Form-branch layout**:
+   - Above the `<h1>` (rendered only when `!showConfirmation`), add a **progress dots** row:
+     ```
+     <div className="flex gap-1.5 items-center text-[11px] text-muted-foreground mb-2">
+       <span className="w-1.5 h-1.5 rounded-full bg-action" />
+       <span className="w-1.5 h-1.5 rounded-full bg-border" />
+       <span>Step 1 of 2 · Your details</span>
+     </div>
+     ```
+   - After the subheading and before the Full Name input, insert the **KBZ Verified card**:
+     ```
+     <div className="flex items-center gap-3 rounded-2xl bg-card border-2 border-action/20 p-4">
+       <ShieldCheck className="h-5 w-5 text-action shrink-0" />
+       <div className="flex-1">
+         <div className="text-sm font-semibold text-foreground">
+           {primaryPhone || "Your KBZ Pay number"}
+         </div>
+         <div className="text-xs text-action mt-0.5 flex items-center gap-1">
+           <Check className="h-3 w-3" /> Verified by KBZ Pay
+         </div>
+       </div>
+     </div>
+     ```
+   - Below the Full Name input, render the **pre-fill hint** only when `nameWasPrefilled && name.trim().length > 0`:
+     ```
+     <p className="mt-1.5 text-xs text-action flex items-center gap-1">
+       <Check className="h-3 w-3" /> from KBZ Pay
+     </p>
+     ```
+   - **Reorder**: move `<PhonesSection />` inside the form `space-y-5` container, between the Address field and the Get Started button.
+   - **PhonesSection** (~line 432): remove the `mt-8` from its outer wrapper `<div className="mt-8 rounded-2xl border-2 border-border bg-card p-5">` so `space-y-5` governs spacing.
 
-4. **isActive flag** (line 187): `!!order.supplier_id && order.status !== 'delivered' && order.status !== 'cancelled' && order.status !== 'failed'`. Drives agent card visibility from the moment a supplier is assigned.
+### Resulting first-timer order
+progress dots → heading → subheading → KBZ Verified card → Full Name (+ pre-fill hint) → Township → Address → PhonesSection → Get Started → SupportFooter.
 
-5. **Map overlay label** (line 364): in_progress → "🕐 On the way"; else if `supplier_id` → "🔧 Preparing"; else → "📍 Agent location".
+### Out of scope
+GPS/map, bilingual labels, KbzProfileComplete cleanup, register-customer audit, edge-function changes, new deps, any change to confirmation/edit/loading/error states or `handleSave`.
 
-6. **Help footer** (line 186): simplify to `order.status === "new"` (drops dead `'confirmed'` clause).
-
-### Out of scope (do not touch)
-- Realtime channel subscriptions
-- `handleCheckPayment` and the three payment-status banners
-- Agent location / map subscription
-- Any edge function, table, RPC, or RLS
-- The 4 step labels ("Placed", "Accepted", "On the Way", "Delivered")
-
-### Test checklist (post-publish, Cowork)
-- T1 paid → step 1 alone, badge "Placed"
-- T2 supplier assigned → step 2 alone, badge "Accepted" *(headline fix)*
-- T3 in_progress → steps 1+2+3, badge "On the Way", agent card + map appear
-- T4 delivered → all 4 steps, badge "Delivered"
-- T5 existing order e7ff8967 retroactively lights step 2 after refresh
+### Self-check
+- Returning user (`isComplete`) still sees unchanged confirmation card.
+- First-timer sees the new ordered layout above.
+- Pre-fill hint disappears on first keystroke.
+- Submission still calls `customer-update` and navigates to `/home`.
+- Only new import: `ShieldCheck`. No package.json changes.
+- PhonesSection no longer carries `mt-8`; spacing is uniform.
