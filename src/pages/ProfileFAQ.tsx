@@ -149,11 +149,11 @@ const faqs: { en: { q: string; a: string }; mm: { q: string; a: string } }[] = [
   {
     en: {
       q: "How do I contact customer support?",
-      a: "You can reach 8484Gas customer support through the following channels: Hotline: 8484 (call anytime), Facebook: 8484Gas official page, or through the Mini App's Profile section. Our support team is available during operating hours (7:00 AM to 7:00 PM Myanmar Standard Time). Long code: 09880441006.",
+      a: "You can reach 8484Gas customer support through the following channels: Hotline: 8484 (call anytime), Facebook: 8484Gas official page, or through the Mini App's Profile section. Our support team is available during operating hours (7:00 AM to 7:00 PM Myanmar Standard Time).\n\n8484Gas Hotline: 8484 (Long code: 09880441006)\nEmail: ken@parami.com",
     },
     mm: {
       q: "Customer support ကို မည်သို့ ဆက်သွယ်ရမလဲ။",
-      a: "8484Gas customer support ကို အောက်ပါ channel များမှတစ်ဆင့် ဆက်သွယ်နိုင်ပါသည်။ Hotline: 8484 (အချိန်မရွေး ခေါ်ဆိုနိုင်သည်)၊ Facebook: 8484Gas official page သို့မဟုတ် Mini App ၏ Profile section မှတစ်ဆင့် ဆက်သွယ်နိုင်ပါသည်။ ကျွန်ုပ်တို့၏ support team သည် လုပ်ငန်းလည်ပတ်ချိန်အတွင်း မြန်မာစံတော်ချိန် မနက် 7:00 နာရီမှ ည 7:00 နာရီအထိ ဝန်ဆောင်မှုပေးပါသည်။ Long code: 09880441006။",
+      a: "8484Gas customer support ကို အောက်ပါ channel များမှတစ်ဆင့် ဆက်သွယ်နိုင်ပါသည်။ Hotline: 8484 (အချိန်မရွေး ခေါ်ဆိုနိုင်သည်)၊ Facebook: 8484Gas official page သို့မဟုတ် Mini App ၏ Profile section မှတစ်ဆင့် ဆက်သွယ်နိုင်ပါသည်။ ကျွန်ုပ်တို့၏ support team သည် လုပ်ငန်းလည်ပတ်ချိန်အတွင်း မြန်မာစံတော်ချိန် မနက် 7:00 နာရီမှ ည 7:00 နာရီအထိ ဝန်ဆောင်မှုပေးပါသည်။\n\n8484Gas Hotline: 8484 (Long code: 09880441006)\nEmail: ken@parami.com",
     },
   },
 ];
