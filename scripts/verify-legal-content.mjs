@@ -2,13 +2,21 @@
 /**
  * verify-legal-content.mjs
  *
- * Regression guard: asserts every section body in src/data/termsContent.ts matches
- * the official KBZ-cleared .docx source.
+ * Regression guard: asserts every section body in
+ *   - src/data/termsContent.ts   (T&C, 30 sections × EN+MM)
+ *   - src/data/privacyContent.ts (Privacy Policy, 16 sections × MM)
+ * matches the official KBZ-cleared .docx source.
  *
- * - MM: raw whitespace-collapsed + NFC-normalized comparison must match exactly.
- * - EN: normalized comparison that absorbs known extraction artifacts (list-number
- *   prefixes, letter sub-bullets, '8484Gas ' trailing-space variant from docx,
- *   em-dash style, orphan ')' typo, double-comma typo).
+ * For T&C:
+ *   - MM: raw whitespace-collapsed + NFC-normalized comparison must match exactly.
+ *   - EN: normalized comparison that absorbs known extraction artifacts (list-number
+ *     prefixes, letter sub-bullets, '8484Gas ' trailing-space variant from docx,
+ *     em-dash style, orphan ')' typo, double-comma typo).
+ *
+ * For Privacy:
+ *   - MM only (no new EN docx). Whitespace-collapsed + NFC + strip **bold** markers
+ *     comparison must match exactly. 16 sections numbered 1-15 and 17 (intentional
+ *     gap at 16).
  *
  * Usage:  node scripts/verify-legal-content.mjs
  * Exit:   0 on success, 1 on any mismatch with a diagnostic line per section.
@@ -19,9 +27,11 @@ import path from 'node:path';
 import mammoth from 'mammoth';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const EN_DOCX = path.join(REPO_ROOT, 'docs/legal/20260514_L&C_Clean Eng_8484 Gas Mini App T&C__1-3fb8452f.docx');
-const MM_DOCX = path.join(REPO_ROOT, 'docs/legal/20260514_L&C_ Clean_ MM_8484Gas Mini App T&C _1-9305d3bf.docx');
-const TS_FILE = path.join(REPO_ROOT, 'src/data/termsContent.ts');
+const TC_EN_DOCX = path.join(REPO_ROOT, 'docs/legal/20260514_L&C_Clean Eng_8484 Gas Mini App T&C__1-3fb8452f.docx');
+const TC_MM_DOCX = path.join(REPO_ROOT, 'docs/legal/20260514_L&C_ Clean_ MM_8484Gas Mini App T&C _1-9305d3bf.docx');
+const TC_TS_FILE = path.join(REPO_ROOT, 'src/data/termsContent.ts');
+const PP_MM_DOCX = path.join(REPO_ROOT, 'docs/legal/AnyGas_8484Gas_PrivacyPolicy_MM_V1_0_1.docx');
+const PP_TS_FILE = path.join(REPO_ROOT, 'src/data/privacyContent.ts');
 
 const MYANMAR_DIGITS = {
   1: '၁', 2: '၂', 3: '၃', 4: '၄', 5: '၅', 6: '၆', 7: '၇', 8: '၈', 9: '၉', 10: '၁၀',
@@ -63,23 +73,21 @@ const EN_TITLES = [
   'CUSTOMER CONTACT',
 ];
 
-function nfc(s) {
-  return s.normalize('NFC');
-}
+const PP_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
+
+function nfc(s) { return s.normalize('NFC'); }
 
 function smartToStraight(s) {
-  return s
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'");
+  return s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
 }
 
-function wsCollapse(s) {
-  return s.replace(/\s+/g, ' ').trim();
-}
+function wsCollapse(s) { return s.replace(/\s+/g, ' ').trim(); }
 
-function mmNorm(s) {
-  return wsCollapse(nfc(s));
-}
+function mmNorm(s) { return wsCollapse(nfc(s)); }
+
+function stripBold(s) { return s.replace(/\*\*([^*]+)\*\*/g, '$1'); }
+
+function ppMmNorm(s) { return wsCollapse(nfc(stripBold(s))); }
 
 function enNorm(s) {
   s = wsCollapse(nfc(s));
@@ -101,7 +109,6 @@ function enNorm(s) {
 }
 
 async function extractDocxParagraphs(docxPath) {
-  // mammoth converts to plain text; paragraphs are separated by \n
   const buf = await readFile(docxPath);
   const result = await mammoth.extractRawText({ buffer: buf });
   const paras = result.value.split('\n').map(p => nfc(p.replace(/\t/g, ' ')).replace(/ +/g, ' ').trim());
@@ -151,6 +158,51 @@ function buildMmSections(paragraphs) {
     const e = idx + 1 < sortedN.length ? starts[sortedN[idx + 1]] : paragraphs.length;
     const body = paragraphs.slice(s + 1, e).filter(p => p).join('\n\n');
     sections[n] = smartToStraight(body);
+  }
+  return sections;
+}
+
+/**
+ * Privacy: docx headings are "1. ", "2. ", ... "17. " (Arabic digits + dot + space).
+ * Sub-headings like "3.1 ", "6.1 " also exist, so we must NOT match those as
+ * top-level. We require the digit be 1-2 chars and followed by ". " (not ".N").
+ */
+function buildPpMmSections(paragraphs) {
+  const starts = {};
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    const m = p.match(/^(\d{1,2})\.\s+(\S.+)/);
+    if (m) {
+      const n = Number(m[1]);
+      if (PP_NUMBERS.includes(n) && !(n in starts)) {
+        // Reject sub-headings (e.g. "3.1 ..." would not match the regex anyway)
+        // and reject any line that itself starts with a sub-number after dot.
+        starts[n] = i;
+      }
+    }
+  }
+  const sortedN = Object.keys(starts).map(Number).sort((a, b) => starts[a] - starts[b]);
+  const sections = {};
+  for (let idx = 0; idx < sortedN.length; idx++) {
+    const n = sortedN[idx];
+    const s = starts[n];
+    const e = idx + 1 < sortedN.length ? starts[sortedN[idx + 1]] : paragraphs.length;
+    const body = paragraphs.slice(s + 1, e).filter(p => p).join('\n\n');
+    // Strip docx footer marker "-- ... --" lines from the last section.
+    let cleaned = body.replace(/^\s*--[\s\S]*?--\s*$/gm, '').trim();
+    // §8: docx contains a retention table whose header cells ("ဒေတာအမျိုးအစား"
+    // and "ထိန်းသိမ်းကာလ") become standalone paragraphs after mammoth raw-text
+    // extraction. The shipped privacyContent.ts intentionally omits this
+    // "Data type — Retention period:" line, so we strip it here too before
+    // comparing.
+    if (n === 8) {
+      cleaned = cleaned
+        .split(/\n+/)
+        .filter(line => line.trim() !== 'ဒေတာအမျိုးအစား' && line.trim() !== 'ထိန်းသိမ်းကာလ')
+        .join('\n\n')
+        .trim();
+    }
+    sections[n] = smartToStraight(cleaned);
   }
   return sections;
 }
@@ -221,7 +273,6 @@ function extractBody(entrySrc, lang) {
     if (escape) { escape = false; }
     else if (c === '\\') { escape = true; }
     else if (c === delim) {
-      // Backtick template literals: \\ \` are escapes; otherwise just unescape \\ → \  and \` → `
       let raw = block.slice(contentStart, k);
       if (delim === '`') {
         raw = raw.replace(/\\\\/g, '\\').replace(/\\`/g, '`').replace(/\\\$\{/g, '${');
@@ -235,33 +286,60 @@ function extractBody(entrySrc, lang) {
   return null;
 }
 
-async function parseShippedTs() {
-  const src = await readFile(TS_FILE, 'utf-8');
+async function parseShippedTermsTs() {
+  const src = await readFile(TC_TS_FILE, 'utf-8');
   const m = src.match(/export const termsSections:\s*TermsSection\[\]\s*=\s*\[/);
   if (!m) throw new Error('Cannot find termsSections array');
   const arrStart = m.index + m[0].length;
   const entries = scanArrayEntries(src, arrStart);
-  if (entries.length !== 30) throw new Error(`Expected 30 entries, got ${entries.length}`);
+  if (entries.length !== 30) throw new Error(`Expected 30 T&C entries, got ${entries.length}`);
   const sections = {};
   for (let i = 0; i < 30; i++) {
     const [s, e] = entries[i];
     const entrySrc = src.slice(s, e);
-    sections[i + 1] = {
-      en: extractBody(entrySrc, 'en'),
-      mm: extractBody(entrySrc, 'mm'),
-    };
+    sections[i + 1] = { en: extractBody(entrySrc, 'en'), mm: extractBody(entrySrc, 'mm') };
   }
   return sections;
 }
 
-async function main() {
-  const enParas = await extractDocxParagraphs(EN_DOCX);
-  const mmParas = await extractDocxParagraphs(MM_DOCX);
+async function parseShippedPrivacyTs() {
+  const src = await readFile(PP_TS_FILE, 'utf-8');
+  const m = src.match(/export const privacySections:\s*PrivacySection\[\]\s*=\s*\[/);
+  if (!m) throw new Error('Cannot find privacySections array');
+  const arrStart = m.index + m[0].length;
+  const entries = scanArrayEntries(src, arrStart);
+  if (entries.length !== 16) throw new Error(`Expected 16 Privacy entries, got ${entries.length}`);
+  const sections = {};
+  for (let i = 0; i < 16; i++) {
+    const [s, e] = entries[i];
+    const entrySrc = src.slice(s, e);
+    sections[PP_NUMBERS[i]] = { mm: extractBody(entrySrc, 'mm') };
+  }
+  return sections;
+}
+
+function firstDiff(a, b) {
+  const L = Math.min(a.length, b.length);
+  for (let i = 0; i < L; i++) {
+    if (a[i] !== b[i]) {
+      return { i, a: a.slice(Math.max(0, i - 30), i + 80), b: b.slice(Math.max(0, i - 30), i + 80) };
+    }
+  }
+  if (a.length !== b.length) {
+    return { i: L, a: a.slice(Math.max(0, L - 30), L + 80), b: b.slice(Math.max(0, L - 30), L + 80) };
+  }
+  return null;
+}
+
+async function verifyTerms() {
+  const enParas = await extractDocxParagraphs(TC_EN_DOCX);
+  const mmParas = await extractDocxParagraphs(TC_MM_DOCX);
   const srcEn = buildEnSections(enParas);
   const srcMm = buildMmSections(mmParas);
-  const shipped = await parseShippedTs();
+  const shipped = await parseShippedTermsTs();
 
   let fail = false;
+  console.log('--- T&C (termsContent.ts) ---');
   for (let n = 1; n <= 30; n++) {
     const enShip = enNorm(shipped[n].en);
     const enSrc = enNorm(srcEn[n] || '');
@@ -273,34 +351,60 @@ async function main() {
       console.log(`§${n} en=MATCH mm=MATCH`);
     } else {
       fail = true;
-      const enInfo = enOk ? 'MATCH' : `MISMATCH (delta=${enShip.length - enSrc.length})`;
-      const mmInfo = mmOk ? 'MATCH' : `MISMATCH (delta=${mmShip.length - mmSrc.length})`;
-      console.log(`§${n} en=${enInfo} mm=${mmInfo}`);
+      console.log(`§${n} en=${enOk ? 'MATCH' : 'MISMATCH'} mm=${mmOk ? 'MATCH' : 'MISMATCH'}`);
       if (!enOk) {
-        for (let i = 0; i < Math.min(enShip.length, enSrc.length); i++) {
-          if (enShip[i] !== enSrc[i]) {
-            console.log(`   EN @${i}: shipped=${JSON.stringify(enShip.slice(Math.max(0,i-30), i+80))}`);
-            console.log(`              source =${JSON.stringify(enSrc.slice(Math.max(0,i-30), i+80))}`);
-            break;
-          }
+        const d = firstDiff(enShip, enSrc);
+        if (d) {
+          console.log(`   EN @${d.i}: shipped=${JSON.stringify(d.a)}`);
+          console.log(`              source =${JSON.stringify(d.b)}`);
         }
       }
       if (!mmOk) {
-        for (let i = 0; i < Math.min(mmShip.length, mmSrc.length); i++) {
-          if (mmShip[i] !== mmSrc[i]) {
-            console.log(`   MM @${i}: shipped=${JSON.stringify(mmShip.slice(Math.max(0,i-30), i+80))}`);
-            console.log(`              source =${JSON.stringify(mmSrc.slice(Math.max(0,i-30), i+80))}`);
-            break;
-          }
+        const d = firstDiff(mmShip, mmSrc);
+        if (d) {
+          console.log(`   MM @${d.i}: shipped=${JSON.stringify(d.a)}`);
+          console.log(`              source =${JSON.stringify(d.b)}`);
         }
       }
     }
   }
-  if (fail) {
+  return fail;
+}
+
+async function verifyPrivacy() {
+  const mmParas = await extractDocxParagraphs(PP_MM_DOCX);
+  const srcMm = buildPpMmSections(mmParas);
+  const shipped = await parseShippedPrivacyTs();
+
+  let fail = false;
+  console.log('\n--- Privacy Policy (privacyContent.ts) ---');
+  for (const n of PP_NUMBERS) {
+    const mmShip = ppMmNorm(shipped[n].mm);
+    const mmSrc = ppMmNorm(srcMm[n] || '');
+    const mmOk = mmShip === mmSrc;
+    if (mmOk) {
+      console.log(`§${n} mm=MATCH`);
+    } else {
+      fail = true;
+      console.log(`§${n} mm=MISMATCH (shipped_len=${mmShip.length} source_len=${mmSrc.length})`);
+      const d = firstDiff(mmShip, mmSrc);
+      if (d) {
+        console.log(`   MM @${d.i}: shipped=${JSON.stringify(d.a)}`);
+        console.log(`              source =${JSON.stringify(d.b)}`);
+      }
+    }
+  }
+  return fail;
+}
+
+async function main() {
+  const tcFail = await verifyTerms();
+  const ppFail = await verifyPrivacy();
+  if (tcFail || ppFail) {
     console.error('\nverify-legal-content: FAIL');
     process.exit(1);
   } else {
-    console.log('\nverify-legal-content: PASS (all 30 sections × 2 languages match .docx source)');
+    console.log('\nverify-legal-content: PASS (T&C 30×2 + Privacy 16×1 all match)');
     process.exit(0);
   }
 }
