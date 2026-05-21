@@ -1,22 +1,34 @@
 import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Lang, privacySections, privacyLabels } from "@/data/privacyContent";
 
+function renderInline(text: string, keyPrefix: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((segment, j) => {
+    const m = segment.match(/^\*\*([^*]+)\*\*$/);
+    return m ? (
+      <strong key={`${keyPrefix}-${j}`} className="text-foreground font-semibold">{m[1]}</strong>
+    ) : (
+      <span key={`${keyPrefix}-${j}`}>{segment}</span>
+    );
+  });
+}
+
 function renderBody(body: string) {
-  return body.split("\n\n").map((para, i) => (
-    <p key={i} className={i > 0 ? "mt-3" : ""}>
-      {para.split(/(\*\*[^*]+\*\*)/g).map((segment, j) => {
-        const m = segment.match(/^\*\*([^*]+)\*\*$/);
-        return m ? (
-          <strong key={j} className="text-foreground font-semibold">{m[1]}</strong>
-        ) : (
-          <span key={j}>{segment}</span>
-        );
-      })}
-    </p>
-  ));
+  return body.split("\n\n").map((para, i) => {
+    const lines = para.split("\n");
+    return (
+      <p key={i} className={i > 0 ? "mt-3" : ""}>
+        {lines.map((line, k) => (
+          <Fragment key={k}>
+            {k > 0 && <br />}
+            {renderInline(line, `${i}-${k}`)}
+          </Fragment>
+        ))}
+      </p>
+    );
+  });
 }
 
 const ProfilePrivacy = () => {
