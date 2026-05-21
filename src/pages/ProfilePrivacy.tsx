@@ -4,6 +4,21 @@ import { useNavigate } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Lang, privacySections, privacyLabels } from "@/data/privacyContent";
 
+function renderBody(body: string) {
+  return body.split("\n\n").map((para, i) => (
+    <p key={i} className={i > 0 ? "mt-3" : ""}>
+      {para.split(/(\*\*[^*]+\*\*)/g).map((segment, j) => {
+        const m = segment.match(/^\*\*([^*]+)\*\*$/);
+        return m ? (
+          <strong key={j} className="text-foreground font-semibold">{m[1]}</strong>
+        ) : (
+          <span key={j}>{segment}</span>
+        );
+      })}
+    </p>
+  ));
+}
+
 const ProfilePrivacy = () => {
   const navigate = useNavigate();
   const [lang, setLang] = useState<Lang>("mm");
@@ -42,8 +57,8 @@ const ProfilePrivacy = () => {
                 <AccordionTrigger className="text-sm font-bold text-foreground text-left py-3.5 hover:no-underline">
                   {item.title}
                 </AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground pb-3.5">
-                  {item.body}
+                <AccordionContent className="text-[13px] leading-relaxed text-muted-foreground pb-3.5">
+                  {renderBody(item.body)}
                 </AccordionContent>
               </AccordionItem>
             );
