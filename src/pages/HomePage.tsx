@@ -175,26 +175,6 @@ const HomePage = () => {
           <HomeBannerCarousel />
         </div>
 
-        {/* Quick Actions — only My Orders */}
-        <div className="grid grid-cols-1 gap-3">
-          <button
-            onClick={() =>
-              navigate(`/orders${urlCustomerId ? `?cid=${urlCustomerId}` : ""}`, {
-                state: { customer },
-              })
-            }
-            className="flex items-center gap-3 rounded-[20px] border border-border bg-card p-4 shadow-sm text-left transition-all hover:border-action hover:shadow-md"
-          >
-            <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-bg-warm text-[22px]">
-              📋
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-foreground">My Orders</p>
-              <p className="text-[11px] font-semibold text-muted-foreground">Track & history</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </button>
-        </div>
       </div>
     </div>
   );
