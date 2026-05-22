@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, CheckCircle, MapPin, Trash2, Plus, Phone, Check, ChevronsUpDown, ShieldCheck } from "lucide-react";
+import { Loader2, CheckCircle, MapPin, Trash2, Plus, Phone, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -267,24 +267,15 @@ const WelcomePage = () => {
     ? `Welcome back, ${customer.full_name}!`
     : hasAnyField
       ? "Welcome back!"
-      : "Welcome to AnyGas";
+      : "Welcome to AnyGas 8484! 🎉";
   const subheading = showConfirmation
     ? null
     : hasAnyField
       ? "Please complete your delivery details."
       : "Let's set up your delivery details.";
 
-  const primaryPhone = phonesQ.data?.find((p) => p.is_primary)?.phone;
-
   return (
     <div className="flex min-h-screen flex-col bg-background px-6 py-6">
-      {!showConfirmation && (
-        <div className="flex gap-1.5 items-center text-[11px] text-muted-foreground mb-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-action" />
-          <span className="w-1.5 h-1.5 rounded-full bg-border" />
-          <span>Step 1 of 2 · Your details</span>
-        </div>
-      )}
       <h1 className="mb-2 font-display text-[22px] font-extrabold text-foreground">
         {heading}
       </h1>
@@ -322,21 +313,16 @@ const WelcomePage = () => {
           <Button variant="outline" size="full" onClick={() => setEditing(true)}>
             ✏️ Update my details
           </Button>
+
+          <PhonesSection
+            customerId={customer.id}
+            phones={phonesQ.data ?? []}
+            loading={phonesQ.isLoading}
+            onChange={() => qc.invalidateQueries({ queryKey: ["welcome_phones", customer.id] })}
+          />
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="flex items-center gap-3 rounded-2xl bg-card border-2 border-action/20 p-4">
-            <ShieldCheck className="h-5 w-5 text-action shrink-0" />
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-foreground">
-                {primaryPhone || "Your KBZPay number"}
-              </div>
-              <div className="text-xs text-action mt-0.5 flex items-center gap-1">
-                <Check className="h-3 w-3" /> Verified by KBZPay
-              </div>
-            </div>
-          </div>
-
           <div>
             <label className="mb-1.5 block text-sm font-bold text-muted-foreground">
               Full Name
@@ -378,13 +364,6 @@ const WelcomePage = () => {
             />
           </div>
 
-          <PhonesSection
-            customerId={customer.id}
-            phones={phonesQ.data ?? []}
-            loading={phonesQ.isLoading}
-            onChange={() => qc.invalidateQueries({ queryKey: ["welcome_phones", customer.id] })}
-          />
-
           <Button
             variant="action"
             size="full"
@@ -393,6 +372,13 @@ const WelcomePage = () => {
           >
             {saving ? "Saving..." : hasAnyField ? "Save & Continue →" : "Get Started →"}
           </Button>
+
+          <PhonesSection
+            customerId={customer.id}
+            phones={phonesQ.data ?? []}
+            loading={phonesQ.isLoading}
+            onChange={() => qc.invalidateQueries({ queryKey: ["welcome_phones", customer.id] })}
+          />
         </div>
       )}
 
