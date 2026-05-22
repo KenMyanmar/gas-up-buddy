@@ -5,7 +5,7 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://rtbkhrenswgzhuzltpgd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0YmtocmVuc3dnemh1emx0cGdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2MDQ5MzUsImV4cCI6MjA4MzE4MDkzNX0.LCiLmrWtv-i1Ko8I4QXjbOYTRXrF8aqK_EATqfcXQmk";
 
-// Custom Storage Adapter for KBZ Pay WebView
+// Custom Storage Adapter for KBZPay WebView
 // KBZ WebView restricts localStorage, causing setSession to silently fail.
 // This adapter provides fallback chain: localStorage → sessionStorage → memory.
 const memoryStorage = new Map<string, string>();

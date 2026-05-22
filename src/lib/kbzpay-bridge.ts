@@ -40,7 +40,7 @@ export function getAuthCode(): Promise<string> {
     console.log("[KBZ-DIAG] getAuthCode() invoked, ma type:", typeof ma, "getAuthCode type:", typeof ma?.getAuthCode);
     if (!ma?.getAuthCode) {
       console.log("[KBZ-DIAG] getAuthCode FAIL: bridge not available");
-      return reject(new Error("KBZ Pay JSSDK not available"));
+      return reject(new Error("KBZPay JSSDK not available"));
     }
     const timer = setTimeout(() => {
       console.log("[KBZ-DIAG] getAuthCode TIMEOUT after 60s");
@@ -102,7 +102,7 @@ export function startPay(params: StartPayParams): Promise<any> {
     perf?.("kbz-startPay-start", { hasBridge: !!ma?.callNativeAPI });
     if (!ma?.callNativeAPI) {
       perf?.("kbz-startPay-end", { ok: false, reason: "no-bridge" });
-      return reject(new Error("KBZ Pay JSSDK not available"));
+      return reject(new Error("KBZPay JSSDK not available"));
     }
     const timer = setTimeout(() => {
       perf?.("kbz-startPay-end", { ok: false, reason: "timeout" });

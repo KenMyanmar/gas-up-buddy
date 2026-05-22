@@ -217,7 +217,7 @@ const OrderTracking = () => {
         toast({ title: "Payment confirmed!" });
         await refreshOrder();
       } else if (status === "WAIT_BUYER_PAY" || status === "WAIT_PAY") {
-        toast({ title: "Payment not yet completed. Please finish payment in KBZ Pay or place new order." });
+        toast({ title: "Payment not yet completed. Please finish payment in KBZPay or place new order." });
       } else if (status === "CLOSED" || status === "TRADE_CLOSED" || status === "ORDER_EXPIRED") {
         toast({ title: "This payment expired. Please place a new order." });
         await refreshOrder();
@@ -342,7 +342,7 @@ const OrderTracking = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-display text-[17px] font-extrabold text-foreground">Payment processing</p>
-                <p className="mt-1 text-[13px] font-semibold text-amber-600">Confirming with KBZ Pay...</p>
+                <p className="mt-1 text-[13px] font-semibold text-amber-600">Confirming with KBZPay...</p>
                 <p className="mt-1.5 text-[13px] text-muted-foreground leading-relaxed">This usually takes a moment. Use the button below to check status.</p>
               </div>
             </div>
@@ -437,7 +437,7 @@ const OrderTracking = () => {
       {showCheckPayment && (
         <div className="mx-5 mt-4">
           <Button variant="action" size="full" onClick={handleCheckPayment} disabled={checkingPayment || isInCooldown}>
-            {checkingPayment ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking with KBZ Pay...</> : "Check Payment Status"}
+            {checkingPayment ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking with KBZPay...</> : "Check Payment Status"}
           </Button>
         </div>
       )}

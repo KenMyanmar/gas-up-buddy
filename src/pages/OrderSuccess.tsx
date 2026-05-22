@@ -72,7 +72,7 @@ const OrderSuccess = () => {
       iconShadow: "shadow-[0_6px_20px_hsl(var(--warning)/0.15)]",
       iconAnimation: "animate-pulse",
       headline: "Payment Processing",
-      subtext: "We're confirming your payment with KBZ Pay. This usually takes a moment.",
+      subtext: "We're confirming your payment with KBZPay. This usually takes a moment.",
       totalLabel: "Total Paid",
       showEstimatedDelivery: true,
       primaryButton: { text: "Track My Order", action: "track" as const },
@@ -113,7 +113,7 @@ const OrderSuccess = () => {
             </>
           )}
 
-          {/* Payment status for KBZ Pay */}
+          {/* Payment status for KBZPay */}
           {paymentStatus && (
             <>
               <div className="h-px bg-divider my-3" />
