@@ -73,7 +73,7 @@ const PhoneEntry = () => {
     }
   };
 
-  // KBZ Pay authenticating state — keep spinner visible while customer profile is still loading.
+  // KBZPay authenticating state — keep spinner visible while customer profile is still loading.
   if (
     kbz.status === "idle" ||
     kbz.status === "authenticating" ||
@@ -159,7 +159,7 @@ const PhoneEntry = () => {
     );
   }
 
-  // KBZ Pay candidate selection (2+ candidates)
+  // KBZPay candidate selection (2+ candidates)
   if ((kbz.status === "linked_select" || kbz.status === "link_pending") && kbz.candidates.length > 0) {
     const hasLinkedCandidate = kbz.candidates.some(c => c.has_auth_account);
 

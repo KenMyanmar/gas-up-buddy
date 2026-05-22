@@ -329,10 +329,10 @@ const WelcomePage = () => {
             <ShieldCheck className="h-5 w-5 text-action shrink-0" />
             <div className="flex-1">
               <div className="text-sm font-semibold text-foreground">
-                {primaryPhone || "Your KBZ Pay number"}
+                {primaryPhone || "Your KBZPay number"}
               </div>
               <div className="text-xs text-action mt-0.5 flex items-center gap-1">
-                <Check className="h-3 w-3" /> Verified by KBZ Pay
+                <Check className="h-3 w-3" /> Verified by KBZPay
               </div>
             </div>
           </div>
@@ -353,7 +353,7 @@ const WelcomePage = () => {
             />
             {nameWasPrefilled && name.trim().length > 0 && (
               <p className="mt-1.5 text-xs text-action flex items-center gap-1">
-                <Check className="h-3 w-3" /> from KBZ Pay
+                <Check className="h-3 w-3" /> from KBZPay
               </p>
             )}
           </div>

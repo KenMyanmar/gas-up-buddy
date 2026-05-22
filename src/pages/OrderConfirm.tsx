@@ -75,7 +75,7 @@ const OrderConfirm = () => {
 
       const orderId = result.order_id!;
 
-      // 2. Create KBZ Pay payment
+      // 2. Create KBZPay payment
       const { data: payData, error: payErr } = await supabase.functions.invoke("kbzpay-create-payment", {
         body: { orderId, customerId: urlCustomerId ?? undefined },
       });
@@ -83,7 +83,7 @@ const OrderConfirm = () => {
       const payResult = payData as any;
       if (!payResult?.prepay_id) throw new Error(payResult?.error ?? "Payment setup failed");
 
-      // 3. Invoke KBZ Pay cashier
+      // 3. Invoke KBZPay cashier
       try {
         const paymentResult = await startPay({
           prepayId: payResult.prepay_id,
@@ -114,7 +114,7 @@ const OrderConfirm = () => {
           }).catch(() => { /* swallow async rejection */ });
         } catch { /* swallow sync throw */ }
         const codeStr = rawCode == null ? null : String(rawCode);
-        // KBZ Pay H5 spec — only two documented result codes:
+        // KBZPay H5 spec — only two documented result codes:
         //   "1" => PIN flow success (webhook = source of truth)
         //   "2" => KBZ-side payment failure
         // Anything else ("3", "-1", null, undefined, etc.) is UNDOCUMENTED

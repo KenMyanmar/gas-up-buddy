@@ -12,7 +12,7 @@ const faqs: { en: { q: string; a: string }; mm: { q: string; a: string } }[] = [
       a: "Open KBZPay, go to the Mini App category, and tap the 8484Gas icon. You will be automatically logged in using your KBZPay phone number. From the Home Screen, tap 'ORDER GAS NOW', select your preferred brand, order type, cylinder size, confirm pricing, choose your payment method, and place your order. The entire process takes under 60 seconds.",
     },
     mm: {
-      q: `KBZ Pay မှတစ်ဆင့် ဂတ်စ်ကို မည်သို့မှာယူရပါမည်နည်း။`,
+      q: `KBZPay မှတစ်ဆင့် ဂတ်စ်ကို မည်သို့မှာယူရပါမည်နည်း။`,
       a: `KBZPay ကိုဖွင့်ပါ၊ Mini App အမျိုးအစားသို့သွားပါ၊ ထို့နောက် 8484Gas အိုင်ကွန်ကို နှိပ်ပါ။ သင့် KBZPay ဖုန်းနံပါတ်ဖြင့် အလိုအလျောက် Login ဝင်ရောက်ပြီးဖြစ်ပါမည်။ ပင်မစာမျက်နှာမှ ‘ORDER GAS NOW’ ကိုနှိပ်ပြီး သင်နှစ်သက်သော အမှတ်တံဆိပ်၊ မှာယူမှုအမျိုးအစား၊ ဆလင်ဒါအရွယ်အစားကို ရွေးချယ်ပါ။ ဈေးနှုန်းကို အတည်ပြုပြီး ငွေပေးချေမှုနည်းလမ်းကို ရွေးချယ်ကာ မှာယူမှုကို တင်သွင်းပါ။ တစ်ခုလုံးသော လုပ်ငန်းစဉ်သည် ၆၀ စက္ကန့်အတွင်း ပြီးဆုံးပါသည်။`,
     },
   },
