@@ -1,11 +1,11 @@
-import { ChevronRight, LogOut, Flame } from "lucide-react";
+import { ChevronRight, Flame } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomerProfile, useOrders } from "@/hooks/useOrders";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { data: customer } = useCustomerProfile(user?.id);
   const { data: orders } = useOrders(customer?.id);
 
@@ -13,11 +13,6 @@ const ProfilePage = () => {
   const displayName = customer?.full_name ?? "Guest";
   const displayPhone = customer?.phone ?? user?.phone ?? "—";
   const initial = displayName.charAt(0).toUpperCase();
-
-  const handleLogOut = async () => {
-    await signOut();
-    navigate("/");
-  };
 
   const accountItems = [
     { emoji: "📍", title: "Delivery Addresses", desc: customer?.township ?? "Manage addresses", action: () => navigate("/profile/addresses") },
@@ -131,15 +126,6 @@ const ProfilePage = () => {
             ))}
           </div>
         </div>
-
-        {/* Logout */}
-        <button
-          onClick={handleLogOut}
-          className="flex w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-border-strong bg-card py-3.5 text-sm font-bold text-destructive transition-all hover:bg-destructive/5"
-        >
-          <LogOut className="h-4 w-4" />
-          Log Out
-        </button>
       </div>
     </div>
   );
