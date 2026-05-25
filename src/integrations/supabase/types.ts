@@ -14,6 +14,561 @@ export type Database = {
   }
   public: {
     Tables: {
+      _uat_reset_2026_05_22_auth_identities: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string | null
+          identity_data: Json | null
+          last_sign_in_at: string | null
+          provider: string | null
+          provider_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          identity_data?: Json | null
+          last_sign_in_at?: string | null
+          provider?: string | null
+          provider_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          identity_data?: Json | null
+          last_sign_in_at?: string | null
+          provider?: string | null
+          provider_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_auth_users: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string | null
+          last_sign_in_at: string | null
+          phone: string | null
+          raw_app_meta_data: Json | null
+          raw_user_meta_data: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          raw_app_meta_data?: Json | null
+          raw_user_meta_data?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          raw_app_meta_data?: Json | null
+          raw_user_meta_data?: Json | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_customer_phones: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          customer_id: string | null
+          id: string | null
+          is_primary: boolean | null
+          label: string | null
+          phone: string | null
+          updated_at: string | null
+          verified: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          id?: string | null
+          is_primary?: boolean | null
+          label?: string | null
+          phone?: string | null
+          updated_at?: string | null
+          verified?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          id?: string | null
+          is_primary?: boolean | null
+          label?: string | null
+          phone?: string | null
+          updated_at?: string | null
+          verified?: boolean | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_customers: {
+        Row: {
+          address: string | null
+          auth_user_id: string | null
+          created_at: string | null
+          customer_type: string | null
+          full_name: string | null
+          gmaps_query_text: string | null
+          gps_accuracy_m: number | null
+          gps_captured_at: string | null
+          gps_lat: number | null
+          gps_lng: number | null
+          gps_source: string | null
+          id: string | null
+          kbz_full_name: string | null
+          kbz_openid: string | null
+          landmark: string | null
+          normalized_address_text: string | null
+          notes: string | null
+          original_customer_id: string | null
+          phone: string | null
+          phone_2: string | null
+          status: string | null
+          township: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          auth_user_id?: string | null
+          created_at?: string | null
+          customer_type?: string | null
+          full_name?: string | null
+          gmaps_query_text?: string | null
+          gps_accuracy_m?: number | null
+          gps_captured_at?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          gps_source?: string | null
+          id?: string | null
+          kbz_full_name?: string | null
+          kbz_openid?: string | null
+          landmark?: string | null
+          normalized_address_text?: string | null
+          notes?: string | null
+          original_customer_id?: string | null
+          phone?: string | null
+          phone_2?: string | null
+          status?: string | null
+          township?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          auth_user_id?: string | null
+          created_at?: string | null
+          customer_type?: string | null
+          full_name?: string | null
+          gmaps_query_text?: string | null
+          gps_accuracy_m?: number | null
+          gps_captured_at?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          gps_source?: string | null
+          id?: string | null
+          kbz_full_name?: string | null
+          kbz_openid?: string | null
+          landmark?: string | null
+          normalized_address_text?: string | null
+          notes?: string | null
+          original_customer_id?: string | null
+          phone?: string | null
+          phone_2?: string | null
+          status?: string | null
+          township?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_delivery_proofs: {
+        Row: {
+          customer_confirmed: boolean | null
+          delivered_at: string | null
+          gps_accuracy: number | null
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string | null
+          notes: string | null
+          order_id: string | null
+          photo_path: string | null
+          photo_url: string | null
+          supplier_id: string | null
+        }
+        Insert: {
+          customer_confirmed?: boolean | null
+          delivered_at?: string | null
+          gps_accuracy?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          photo_path?: string | null
+          photo_url?: string | null
+          supplier_id?: string | null
+        }
+        Update: {
+          customer_confirmed?: boolean | null
+          delivered_at?: string | null
+          gps_accuracy?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          photo_path?: string | null
+          photo_url?: string | null
+          supplier_id?: string | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_order_assignments: {
+        Row: {
+          accepted_at: string | null
+          assigned_at: string | null
+          assigned_by: string | null
+          expires_at: string | null
+          id: string | null
+          order_id: string | null
+          rejected_at: string | null
+          rejection_reason: string | null
+          responded_at: string | null
+          status: string | null
+          supplier_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          expires_at?: string | null
+          id?: string | null
+          order_id?: string | null
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          responded_at?: string | null
+          status?: string | null
+          supplier_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          expires_at?: string | null
+          id?: string | null
+          order_id?: string | null
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          responded_at?: string | null
+          status?: string | null
+          supplier_id?: string | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_orders: {
+        Row: {
+          accepted_at: string | null
+          accessories_subtotal: number | null
+          address: string | null
+          agent_claimed_at: string | null
+          agent_id: string | null
+          brand_id: string | null
+          brand_name: string | null
+          brand_product_id: string | null
+          bundle_id: string | null
+          cancellation_notes: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_reason: string | null
+          confirmed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          cylinder_display_name: string | null
+          cylinder_subtotal: number | null
+          cylinder_type: string | null
+          delivered_at: string | null
+          delivered_by: string | null
+          delivered_time: string | null
+          delivery_fee: number | null
+          delivery_instructions: string | null
+          delivery_photo_path: string | null
+          delivery_photo_url: string | null
+          discount: number | null
+          exchange_photo_urls: Json | null
+          exchange_program_id: string | null
+          gas_price_per_kg: number | null
+          gas_subtotal: number | null
+          id: string | null
+          in_progress_at: string | null
+          notes: string | null
+          offered_at: string | null
+          old_cylinder_condition: string | null
+          order_source: string | null
+          order_type: Database["public"]["Enums"]["order_type"] | null
+          paid_at: string | null
+          payment_method: string | null
+          payment_status: string | null
+          preferred_delivery_time: string | null
+          quantity: number | null
+          rescheduled_from: string | null
+          rescheduled_to: string | null
+          scheduled_delivery_date: string | null
+          service_call_type: string | null
+          service_fee: number | null
+          service_scope: string[] | null
+          status: Database["public"]["Enums"]["order_status"] | null
+          stove_subtotal: number | null
+          supplier_id: string | null
+          total_amount: number | null
+          township: string | null
+          trade_in_credit: number | null
+          updated_at: string | null
+          variant_name: string | null
+          variant_slug: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          accessories_subtotal?: number | null
+          address?: string | null
+          agent_claimed_at?: string | null
+          agent_id?: string | null
+          brand_id?: string | null
+          brand_name?: string | null
+          brand_product_id?: string | null
+          bundle_id?: string | null
+          cancellation_notes?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          cylinder_display_name?: string | null
+          cylinder_subtotal?: number | null
+          cylinder_type?: string | null
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivered_time?: string | null
+          delivery_fee?: number | null
+          delivery_instructions?: string | null
+          delivery_photo_path?: string | null
+          delivery_photo_url?: string | null
+          discount?: number | null
+          exchange_photo_urls?: Json | null
+          exchange_program_id?: string | null
+          gas_price_per_kg?: number | null
+          gas_subtotal?: number | null
+          id?: string | null
+          in_progress_at?: string | null
+          notes?: string | null
+          offered_at?: string | null
+          old_cylinder_condition?: string | null
+          order_source?: string | null
+          order_type?: Database["public"]["Enums"]["order_type"] | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          preferred_delivery_time?: string | null
+          quantity?: number | null
+          rescheduled_from?: string | null
+          rescheduled_to?: string | null
+          scheduled_delivery_date?: string | null
+          service_call_type?: string | null
+          service_fee?: number | null
+          service_scope?: string[] | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          stove_subtotal?: number | null
+          supplier_id?: string | null
+          total_amount?: number | null
+          township?: string | null
+          trade_in_credit?: number | null
+          updated_at?: string | null
+          variant_name?: string | null
+          variant_slug?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          accessories_subtotal?: number | null
+          address?: string | null
+          agent_claimed_at?: string | null
+          agent_id?: string | null
+          brand_id?: string | null
+          brand_name?: string | null
+          brand_product_id?: string | null
+          bundle_id?: string | null
+          cancellation_notes?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          cylinder_display_name?: string | null
+          cylinder_subtotal?: number | null
+          cylinder_type?: string | null
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivered_time?: string | null
+          delivery_fee?: number | null
+          delivery_instructions?: string | null
+          delivery_photo_path?: string | null
+          delivery_photo_url?: string | null
+          discount?: number | null
+          exchange_photo_urls?: Json | null
+          exchange_program_id?: string | null
+          gas_price_per_kg?: number | null
+          gas_subtotal?: number | null
+          id?: string | null
+          in_progress_at?: string | null
+          notes?: string | null
+          offered_at?: string | null
+          old_cylinder_condition?: string | null
+          order_source?: string | null
+          order_type?: Database["public"]["Enums"]["order_type"] | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          preferred_delivery_time?: string | null
+          quantity?: number | null
+          rescheduled_from?: string | null
+          rescheduled_to?: string | null
+          scheduled_delivery_date?: string | null
+          service_call_type?: string | null
+          service_fee?: number | null
+          service_scope?: string[] | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          stove_subtotal?: number | null
+          supplier_id?: string | null
+          total_amount?: number | null
+          township?: string | null
+          trade_in_credit?: number | null
+          updated_at?: string | null
+          variant_name?: string | null
+          variant_slug?: string | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_payment_events: {
+        Row: {
+          actor_id: string | null
+          actor_type: string | null
+          branch: string | null
+          created_at: string | null
+          from_status: string | null
+          id: string | null
+          idempotency_key: string | null
+          kbz_trade_no: string | null
+          order_id: string | null
+          provider_ref: string | null
+          raw_payload: Json | null
+          reason: string | null
+          to_status: string | null
+          triggered_by: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_type?: string | null
+          branch?: string | null
+          created_at?: string | null
+          from_status?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          kbz_trade_no?: string | null
+          order_id?: string | null
+          provider_ref?: string | null
+          raw_payload?: Json | null
+          reason?: string | null
+          to_status?: string | null
+          triggered_by?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_type?: string | null
+          branch?: string | null
+          created_at?: string | null
+          from_status?: string | null
+          id?: string | null
+          idempotency_key?: string | null
+          kbz_trade_no?: string | null
+          order_id?: string | null
+          provider_ref?: string | null
+          raw_payload?: Json | null
+          reason?: string | null
+          to_status?: string | null
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
+      _uat_reset_2026_05_22_payments: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          id: string | null
+          metadata: Json | null
+          method: Database["public"]["Enums"]["payment_method"] | null
+          notes: string | null
+          order_id: string | null
+          paid_at: string | null
+          provider_ref: string | null
+          raw_response: Json | null
+          recorded_by: string | null
+          status: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string | null
+          metadata?: Json | null
+          method?: Database["public"]["Enums"]["payment_method"] | null
+          notes?: string | null
+          order_id?: string | null
+          paid_at?: string | null
+          provider_ref?: string | null
+          raw_response?: Json | null
+          recorded_by?: string | null
+          status?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string | null
+          metadata?: Json | null
+          method?: Database["public"]["Enums"]["payment_method"] | null
+          notes?: string | null
+          order_id?: string | null
+          paid_at?: string | null
+          provider_ref?: string | null
+          raw_response?: Json | null
+          recorded_by?: string | null
+          status?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: []
+      }
       accessories: {
         Row: {
           created_at: string | null
