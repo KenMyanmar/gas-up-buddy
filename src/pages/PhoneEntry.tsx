@@ -45,19 +45,45 @@ const PhoneEntry = () => {
     (window as any).__perf?.("phone-entry-status", { status: kbz.status });
   }, [kbz.status]);
 
-  // Navigate as soon as auth user is present and customer query has settled (loaded or empty).
+  // Navigate to /welcome only when KBZ auto-login is in a terminal state.
+  // While KBZ is authenticating or waiting for candidate selection, it must
+  // own the screen — otherwise a stale auth session with no customer row
+  // races past the link_pending picker.
   useEffect(() => {
     if (!user) return;
+
+    const kbzMustOwnScreen =
+      kbz.status === "idle" ||
+      kbz.status === "authenticating" ||
+      kbz.status === "link_pending" ||
+      kbz.status === "linked_select";
+
+    if (kbzMustOwnScreen) {
+      (window as any).__perf?.("phone-entry-nav-blocked", {
+        reason: kbz.status,
+        hasUser: !!user,
+        hasCustomer: !!customer,
+        customerFetched,
+      });
+      return;
+    }
+
     if (customer) {
-      console.log("[KBZ-DIAG] navigate /welcome (user + customer)");
+      (window as any).__perf?.("phone-entry-nav-allowed", {
+        reason: "user_customer",
+        customerId: customer.id,
+      });
       navigate("/welcome", { replace: true });
       return;
     }
+
     if (customerFetched && !customer) {
-      console.log("[KBZ-DIAG] navigate /welcome (user, no customer row)");
+      (window as any).__perf?.("phone-entry-nav-allowed", {
+        reason: "user_no_customer_after_kbz_done",
+      });
       navigate("/welcome", { replace: true });
     }
-  }, [user, customer, customerFetched, navigate]);
+  }, [user, customer, customerFetched, navigate, kbz.status]);
 
   const handleCandidateSelect = async (customerId: string | null) => {
     try {
@@ -96,8 +122,14 @@ const PhoneEntry = () => {
     const formatDate = (dateStr: string | null) => {
       if (!dateStr) return null;
       const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return null;
       return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
     };
+    const displayName = candidate?.name?.trim() || "your account";
+    const firstName = displayName.split(/\s+/)[0] || "there";
+    const addressMasked = candidate?.address_masked || "Address on file";
+    const totalOrders = candidate?.total_orders ?? 0;
+    const memberSinceFormatted = formatDate(candidate?.member_since ?? null);
 
     return (
       <div className="flex min-h-screen flex-col items-center bg-background px-6 py-10">
@@ -107,7 +139,7 @@ const PhoneEntry = () => {
         </div>
 
         <h1 className="font-display text-[24px] font-extrabold text-foreground mb-1.5 text-center">
-          Welcome back, {candidate.name.split(" ")[0]}!
+          Welcome back, {firstName}!
         </h1>
         <p className="text-sm text-muted-foreground text-center mb-6">
           We found your account linked to this KBZPay number.
@@ -115,17 +147,17 @@ const PhoneEntry = () => {
 
         {/* Account card */}
         <div className="w-full max-w-sm rounded-[16px] border-2 border-action/30 bg-card p-5 mb-4">
-          <span className="text-[17px] font-bold text-foreground">{candidate.name}</span>
+          <span className="text-[17px] font-bold text-foreground">{displayName}</span>
           <div className="mt-2 flex items-center gap-1.5 text-[14px] text-muted-foreground">
             <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span>{candidate.address_masked}</span>
+            <span>{addressMasked}</span>
           </div>
           <div className="mt-2 flex items-center gap-2 text-[12px] text-muted-foreground">
-            <span>{candidate.total_orders} orders</span>
-            {candidate.member_since && (
+            <span>{totalOrders} orders</span>
+            {memberSinceFormatted && (
               <>
                 <span>·</span>
-                <span>Member since {formatDate(candidate.member_since)}</span>
+                <span>Member since {memberSinceFormatted}</span>
               </>
             )}
           </div>
