@@ -211,7 +211,9 @@ const WelcomePage = () => {
         },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Update failed");
+      if (!data?.ok) {
+        throw new Error(data?.detail || data?.error || "Update failed");
+      }
 
       qc.invalidateQueries({ queryKey: ["welcome_customer"] });
       qc.invalidateQueries({ queryKey: ["customer_profile"] });
