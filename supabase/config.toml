@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.kbzpay-reconcile-cron]
 verify_jwt = false
+
+[functions.catalog-list]
+verify_jwt = false
