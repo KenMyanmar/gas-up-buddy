@@ -1,30 +1,30 @@
-## Fix PhoneEntry stale-session race (P0)
+## Plan: Sync deployed `catalog-list` v6 into repo
 
-### Problem
-PhoneEntry's navigation effect redirects to `/welcome` as soon as `customerFetched && !customer`, even while `useKbzAutoLogin` is still resolving. For orphan auth sessions (existing customer with `auth_user_id = NULL`), this fires before the `link_pending` candidate picker can render, so the user lands on WelcomePage with an error instead of seeing "Welcome back / That's me".
+### Goal
+Make the repository match the already-deployed production `catalog-list` edge function (v6, deployed at 19:16 UTC) so that future Lovable redeploys do not revert it.
 
-### Change 1 — Gate the navigation effect on KBZ status
-File: `src/pages/PhoneEntry.tsx` (lines 48–60)
+### Changes
 
-Replace the effect so it blocks navigation while KBZ owns the screen (`idle`, `authenticating`, `link_pending`, `linked_select`). Only navigate to `/welcome` when KBZ is in a terminal state. Add `__perf` breadcrumbs for blocked vs allowed navigation (per task spec). Include `kbz.status` in deps.
+1. **Create `supabase/functions/catalog-list/index.ts`**
+   - Write the exact v6 source provided by the user — byte-identical, no formatting changes, no logic edits.
+   - Key verification lines preserved:
+     - `image_url,` in the `brand_products` select
+     - `image_url: row.image_url || row.cylinder_types?.image_url || null` in the shaped product response
 
-### Change 2 — Harden single-candidate UI
-File: `src/pages/PhoneEntry.tsx` (lines 94–160)
-
-- Compute `displayName = candidate?.name?.trim() || "your account"` and `firstName = displayName.split(/\s+/)[0] || "there"`. Stop calling `candidate.name.split` directly.
-- Render `candidate.address_masked || "Address on file"`.
-- Render `candidate.total_orders ?? 0`.
-- `formatDate` already returns `null` on missing input; also guard against `isNaN(d.getTime())` so invalid dates render nothing. Keep the `member_since &&` wrapper so nothing renders when null/invalid.
+2. **Append to `supabase/config.toml`**
+   - Add block:
+     ```toml
+     [functions.catalog-list]
+     verify_jwt = false
+     ```
 
 ### Out of scope
-- No backend / edge function changes.
-- No changes to `useKbzAutoLogin`, `linked` / `new_account` handling, or `kbzpay-link-customer` contract.
-- Multi-candidate `CandidateCard` and other branches untouched.
+- No function body changes
+- No manual redeploy (Lovable pipeline will auto-deploy on next push)
+- No caller (`useBrandProducts.ts`) edits
+- No tests or refactors
 
 ### Verification
-1. Orphan auth session + `link_pending` (1 candidate) → stays on PhoneEntry, shows "Welcome back, {firstName}!".
-2. Tap "That's me" → one `kbzpay-link-customer` call, session set, navigates to `/welcome`.
-3. Normal `linked` path still navigates to `/welcome` after KBZ resolves.
-4. `__perf` logs show `phone-entry-nav-blocked` during KBZ-owned states.
-
-After approval: apply patch, then user clicks Publish → Update and waits 60s.
+- `index.ts` on disk matches pasted source exactly
+- `config.toml` contains the new `[functions.catalog-list]` block
+- Only these two files are modified in the commit
