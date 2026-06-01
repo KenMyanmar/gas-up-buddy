@@ -2205,6 +2205,67 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_followups: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          last_order_id: string | null
+          notes: string | null
+          reason: string
+          source: string
+          stage: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          last_order_id?: string | null
+          notes?: string | null
+          reason: string
+          source?: string
+          stage?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          last_order_id?: string | null
+          notes?: string | null
+          reason?: string
+          source?: string
+          stage?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_followups_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_followups_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_followups_last_order_id_fkey"
+            columns: ["last_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           content: string
@@ -4544,6 +4605,40 @@ export type Database = {
           },
         ]
       }
+      lead_followups_view: {
+        Row: {
+          assigned_to: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string | null
+          last_order_amount: number | null
+          last_order_at: string | null
+          last_order_id: string | null
+          notes: string | null
+          phone: string | null
+          reason: string | null
+          source: string | null
+          stage: string | null
+          township: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_followups_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_followups_last_order_id_fkey"
+            columns: ["last_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       my_open_tasks: {
         Row: {
           assigned_to: string | null
@@ -4885,6 +4980,7 @@ export type Database = {
           path: string
         }[]
       }
+      feed_lead_followups: { Args: never; Returns: number }
       get_agent_customer_ids: { Args: never; Returns: string[] }
       get_my_customer_ids: { Args: never; Returns: string[] }
       get_my_order_ids: { Args: never; Returns: string[] }
