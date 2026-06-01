@@ -1,30 +1,11 @@
-## Plan: Sync deployed `catalog-list` v6 into repo
+## v55 — kbzpay-auto-login: remove customer_phones insert in new_account branch
 
-### Goal
-Make the repository match the already-deployed production `catalog-list` edge function (v6, deployed at 19:16 UTC) so that future Lovable redeploys do not revert it.
+**File:** `supabase/functions/kbzpay-auto-login/index.ts`
 
-### Changes
+**Change:** Delete lines 612–619 (and the trailing blank line 620) — the `if (customerId) { await supabaseAdmin.from("customer_phones").insert({...}) }` block inside the `if (candidates.length === 0)` new_account branch.
 
-1. **Create `supabase/functions/catalog-list/index.ts`**
-   - Write the exact v6 source provided by the user — byte-identical, no formatting changes, no logic edits.
-   - Key verification lines preserved:
-     - `image_url,` in the `brand_products` select
-     - `image_url: row.image_url || row.cylinder_types?.image_url || null` in the shaped product response
+**Keep:** Line 610 `const customerId = newCustomer?.id || null;` — still consumed by the activity_logs insert (`entity_id`, metadata `customer_id`) and the response payload below.
 
-2. **Append to `supabase/config.toml`**
-   - Add block:
-     ```toml
-     [functions.catalog-list]
-     verify_jwt = false
-     ```
+**Out of scope:** No other lines, files, configs, or functions touched. `supabase/config.toml` untouched (`verify_jwt = false` preserved). No frontend changes.
 
-### Out of scope
-- No function body changes
-- No manual redeploy (Lovable pipeline will auto-deploy on next push)
-- No caller (`useBrandProducts.ts`) edits
-- No tests or refactors
-
-### Verification
-- `index.ts` on disk matches pasted source exactly
-- `config.toml` contains the new `[functions.catalog-list]` block
-- Only these two files are modified in the commit
+**Deploy:** Lovable commits → GitHub auto-redeploys to Supabase (version → 55).

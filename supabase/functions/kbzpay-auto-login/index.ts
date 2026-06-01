@@ -609,15 +609,6 @@ Deno.serve(async (req) => {
 
       const customerId = newCustomer?.id || null;
 
-      if (customerId) {
-        await supabaseAdmin.from("customer_phones").insert({
-          customer_id: customerId,
-          phone: phone,
-          label: "primary",
-          is_primary: true,
-        }).catch((e: any) => console.error("customer_phones insert error:", e));
-      }
-
       const session = await mintSession(supabaseAdmin, userId, bridgeEmail, e164);
 
       await supabaseAdmin.from("activity_logs").insert({
