@@ -127,20 +127,34 @@ async function mintSession(
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
-  let { data, error } = await anonClient.auth.signInWithPassword({
-    email: bridgeEmail,
-    password,
-  });
+  // v54: harden signInWithPassword against fresh-user GoTrue propagation race.
+  // v53's single 400ms retry exhausted for brand-new accounts → 500 on the
+  // first attempt of the new_account path. Retry ONLY on invalid_credentials.
+  const backoffsMs = [0, 500, 1000, 2000]; // attempt 1 immediate, then 3 backoff retries
+  let data: any = null;
+  let error: any = null;
+  let attempt = 0;
 
-  if (error && /invalid_credentials/i.test(error.message || "")) {
-    await new Promise((r) => setTimeout(r, 400));
-    const retry = await anonClient.auth.signInWithPassword({ email: bridgeEmail, password });
-    data = retry.data;
-    error = retry.error;
+  for (let i = 0; i < backoffsMs.length; i++) {
+    attempt = i + 1;
+    if (backoffsMs[i] > 0) {
+      await new Promise((r) => setTimeout(r, backoffsMs[i]));
+    }
+    const res = await anonClient.auth.signInWithPassword({ email: bridgeEmail, password });
+    data = res.data;
+    error = res.error;
+    if (!error && data?.session) {
+      console.log("mintSession_signin_success", { auth_user_id: authUserId, attempt });
+      break;
+    }
+    // Only the propagation race is retryable; bail immediately on anything else.
+    if (!error || !/invalid_credentials/i.test(error.message || "")) {
+      break;
+    }
   }
 
-  if (error || !data.session) {
-    console.error("mintSession_signin_failed", { auth_user_id: authUserId, code: error?.code });
+  if (error || !data?.session) {
+    console.error("mintSession_signin_failed", { auth_user_id: authUserId, code: error?.code, attempts: attempt });
     throw new Error("KBZ_MINT_SESSION_SIGNIN_FAILED");
   }
 
